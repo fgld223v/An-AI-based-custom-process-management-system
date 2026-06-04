@@ -2,33 +2,25 @@ server:
   port: 8080
 
 spring:
+  application:
+    name: ai-workflow-backend
   datasource:
-    url: jdbc:mysql://localhost:3306/aiflow?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/ai_workflow_mvp?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
     username: root
     password: fgld@223v
-    driver-class-name: com.mysql.cj.jdbc.Driver
 
-  jpa:
-    hibernate:
-      ddl-auto: update
-    show-sql: true
-    properties:
-      hibernate:
-        format_sql: true
-        dialect: org.hibernate.dialect.MySQLDialect
-
-  data:
-    redis:
-      host: localhost
-      port: 6379
-      database: 0
-      timeout: 3000ms
+mybatis-plus:
+  mapper-locations: classpath*:/mapper/**/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    db-config:
+      id-type: auto
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
 
 jwt:
-  secret: my-secret-key-for-jwt-token-generation-ai-flow-platform
-  expiration: 86400000
-
-# Flowable 流程引擎（暂时禁用）
-# flowable:
-#   database-schema-update: false
-#   async-executor-activate: false
+  secret: change-this-secret-to-a-long-random-string-at-least-32-bytes
+  expiration-minutes: 1440
