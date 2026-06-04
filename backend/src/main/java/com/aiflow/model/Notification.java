@@ -37,8 +37,8 @@ public class Notification {
     @Column(name = "related_id")
     private Long relatedId;
 
-    @Column(name = "read")
-    private Integer read;
+    @Column(name = "is_read")
+    private Integer isRead;
 
     @Column(name = "read_time")
     private LocalDateTime readTime;

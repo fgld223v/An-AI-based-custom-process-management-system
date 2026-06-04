@@ -29,8 +29,13 @@ export const useUserStore = defineStore('user', () => {
 
   const loadFromStorage = () => {
     const savedUserInfo = localStorage.getItem('userInfo')
-    if (savedUserInfo) {
-      userInfo.value = JSON.parse(savedUserInfo)
+    if (savedUserInfo && savedUserInfo !== 'undefined' && savedUserInfo !== 'null') {
+      try {
+        userInfo.value = JSON.parse(savedUserInfo)
+      } catch (e) {
+        console.error('Failed to parse userInfo from localStorage:', e)
+        localStorage.removeItem('userInfo')
+      }
     }
   }
 

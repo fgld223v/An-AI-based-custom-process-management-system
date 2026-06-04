@@ -28,6 +28,7 @@ jwt:
   secret: my-secret-key-for-jwt-token-generation-ai-flow-platform
   expiration: 86400000
 
-flowable:
-  database-schema-update: true
-  async-executor-activate: false
+# Flowable 流程引擎（暂时禁用）
+# flowable:
+#   database-schema-update: false
+#   async-executor-activate: false
