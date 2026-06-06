@@ -1,0 +1,67 @@
+package com.aiflow.controller;
+
+import com.aiflow.common.ApiResponse;
+import com.aiflow.dto.DtoMapper;
+import com.aiflow.dto.MarketCopyRequest;
+import com.aiflow.dto.MarketPublishRequest;
+import com.aiflow.dto.ProcessTemplateDTO;
+import com.aiflow.dto.TemplateMarketDTO;
+import com.aiflow.model.ProcessTemplate;
+import com.aiflow.model.TemplateMarket;
+import com.aiflow.service.TemplateMarketService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
+
+@RestController
+@RequiredArgsConstructor
+@RequestMapping("/api/template-market")
+public class TemplateMarketController {
+
+    private final TemplateMarketService templateMarketService;
+
+    @GetMapping
+    public ApiResponse<List<TemplateMarketDTO>> listMarketItems() {
+        List<TemplateMarketDTO> result = templateMarketService.listMarketItems().stream()
+                .map(DtoMapper::toTemplateMarketDTO)
+                .toList();
+        return ApiResponse.success(result);
+    }
+
+    @GetMapping("/{id}")
+    public ApiResponse<TemplateMarketDTO> getMarketItem(@PathVariable Long id) {
+        TemplateMarket market = templateMarketService.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("market item not found"));
+        return ApiResponse.success(DtoMapper.toTemplateMarketDTO(market));
+    }
+
+    @PostMapping("/publish-template")
+    public ApiResponse<TemplateMarketDTO> publishTemplateToMarket(@RequestBody MarketPublishRequest request) {
+        TemplateMarket market = templateMarketService.publishTemplateToMarket(
+                request.getTemplateId(),
+                request.getPublisherId(),
+                request.getTitle(),
+                request.getDescription(),
+                request.getCoverUrl(),
+                request.getTags()
+        );
+        return ApiResponse.success(DtoMapper.toTemplateMarketDTO(market));
+    }
+
+    @PostMapping("/{marketId}/copy")
+    public ApiResponse<ProcessTemplateDTO> copyTemplateFromMarket(@PathVariable Long marketId,
+                                                                  @RequestBody MarketCopyRequest request) {
+        ProcessTemplate copied = templateMarketService.copyTemplateFromMarket(
+                marketId,
+                request.getUserId(),
+                request.getNewTemplateName()
+        );
+        return ApiResponse.success(DtoMapper.toProcessTemplateDTO(copied));
+    }
+}

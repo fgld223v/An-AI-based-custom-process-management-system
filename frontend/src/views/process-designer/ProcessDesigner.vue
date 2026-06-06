@@ -334,6 +334,32 @@
         <el-button round type="success" @click="importFromText">导入并回显</el-button>
       </template>
     </el-dialog>
+
+    <el-dialog v-model="templateSaveVisible" title="保存为流程模板" width="620px">
+      <el-form label-position="top">
+        <el-form-item label="模板编码">
+          <el-input v-model="templateSaveForm.templateCode" :disabled="Boolean(savedTemplateId)" placeholder="例如 leave_approval_v1" />
+        </el-form-item>
+        <el-form-item label="模板名称">
+          <el-input v-model="templateSaveForm.templateName" placeholder="例如 请假审批流程" />
+        </el-form-item>
+        <el-form-item label="业务类型">
+          <el-select v-model="templateSaveForm.bizTypeId" clearable placeholder="请选择业务类型">
+            <el-option v-for="item in bizTypes" :key="item.id" :label="item.typeName" :value="item.id" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="绑定表单">
+          <el-select v-model="templateSaveForm.formId" clearable placeholder="请选择已发布表单">
+            <el-option v-for="item in forms" :key="item.id" :label="item.formName" :value="item.id" />
+          </el-select>
+          <div v-if="forms.length === 0" class="designer-empty-hint">暂无已发布表单，可先在表单设计器中创建并发布表单。</div>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button round @click="templateSaveVisible = false">取消</el-button>
+        <el-button round type="success" :loading="templateSaving" @click="submitTemplateSave">保存模板</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -358,6 +384,10 @@ import 'bpmn-js/dist/assets/diagram-js.css'
 import 'bpmn-js/dist/assets/bpmn-js.css'
 import 'bpmn-js/dist/assets/bpmn-font/css/bpmn.css'
 import { showComingSoon } from '@/utils/feedback'
+import { getBizTypes } from '@/api/bizType'
+import { getPublishedForms } from '@/api/formDefinition'
+import { createProcessTemplate, updateProcessTemplate } from '@/api/processTemplate'
+import type { BizType, FormDefinition } from '@/types/workflow'
 
 type BusinessType =
   | 'start'
@@ -485,10 +515,21 @@ const xmlVisible = ref(false)
 const importVisible = ref(false)
 const xmlText = ref('')
 const importXmlText = ref('')
+const templateSaveVisible = ref(false)
+const templateSaving = ref(false)
+const savedTemplateId = ref<number | null>(null)
+const bizTypes = ref<BizType[]>([])
+const forms = ref<FormDefinition[]>([])
 const elementCount = ref(0)
 const zoomPercent = ref(100)
 const nodeConfigMap = reactive<Record<string, NodeBusinessConfig>>({})
 const currentXml = ref(props.modelValue || defaultBpmnXml())
+const templateSaveForm = reactive({
+  templateCode: '',
+  templateName: '未命名流程模板',
+  bizTypeId: null as number | null,
+  formId: null as number | null
+})
 
 const selectedConfig = computed(() => {
   if (!selectedElement.value) return null
@@ -566,7 +607,54 @@ async function exportXml() {
 async function saveXml() {
   await syncXml(true)
   emit('save', currentXml.value)
-  ElMessage.success('bpmnXml 已保存并回传给父组件')
+  await ensureTemplateOptionsLoaded()
+  templateSaveVisible.value = true
+}
+
+async function ensureTemplateOptionsLoaded() {
+  if (bizTypes.value.length > 0 || forms.value.length > 0) return
+  const [bizTypeList, formList] = await Promise.all([getBizTypes(), getPublishedForms()])
+  bizTypes.value = bizTypeList
+  forms.value = formList
+}
+
+async function submitTemplateSave() {
+  if (!templateSaveForm.templateName.trim()) {
+    ElMessage.warning('请输入模板名称')
+    return
+  }
+  if (!savedTemplateId.value && !templateSaveForm.templateCode.trim()) {
+    ElMessage.warning('请输入模板编码')
+    return
+  }
+
+  await syncXml(true)
+  templateSaving.value = true
+  try {
+    const payload = {
+      templateCode: templateSaveForm.templateCode,
+      templateName: templateSaveForm.templateName,
+      bizTypeId: templateSaveForm.bizTypeId,
+      formId: templateSaveForm.formId,
+      sourceType: 'manual',
+      bpmnXml: currentXml.value,
+      nodeConfig: JSON.stringify(nodeConfigMap),
+      formBindConfig: JSON.stringify({ formId: templateSaveForm.formId }),
+      // TODO: 后续接入登录后替换为当前用户 ID。
+      createdBy: 1
+    }
+    if (savedTemplateId.value) {
+      await updateProcessTemplate(savedTemplateId.value, payload)
+      ElMessage.success('流程模板已更新')
+    } else {
+      const saved = await createProcessTemplate(payload)
+      savedTemplateId.value = saved.id
+      ElMessage.success('流程模板已保存')
+    }
+    templateSaveVisible.value = false
+  } finally {
+    templateSaving.value = false
+  }
 }
 
 async function syncXml(emitChange: boolean) {

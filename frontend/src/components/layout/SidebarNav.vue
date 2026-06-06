@@ -77,8 +77,9 @@ const menuGroups: Array<{ title: string; items: MenuItem[] }> = [
   {
     title: '资源',
     items: [
-      { label: '节点/工具库', path: '/placeholder/tools', icon: Tools },
-      { label: '模板市场', path: '/templates', icon: Files, available: true }
+      { label: '流程模板管理', path: '/templates', icon: Files, available: true },
+      { label: '模板市场', path: '/template-market', icon: Files, available: true },
+      { label: '节点/工具库', path: '/placeholder/tools', icon: Tools }
     ]
   },
   {
