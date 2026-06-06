@@ -22,7 +22,7 @@ request.interceptors.response.use(
     const result = response.data as ApiResult<unknown>
     if (result && typeof result.code === 'number' && result.code !== 200) {
       ElMessage.error(result.message || '请求失败')
-      return Promise.reject(new Error(result.message))
+      return Promise.reject(new Error(result.message || '请求失败'))
     }
     return response
   },
@@ -33,7 +33,7 @@ request.interceptors.response.use(
       router.replace('/login')
       ElMessage.warning('登录已失效，请重新登录')
     } else {
-      ElMessage.error(error.response?.data?.message || '网络请求异常')
+      ElMessage.error(error.response?.data?.message || '请求失败，请检查后端服务是否启动')
     }
     return Promise.reject(error)
   }

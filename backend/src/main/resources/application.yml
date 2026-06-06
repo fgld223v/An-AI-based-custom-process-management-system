@@ -9,6 +9,13 @@ spring:
     url: jdbc:mysql://localhost:3306/ai_workflow_mvp?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
     username: root
     password: 122518Aotu@
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
 
 mybatis-plus:
   mapper-locations: classpath*:/mapper/**/*.xml
