@@ -4,8 +4,10 @@ import com.aiflow.enums.TemplateSourceType;
 import com.aiflow.enums.TemplateStatus;
 import com.aiflow.model.ProcessTemplate;
 import com.aiflow.repository.ProcessTemplateRepository;
+import com.aiflow.service.FlowableProcessService;
 import com.aiflow.service.ProcessTemplateService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -14,6 +16,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -22,6 +25,7 @@ public class ProcessTemplateServiceImpl implements ProcessTemplateService {
     private static final DateTimeFormatter COPY_CODE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS");
 
     private final ProcessTemplateRepository processTemplateRepository;
+    private final FlowableProcessService flowableProcessService;
 
     @Override
     public ProcessTemplate createTemplate(ProcessTemplate template) {
@@ -85,7 +89,18 @@ public class ProcessTemplateServiceImpl implements ProcessTemplateService {
         existing.setStatus(TemplateStatus.PUBLISHED);
         existing.setPublishedAt(now);
         existing.setUpdatedAt(now);
-        return processTemplateRepository.save(existing);
+        ProcessTemplate saved = processTemplateRepository.save(existing);
+
+        // 部署到Flowable
+        try {
+            flowableProcessService.deployProcess(id);
+            log.info("流程模板发布并部署成功: templateId={}", id);
+        } catch (Exception e) {
+            log.error("流程模板发布成功但Flowable部署失败: templateId={}, error={}", id, e.getMessage());
+            // 部署失败不影响发布状态，但记录错误
+        }
+
+        return saved;
     }
 
     @Override

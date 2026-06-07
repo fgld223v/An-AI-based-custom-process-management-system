@@ -46,6 +46,13 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
                         .requestMatchers("/error").permitAll()
+                        .requestMatchers("/favicon.ico").permitAll()
+                        .requestMatchers("/api/forms/**").permitAll()
+                        .requestMatchers("/api/process-templates/**").permitAll()
+                        .requestMatchers("/api/biz-types/**").permitAll()
+                        .requestMatchers("/api/template-market/**").permitAll()
+                        .requestMatchers("/api/flowable/**").permitAll()
+                        .requestMatchers("/api/process-instances/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
