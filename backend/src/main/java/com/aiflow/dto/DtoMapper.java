@@ -5,7 +5,6 @@ import com.aiflow.enums.TemplateSourceType;
 import com.aiflow.model.BizTypeDict;
 import com.aiflow.model.FormDefinition;
 import com.aiflow.model.ProcessFragment;
-import com.aiflow.model.ProcessInstance;
 import com.aiflow.model.ProcessTemplate;
 import com.aiflow.model.TemplateMarket;
 
@@ -200,37 +199,6 @@ public final class DtoMapper {
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())
                 .build();
-    }
-
-    public static ProcessInstanceDTO toProcessInstanceDTO(ProcessInstance entity) {
-        if (entity == null) {
-            return null;
-        }
-        return ProcessInstanceDTO.builder()
-                .id(entity.getId())
-                .instanceCode(entity.getInstanceCode())
-                .templateId(entity.getTemplateId())
-                .formId(entity.getFormId())
-                .applicantId(entity.getApplicantId())
-                .bizTypeId(entity.getBizTypeId())
-                .title(entity.getTitle())
-                .status(entity.getStatus())
-                .formData(entity.getFormData())
-                .currentNodeKey(entity.getCurrentNodeKey())
-                .flowableProcessInstanceId(entity.getFlowableProcessInstanceId())
-                .startedAt(entity.getStartedAt())
-                .endedAt(entity.getEndedAt())
-                .createdAt(entity.getCreatedAt())
-                .updatedAt(entity.getUpdatedAt())
-                .build();
-    }
-
-    public static ProcessInstanceDTO toProcessInstanceDTO(ProcessInstance entity, String templateName) {
-        ProcessInstanceDTO dto = toProcessInstanceDTO(entity);
-        if (dto != null) {
-            dto.setTemplateName(templateName);
-        }
-        return dto;
     }
 
     private static TemplateSourceType parseTemplateSourceType(String value) {
