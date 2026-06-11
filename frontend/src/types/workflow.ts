@@ -27,6 +27,15 @@ export interface FormDefinition {
   updatedAt?: string
 }
 
+export interface FormDefinitionPayload {
+  formCode?: string
+  formName: string
+  bizTypeId?: number | null
+  version?: number
+  fieldList?: string
+  formSchema?: string
+}
+
 export interface ProcessTemplate {
   id: number
   templateCode: string
@@ -45,6 +54,11 @@ export interface ProcessTemplate {
   publishedAt?: string
   createdAt?: string
   updatedAt?: string
+}
+
+export interface TemplateFormBinding {
+  template: ProcessTemplate
+  form: FormDefinition
 }
 
 export interface ProcessTemplatePayload {

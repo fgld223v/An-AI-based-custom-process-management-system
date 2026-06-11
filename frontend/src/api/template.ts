@@ -1,5 +1,4 @@
 import request from './request'
-import type { ApiResult } from '@/types/auth'
 import type { WorkflowTemplate, WorkflowTemplateDraft } from '@/types/template'
 
 export interface PageResult<T> {
@@ -11,11 +10,9 @@ export interface PageResult<T> {
 }
 
 export async function getTemplatePage(params = {}) {
-  const response = await request.get<ApiResult<PageResult<WorkflowTemplate>>>('/templates', { params })
-  return response.data.data
+  return await request.get<PageResult<WorkflowTemplate>>('/api/templates', { params })
 }
 
 export async function createTemplate(data: WorkflowTemplateDraft) {
-  const response = await request.post<ApiResult<WorkflowTemplate>>('/templates', data)
-  return response.data.data
+  return await request.post<WorkflowTemplate>('/api/templates', data)
 }

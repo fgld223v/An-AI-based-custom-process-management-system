@@ -1,7 +1,6 @@
 import request from './request'
-import type { ApiResponse, BizType } from '@/types/workflow'
+import type { BizType } from '@/types/workflow'
 
 export async function getBizTypes() {
-  const response = await request.get<ApiResponse<BizType[]>>('/biz-types')
-  return response.data.data || []
+  return await request.get<BizType[]>('/api/biz-types') || []
 }

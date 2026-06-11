@@ -44,7 +44,28 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authenticationProvider(authenticationProvider)
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
+                        .requestMatchers(HttpMethod.POST,
+                                "/api/forms",
+                                "/api/forms/*/publish",
+                                "/api/process-templates",
+                                "/api/process-templates/*/publish",
+                                "/api/template-market/publish-template",
+                                "/api/template-market/*/copy"
+                        ).permitAll()
+                        .requestMatchers(HttpMethod.PUT,
+                                "/api/forms/*",
+                                "/api/process-templates/*"
+                        ).permitAll()
+                        .requestMatchers(HttpMethod.GET,
+                                "/api/health",
+                                "/api/biz-types",
+                                "/api/forms",
+                                "/api/forms/**",
+                                "/api/process-templates/**",
+                                "/api/template-market/**"
+                        ).permitAll()
                         .requestMatchers("/error").permitAll()
                         .anyRequest().authenticated()
                 )
@@ -73,10 +94,15 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOriginPatterns(List.of("*"));
+        configuration.setAllowedOrigins(List.of(
+                "http://localhost:5173",
+                "http://localhost:5174",
+                "http://127.0.0.1:5173",
+                "http://127.0.0.1:5174"
+        ));
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
-        configuration.setAllowCredentials(true);
+        configuration.setAllowCredentials(false);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;

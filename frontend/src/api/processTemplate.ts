@@ -1,27 +1,26 @@
 import request from './request'
-import type { ApiResponse, ProcessTemplate, ProcessTemplatePayload } from '@/types/workflow'
+import type { ProcessTemplate, ProcessTemplatePayload, TemplateFormBinding } from '@/types/workflow'
 
 export async function getProcessTemplates() {
-  const response = await request.get<ApiResponse<ProcessTemplate[]>>('/process-templates')
-  return response.data.data || []
+  return await request.get<ProcessTemplate[]>('/api/process-templates') || []
 }
 
 export async function getProcessTemplateDetail(id: number) {
-  const response = await request.get<ApiResponse<ProcessTemplate>>(`/process-templates/${id}`)
-  return response.data.data
+  return await request.get<ProcessTemplate>(`/api/process-templates/${id}`)
+}
+
+export async function getProcessTemplateBoundForm(id: number) {
+  return await request.get<TemplateFormBinding>(`/api/process-templates/${id}/form`)
 }
 
 export async function createProcessTemplate(data: ProcessTemplatePayload) {
-  const response = await request.post<ApiResponse<ProcessTemplate>>('/process-templates', data)
-  return response.data.data
+  return await request.post<ProcessTemplate>('/api/process-templates', data)
 }
 
 export async function updateProcessTemplate(id: number, data: ProcessTemplatePayload) {
-  const response = await request.put<ApiResponse<ProcessTemplate>>(`/process-templates/${id}`, data)
-  return response.data.data
+  return await request.put<ProcessTemplate>(`/api/process-templates/${id}`, data)
 }
 
 export async function publishProcessTemplate(id: number) {
-  const response = await request.post<ApiResponse<ProcessTemplate>>(`/process-templates/${id}/publish`)
-  return response.data.data
+  return await request.post<ProcessTemplate>(`/api/process-templates/${id}/publish`)
 }

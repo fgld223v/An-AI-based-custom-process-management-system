@@ -52,11 +52,9 @@ public class FormDefinitionServiceImpl implements FormDefinitionService {
         }
 
         FormDefinition existing = getRequiredForm(id);
-        if (existing.getStatus() != FormStatus.DRAFT) {
-            throw new IllegalStateException("only draft form can be updated");
-        }
+        requireText(form.getFormName(), "formName must not be blank");
 
-        existing.setFormName(form.getFormName());
+        existing.setFormName(form.getFormName().trim());
         existing.setBizTypeId(form.getBizTypeId());
         existing.setFieldList(form.getFieldList());
         existing.setFormSchema(form.getFormSchema());
@@ -71,12 +69,22 @@ public class FormDefinitionServiceImpl implements FormDefinitionService {
         if (existing.getStatus() != FormStatus.DRAFT) {
             throw new IllegalStateException("only draft form can be published");
         }
+        requireText(existing.getFormName(), "formName must not be blank");
+        if (!hasText(existing.getFieldList()) && !hasText(existing.getFormSchema())) {
+            throw new IllegalStateException("fieldList or formSchema must not be blank");
+        }
 
         LocalDateTime now = LocalDateTime.now();
         existing.setStatus(FormStatus.PUBLISHED);
         existing.setPublishedAt(now);
         existing.setUpdatedAt(now);
         return formDefinitionRepository.save(existing);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<FormDefinition> listForms() {
+        return formDefinitionRepository.findByDeletedOrderByUpdatedAtDesc(0);
     }
 
     @Override
@@ -92,6 +100,13 @@ public class FormDefinitionServiceImpl implements FormDefinitionService {
         return formDefinitionRepository.findById(id);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<FormDefinition> findActiveById(Long id) {
+        requireId(id, "id must not be null");
+        return formDefinitionRepository.findByIdAndDeleted(id, 0);
+    }
+
     private FormDefinition getRequiredForm(Long id) {
         return formDefinitionRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("form not found"));
@@ -104,8 +119,12 @@ public class FormDefinitionServiceImpl implements FormDefinitionService {
     }
 
     private void requireText(String value, String message) {
-        if (value == null || value.trim().isEmpty()) {
+        if (!hasText(value)) {
             throw new IllegalArgumentException(message);
         }
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.trim().isEmpty();
     }
 }

@@ -31,6 +31,7 @@ com\aiflow\service\impl\ProcessFragmentServiceImpl.class
 com\aiflow\config\DataInitializer.class
 com\example\aiflow\module\user\entity\SysUser.class
 com\example\aiflow\module\user\runner\DefaultAdminInitializer.class
+com\aiflow\dto\TemplateFormBindingDTO$TemplateFormBindingDTOBuilder.class
 com\aiflow\model\FormDefinition$FormDefinitionBuilder.class
 com\aiflow\dto\FormDefinitionDTO.class
 com\aiflow\service\FormDefinitionService.class
@@ -64,6 +65,7 @@ com\aiflow\common\ApiResponse.class
 com\example\aiflow\module\auth\dto\LoginRequest.class
 com\aiflow\model\ProcessFragment$ProcessFragmentBuilder.class
 com\aiflow\controller\ProcessFragmentController.class
+com\aiflow\dto\TemplateFormBindingDTO.class
 com\aiflow\service\impl\BizTypeServiceImpl.class
 com\aiflow\enums\TemplateStatusConverter.class
 com\aiflow\repository\ProcessTemplateRepository.class
@@ -95,6 +97,7 @@ com\aiflow\dto\ProcessTemplateDTO$ProcessTemplateDTOBuilder.class
 com\aiflow\enums\MarketTypeConverter.class
 com\aiflow\service\impl\TemplateMarketServiceImpl.class
 com\aiflow\dto\DtoMapper.class
+com\aiflow\controller\HealthController.class
 com\aiflow\enums\TemplateSourceTypeConverter.class
 com\aiflow\model\SysUser$SysUserBuilder.class
 com\aiflow\service\impl\FormDefinitionServiceImpl.class
