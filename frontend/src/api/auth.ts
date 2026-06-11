@@ -1,12 +1,10 @@
 import request from './request'
-import type { ApiResult, LoginRequest, LoginResponse, UserInfo } from '@/types/auth'
+import type { LoginRequest, LoginResponse, UserInfo } from '@/types/auth'
 
 export async function loginApi(data: LoginRequest) {
-  const response = await request.post<ApiResult<LoginResponse>>('/auth/login', data)
-  return response.data.data
+  return await request.post<LoginResponse>('/api/auth/login', data)
 }
 
 export async function getMeApi() {
-  const response = await request.get<ApiResult<UserInfo>>('/user/me')
-  return response.data.data
+  return await request.get<UserInfo>('/api/user/me')
 }

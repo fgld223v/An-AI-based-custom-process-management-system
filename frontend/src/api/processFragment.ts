@@ -1,27 +1,22 @@
 import request from './request'
-import type { ApiResponse, ProcessFragment, ProcessFragmentPayload } from '@/types/workflow'
+import type { ProcessFragment, ProcessFragmentPayload } from '@/types/workflow'
 
 export async function getProcessFragments() {
-  const response = await request.get<ApiResponse<ProcessFragment[]>>('/process-fragments')
-  return response.data.data || []
+  return await request.get<ProcessFragment[]>('/api/process-fragments') || []
 }
 
 export async function getProcessFragmentDetail(id: number) {
-  const response = await request.get<ApiResponse<ProcessFragment>>(`/process-fragments/${id}`)
-  return response.data.data
+  return await request.get<ProcessFragment>(`/api/process-fragments/${id}`)
 }
 
 export async function createProcessFragment(data: ProcessFragmentPayload) {
-  const response = await request.post<ApiResponse<ProcessFragment>>('/process-fragments', data)
-  return response.data.data
+  return await request.post<ProcessFragment>('/api/process-fragments', data)
 }
 
 export async function updateProcessFragment(id: number, data: ProcessFragmentPayload) {
-  const response = await request.put<ApiResponse<ProcessFragment>>(`/process-fragments/${id}`, data)
-  return response.data.data
+  return await request.put<ProcessFragment>(`/api/process-fragments/${id}`, data)
 }
 
 export async function publishProcessFragment(id: number) {
-  const response = await request.post<ApiResponse<ProcessFragment>>(`/process-fragments/${id}/publish`)
-  return response.data.data
+  return await request.post<ProcessFragment>(`/api/process-fragments/${id}/publish`)
 }

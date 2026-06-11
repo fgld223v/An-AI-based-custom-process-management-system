@@ -11,7 +11,11 @@ public interface FormDefinitionRepository extends JpaRepository<FormDefinition, 
 
     Optional<FormDefinition> findByFormCodeAndVersion(String formCode, Integer version);
 
+    Optional<FormDefinition> findByIdAndDeleted(Long id, Integer deleted);
+
     boolean existsByFormCodeAndVersion(String formCode, Integer version);
+
+    List<FormDefinition> findByDeletedOrderByUpdatedAtDesc(Integer deleted);
 
     List<FormDefinition> findByStatusAndDeletedOrderByUpdatedAtDesc(FormStatus status, Integer deleted);
 }

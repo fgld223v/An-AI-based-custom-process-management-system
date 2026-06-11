@@ -25,6 +25,14 @@ public class FormDefinitionController {
 
     private final FormDefinitionService formDefinitionService;
 
+    @GetMapping
+    public ApiResponse<List<FormDefinitionDTO>> listForms() {
+        List<FormDefinitionDTO> result = formDefinitionService.listForms().stream()
+                .map(DtoMapper::toFormDefinitionDTO)
+                .toList();
+        return ApiResponse.success(result);
+    }
+
     @GetMapping("/published")
     public ApiResponse<List<FormDefinitionDTO>> listPublishedForms() {
         List<FormDefinitionDTO> result = formDefinitionService.listPublishedForms().stream()
@@ -53,7 +61,7 @@ public class FormDefinitionController {
 
     @GetMapping("/{id}")
     public ApiResponse<FormDefinitionDTO> getForm(@PathVariable Long id) {
-        FormDefinition form = formDefinitionService.findById(id)
+        FormDefinition form = formDefinitionService.findActiveById(id)
                 .orElseThrow(() -> new IllegalArgumentException("form not found"));
         return ApiResponse.success(DtoMapper.toFormDefinitionDTO(form));
     }

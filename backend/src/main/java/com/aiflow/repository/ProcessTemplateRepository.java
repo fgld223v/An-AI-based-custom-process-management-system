@@ -10,6 +10,8 @@ public interface ProcessTemplateRepository extends JpaRepository<ProcessTemplate
 
     Optional<ProcessTemplate> findByTemplateCodeAndVersion(String templateCode, Integer version);
 
+    Optional<ProcessTemplate> findByIdAndDeleted(Long id, Integer deleted);
+
     boolean existsByTemplateCodeAndVersion(String templateCode, Integer version);
 
     List<ProcessTemplate> findByDeletedOrderByUpdatedAtDesc(Integer deleted);

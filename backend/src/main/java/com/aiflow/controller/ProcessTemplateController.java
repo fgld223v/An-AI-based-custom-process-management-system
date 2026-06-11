@@ -5,6 +5,7 @@ import com.aiflow.dto.DtoMapper;
 import com.aiflow.dto.ProcessTemplateCreateRequest;
 import com.aiflow.dto.ProcessTemplateDTO;
 import com.aiflow.dto.ProcessTemplateUpdateRequest;
+import com.aiflow.dto.TemplateFormBindingDTO;
 import com.aiflow.model.ProcessTemplate;
 import com.aiflow.service.ProcessTemplateService;
 import lombok.RequiredArgsConstructor;
@@ -38,6 +39,11 @@ public class ProcessTemplateController {
         ProcessTemplate template = processTemplateService.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("template not found"));
         return ApiResponse.success(DtoMapper.toProcessTemplateDTO(template));
+    }
+
+    @GetMapping("/{id}/form")
+    public ApiResponse<TemplateFormBindingDTO> getTemplateBoundForm(@PathVariable Long id) {
+        return ApiResponse.success(processTemplateService.getTemplateBoundForm(id));
     }
 
     @PostMapping

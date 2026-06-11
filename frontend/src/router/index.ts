@@ -38,6 +38,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '流程模板管理', group: '资源' }
       },
       {
+        path: 'process/start-preview',
+        name: 'StartPreview',
+        component: () => import('@/views/process/StartPreview.vue'),
+        meta: { title: '流程发起预览', group: '运行' }
+      },
+      {
         path: 'template-market',
         name: 'TemplateMarket',
         component: () => import('@/views/template/TemplateMarket.vue'),

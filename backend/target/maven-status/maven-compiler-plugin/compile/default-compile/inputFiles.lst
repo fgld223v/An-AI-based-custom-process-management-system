@@ -4,6 +4,7 @@ D:\桌面\AI-workflow\backend\src\main\java\com\aiflow\common\BusinessException.
 D:\桌面\AI-workflow\backend\src\main\java\com\aiflow\config\DataInitializer.java
 D:\桌面\AI-workflow\backend\src\main\java\com\aiflow\controller\BizTypeController.java
 D:\桌面\AI-workflow\backend\src\main\java\com\aiflow\controller\FormDefinitionController.java
+D:\桌面\AI-workflow\backend\src\main\java\com\aiflow\controller\HealthController.java
 D:\桌面\AI-workflow\backend\src\main\java\com\aiflow\controller\ProcessFragmentController.java
 D:\桌面\AI-workflow\backend\src\main\java\com\aiflow\controller\ProcessTemplateController.java
 D:\桌面\AI-workflow\backend\src\main\java\com\aiflow\controller\TemplateMarketController.java
@@ -20,6 +21,7 @@ D:\桌面\AI-workflow\backend\src\main\java\com\aiflow\dto\ProcessFragmentUpdate
 D:\桌面\AI-workflow\backend\src\main\java\com\aiflow\dto\ProcessTemplateCreateRequest.java
 D:\桌面\AI-workflow\backend\src\main\java\com\aiflow\dto\ProcessTemplateDTO.java
 D:\桌面\AI-workflow\backend\src\main\java\com\aiflow\dto\ProcessTemplateUpdateRequest.java
+D:\桌面\AI-workflow\backend\src\main\java\com\aiflow\dto\TemplateFormBindingDTO.java
 D:\桌面\AI-workflow\backend\src\main\java\com\aiflow\dto\TemplateMarketDTO.java
 D:\桌面\AI-workflow\backend\src\main\java\com\aiflow\enums\AbstractDatabaseEnumConverter.java
 D:\桌面\AI-workflow\backend\src\main\java\com\aiflow\enums\DatabaseEnum.java

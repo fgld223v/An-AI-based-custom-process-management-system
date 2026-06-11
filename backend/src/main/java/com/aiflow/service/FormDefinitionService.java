@@ -13,7 +13,11 @@ public interface FormDefinitionService {
 
     FormDefinition publishForm(Long id);
 
+    List<FormDefinition> listForms();
+
     List<FormDefinition> listPublishedForms();
 
     Optional<FormDefinition> findById(Long id);
+
+    Optional<FormDefinition> findActiveById(Long id);
 }

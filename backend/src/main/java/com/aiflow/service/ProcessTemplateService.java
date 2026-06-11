@@ -1,5 +1,6 @@
 package com.aiflow.service;
 
+import com.aiflow.dto.TemplateFormBindingDTO;
 import com.aiflow.model.ProcessTemplate;
 
 import java.util.List;
@@ -16,6 +17,8 @@ public interface ProcessTemplateService {
     List<ProcessTemplate> listTemplates();
 
     Optional<ProcessTemplate> findById(Long id);
+
+    TemplateFormBindingDTO getTemplateBoundForm(Long templateId);
 
     ProcessTemplate copyTemplate(ProcessTemplate sourceTemplate, Long createdBy, String newTemplateName);
 }

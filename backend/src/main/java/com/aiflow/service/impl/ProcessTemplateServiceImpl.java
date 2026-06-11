@@ -2,7 +2,11 @@ package com.aiflow.service.impl;
 
 import com.aiflow.enums.TemplateSourceType;
 import com.aiflow.enums.TemplateStatus;
+import com.aiflow.dto.DtoMapper;
+import com.aiflow.dto.TemplateFormBindingDTO;
+import com.aiflow.model.FormDefinition;
 import com.aiflow.model.ProcessTemplate;
+import com.aiflow.repository.FormDefinitionRepository;
 import com.aiflow.repository.ProcessTemplateRepository;
 import com.aiflow.service.ProcessTemplateService;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +26,7 @@ public class ProcessTemplateServiceImpl implements ProcessTemplateService {
     private static final DateTimeFormatter COPY_CODE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS");
 
     private final ProcessTemplateRepository processTemplateRepository;
+    private final FormDefinitionRepository formDefinitionRepository;
 
     @Override
     public ProcessTemplate createTemplate(ProcessTemplate template) {
@@ -62,8 +67,9 @@ public class ProcessTemplateServiceImpl implements ProcessTemplateService {
         if (existing.getStatus() != TemplateStatus.DRAFT && existing.getStatus() != TemplateStatus.REVIEWING) {
             throw new IllegalStateException("only draft or reviewing template can be updated");
         }
+        requireText(template.getTemplateName(), "templateName must not be blank");
 
-        existing.setTemplateName(template.getTemplateName());
+        existing.setTemplateName(template.getTemplateName().trim());
         existing.setBizTypeId(template.getBizTypeId());
         existing.setFormId(template.getFormId());
         existing.setBpmnXml(template.getBpmnXml());
@@ -102,6 +108,25 @@ public class ProcessTemplateServiceImpl implements ProcessTemplateService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public TemplateFormBindingDTO getTemplateBoundForm(Long templateId) {
+        requireId(templateId, "templateId must not be null");
+        ProcessTemplate template = processTemplateRepository.findByIdAndDeleted(templateId, 0)
+                .orElseThrow(() -> new IllegalArgumentException("template not found"));
+        if (template.getFormId() == null) {
+            throw new IllegalStateException("当前流程模板未绑定表单");
+        }
+
+        FormDefinition form = formDefinitionRepository.findByIdAndDeleted(template.getFormId(), 0)
+                .orElseThrow(() -> new IllegalStateException("绑定表单不存在或已被删除"));
+
+        return TemplateFormBindingDTO.builder()
+                .template(DtoMapper.toProcessTemplateDTO(template))
+                .form(DtoMapper.toFormDefinitionDTO(form))
+                .build();
+    }
+
+    @Override
     public ProcessTemplate copyTemplate(ProcessTemplate sourceTemplate, Long createdBy, String newTemplateName) {
         if (sourceTemplate == null) {
             throw new IllegalArgumentException("sourceTemplate must not be null");
@@ -130,7 +155,7 @@ public class ProcessTemplateServiceImpl implements ProcessTemplateService {
     }
 
     private ProcessTemplate getRequiredTemplate(Long id) {
-        return processTemplateRepository.findById(id)
+        return processTemplateRepository.findByIdAndDeleted(id, 0)
                 .orElseThrow(() -> new IllegalArgumentException("template not found"));
     }
 

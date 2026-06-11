@@ -32,7 +32,7 @@
       <div class="panel-title-row">
         <div>
           <h2>模板列表</h2>
-          <p>数据来自后端 `GET /api/process-templates`</p>
+          <p>数据来自后端 GET /api/process-templates</p>
         </div>
         <el-button round :icon="Refresh" @click="loadPageData">刷新</el-button>
       </div>
@@ -58,10 +58,11 @@
         <el-table-column label="更新时间" min-width="170">
           <template #default="{ row }">{{ formatTime(row.updatedAt) }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="280" fixed="right">
+        <el-table-column label="操作" width="330" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="openEditDialog(row)">编辑</el-button>
             <el-button link type="success" :disabled="!canPublish(row.status)" @click="handlePublish(row)">发布</el-button>
+            <el-button link type="primary" @click="openPreviewDialog(row)">预览表单</el-button>
             <el-button link type="warning" :disabled="normalizeStatus(row.status) !== 'published'" @click="openMarketDialog(row)">上架</el-button>
           </template>
         </el-table-column>
@@ -80,12 +81,12 @@
           <el-input v-model="templateForm.templateName" placeholder="例如 请假审批流程" />
         </el-form-item>
         <el-form-item label="业务类型">
-          <el-select v-model="templateForm.bizTypeId" clearable placeholder="请选择业务类型">
+          <el-select v-model="templateForm.bizTypeId" clearable placeholder="请选择业务类型" style="width: 100%">
             <el-option v-for="item in bizTypes" :key="item.id" :label="item.typeName" :value="item.id" />
           </el-select>
         </el-form-item>
         <el-form-item label="绑定表单">
-          <el-select v-model="templateForm.formId" clearable placeholder="请选择已发布表单">
+          <el-select v-model="templateForm.formId" clearable placeholder="请选择已发布表单" style="width: 100%">
             <el-option v-for="item in forms" :key="item.id" :label="item.formName" :value="item.id" />
           </el-select>
           <div v-if="forms.length === 0" class="form-empty-hint">暂无已发布表单，可先在表单设计器中创建并发布表单。</div>
@@ -103,6 +104,33 @@
       <template #footer>
         <el-button round @click="templateDialogVisible = false">取消</el-button>
         <el-button round type="success" :loading="saving" @click="submitTemplate">保存</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="previewDialogVisible" title="预览绑定表单" width="760px">
+      <el-alert
+        v-if="previewMessage"
+        type="warning"
+        :closable="false"
+        show-icon
+        :title="previewMessage"
+      />
+      <template v-if="previewBinding">
+        <div class="preview-summary">
+          <span>{{ previewBinding.template.templateName }}</span>
+          <strong>{{ previewBinding.form.formName }}</strong>
+        </div>
+        <DynamicFormRenderer
+          ref="previewRendererRef"
+          v-model="previewData"
+          :form-schema="previewBinding.form.formSchema"
+          :field-list="previewBinding.form.fieldList"
+        />
+        <div class="preview-actions">
+          <el-button round type="success" @click="previewJsonVisible = true">预览 JSON</el-button>
+          <el-button round @click="validatePreviewForm">校验表单</el-button>
+        </div>
+        <pre v-if="previewJsonVisible">{{ formattedPreviewData }}</pre>
       </template>
     </el-dialog>
 
@@ -133,16 +161,18 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Refresh } from '@element-plus/icons-vue'
+import DynamicFormRenderer from '@/components/form/DynamicFormRenderer.vue'
 import { getBizTypes } from '@/api/bizType'
 import { getPublishedForms } from '@/api/formDefinition'
 import {
   createProcessTemplate,
+  getProcessTemplateBoundForm,
   getProcessTemplates,
   publishProcessTemplate,
   updateProcessTemplate
 } from '@/api/processTemplate'
 import { publishTemplateToMarket } from '@/api/templateMarket'
-import type { BizType, FormDefinition, ProcessTemplate, ProcessTemplatePayload } from '@/types/workflow'
+import type { BizType, FormDefinition, ProcessTemplate, ProcessTemplatePayload, TemplateFormBinding } from '@/types/workflow'
 
 const loading = ref(false)
 const saving = ref(false)
@@ -151,8 +181,14 @@ const bizTypes = ref<BizType[]>([])
 const forms = ref<FormDefinition[]>([])
 const templateDialogVisible = ref(false)
 const marketDialogVisible = ref(false)
+const previewDialogVisible = ref(false)
+const previewJsonVisible = ref(false)
 const editingTemplate = ref<ProcessTemplate | null>(null)
 const marketTemplate = ref<ProcessTemplate | null>(null)
+const previewBinding = ref<TemplateFormBinding | null>(null)
+const previewMessage = ref('')
+const previewData = ref<Record<string, unknown>>({})
+const previewRendererRef = ref<InstanceType<typeof DynamicFormRenderer> | null>(null)
 
 const templateForm = reactive<ProcessTemplatePayload>({
   templateCode: '',
@@ -175,6 +211,7 @@ const marketForm = reactive({
 
 const publishedCount = computed(() => templates.value.filter((item) => normalizeStatus(item.status) === 'published').length)
 const draftCount = computed(() => templates.value.filter((item) => ['draft', 'reviewing'].includes(normalizeStatus(item.status))).length)
+const formattedPreviewData = computed(() => JSON.stringify(previewData.value, null, 2))
 
 onMounted(loadPageData)
 
@@ -205,7 +242,6 @@ function openCreateDialog() {
     bpmnXml: '',
     nodeConfig: '{}',
     formBindConfig: '{}',
-    // TODO: 后续接入登录后替换为当前用户 ID。
     createdBy: 1
   })
   templateDialogVisible.value = true
@@ -271,6 +307,31 @@ async function handlePublish(row: ProcessTemplate) {
   await loadPageData()
 }
 
+async function openPreviewDialog(row: ProcessTemplate) {
+  previewDialogVisible.value = true
+  previewBinding.value = null
+  previewMessage.value = ''
+  previewData.value = {}
+  previewJsonVisible.value = false
+  try {
+    const result = await getProcessTemplateBoundForm(row.id)
+    if (result) {
+      previewBinding.value = result
+    }
+  } catch (error) {
+    previewMessage.value = error instanceof Error ? error.message : '当前流程模板未绑定表单。'
+  }
+}
+
+function validatePreviewForm() {
+  const passed = previewRendererRef.value?.validate() ?? false
+  if (passed) {
+    ElMessage.success('表单校验通过')
+  } else {
+    ElMessage.warning('表单校验未通过，请检查必填项或数字字段')
+  }
+}
+
 function openMarketDialog(row: ProcessTemplate) {
   marketTemplate.value = row
   marketForm.title = row.templateName
@@ -286,7 +347,6 @@ async function submitMarket() {
   try {
     await publishTemplateToMarket({
       templateId: marketTemplate.value.id,
-      // TODO: 后续接入登录后替换为当前用户 ID。
       publisherId: 1,
       title: marketForm.title,
       description: marketForm.description,
@@ -306,7 +366,8 @@ function bizTypeName(id?: number | null) {
 }
 
 function formName(id?: number | null) {
-  return forms.value.find((item) => item.id === id)?.formName || '未绑定'
+  if (!id) return '未绑定'
+  return forms.value.find((item) => item.id === id)?.formName || '表单不存在'
 }
 
 function normalizeStatus(status?: string) {
@@ -424,6 +485,37 @@ function formatTime(value?: string) {
 .form-empty-hint {
   margin-top: 8px;
   font-size: 13px;
+}
+
+.preview-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--el-fill-color-lighter);
+}
+
+.preview-summary span {
+  color: var(--muted);
+}
+
+.preview-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+pre {
+  margin: 16px 0 0;
+  padding: 16px;
+  border-radius: 8px;
+  background: #111827;
+  color: #e5e7eb;
+  overflow: auto;
 }
 
 @media (max-width: 960px) {
