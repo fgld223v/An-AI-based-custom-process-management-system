@@ -14,38 +14,40 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 @Data
+@Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
 @Entity
 @Table(name = "process_instance")
 public class ProcessInstance {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "id")
     private Long id;
 
-    @Column(name = "template_id")
-    private Long templateId;
-
-    @Column(name = "instance_code")
+    @Column(name = "instance_code", nullable = false, unique = true)
     private String instanceCode;
 
-    @Column(name = "title")
-    private String instanceTitle;
-
-    @Column(name = "status", length = 32)
-    private String status;
+    @Column(name = "template_id", nullable = false)
+    private Long templateId;
 
     @Column(name = "form_id")
     private Long formId;
 
-    @Column(name = "applicant_id")
+    @Column(name = "applicant_id", nullable = false)
     private Long applicantId;
 
     @Column(name = "biz_type_id")
     private Long bizTypeId;
+
+    @Column(name = "title", nullable = false)
+    private String title;
+
+    @Column(name = "status", nullable = false)
+    private String status;
+
+    @Column(name = "form_data", columnDefinition = "LONGTEXT")
+    private String formData;
 
     @Column(name = "current_node_key")
     private String currentNodeKey;
@@ -55,9 +57,6 @@ public class ProcessInstance {
 
     @Column(name = "current_business_type")
     private String currentBusinessType;
-
-    @Column(name = "form_data", columnDefinition = "LONGTEXT")
-    private String formDataJson;
 
     @Column(name = "flowable_process_instance_id")
     private String flowableProcessInstanceId;
@@ -74,12 +73,12 @@ public class ProcessInstance {
     @Column(name = "ended_at")
     private LocalDateTime endedAt;
 
-    @Column(name = "created_at")
-    private LocalDateTime createTime;
+    @Column(name = "created_at", nullable = false)
+    private LocalDateTime createdAt;
 
-    @Column(name = "updated_at")
-    private LocalDateTime updateTime;
+    @Column(name = "updated_at", nullable = false)
+    private LocalDateTime updatedAt;
 
-    @Column(name = "deleted", columnDefinition = "TINYINT")
+    @Column(name = "deleted", nullable = false, columnDefinition = "TINYINT")
     private Integer deleted;
 }

@@ -3,8 +3,8 @@ package com.aiflow.controller;
 import com.aiflow.common.ApiResponse;
 import com.aiflow.dto.FormSubmissionDTO;
 import com.aiflow.dto.ProcessInstanceDTO;
-import com.aiflow.dto.SaveNodeFormRequestDTO;
-import com.aiflow.dto.StartProcessPreviewRequestDTO;
+import com.aiflow.dto.SaveNodeFormRequest;
+import com.aiflow.dto.StartProcessPreviewRequest;
 import com.aiflow.service.ProcessInstanceService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -24,6 +24,7 @@ import java.util.List;
 public class ProcessInstanceController {
 
     private final ProcessInstanceService processInstanceService;
+
     @GetMapping
     public ApiResponse<List<ProcessInstanceDTO>> listInstances(@RequestParam(required = false) Long templateId,
                                                                @RequestParam(required = false) String status,
@@ -31,28 +32,28 @@ public class ProcessInstanceController {
         return ApiResponse.success(processInstanceService.listInstances(templateId, status, keyword));
     }
 
+    @GetMapping("/{id}")
+    public ApiResponse<ProcessInstanceDTO> getInstance(@PathVariable Long id) {
+        return ApiResponse.success(processInstanceService.getInstance(id));
+    }
+
+    @GetMapping("/{id}/submissions")
+    public ApiResponse<List<FormSubmissionDTO>> listSubmissions(@PathVariable Long id) {
+        return ApiResponse.success(processInstanceService.listSubmissions(id));
+    }
+
     @PostMapping("/draft")
-    public ApiResponse<ProcessInstanceDTO> createDraft(@RequestBody StartProcessPreviewRequestDTO request) {
+    public ApiResponse<ProcessInstanceDTO> createDraft(@RequestBody StartProcessPreviewRequest request) {
         return ApiResponse.success(processInstanceService.createDraft(request));
     }
 
     @PostMapping("/node-form")
-    public ApiResponse<FormSubmissionDTO> saveNodeForm(@RequestBody SaveNodeFormRequestDTO request) {
+    public ApiResponse<FormSubmissionDTO> saveNodeForm(@RequestBody SaveNodeFormRequest request) {
         return ApiResponse.success(processInstanceService.saveNodeForm(request));
     }
 
     @PutMapping("/{id}/submit")
     public ApiResponse<ProcessInstanceDTO> submitInstance(@PathVariable Long id) {
         return ApiResponse.success(processInstanceService.submitInstance(id));
-    }
-
-    @GetMapping("/{id}")
-    public ApiResponse<ProcessInstanceDTO> getInstanceDetail(@PathVariable Long id) {
-        return ApiResponse.success(processInstanceService.getInstanceDetail(id));
-    }
-
-    @GetMapping("/{id}/submissions")
-    public ApiResponse<List<FormSubmissionDTO>> listSubmissions(@PathVariable Long id) {
-        return ApiResponse.success(processInstanceService.listSubmissions(id));
     }
 }

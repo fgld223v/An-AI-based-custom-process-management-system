@@ -1112,7 +1112,7 @@ function findPaletteTooltip(entry: HTMLElement) {
 function defaultBpmnXml() {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <bpmn:definitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_AI_Flow" targetNamespace="http://ai-flow/process">
-  <bpmn:process id="Process_Leave_Approval" name="员工请假审批流程" isExecutable="false">
+  <bpmn:process id="Process_Leave_Approval" name="员工请假审批流程" isExecutable="true">
     <bpmn:startEvent id="StartEvent_Apply" name="提交申请">
       <bpmn:outgoing>Flow_Start_To_Task</bpmn:outgoing>
     </bpmn:startEvent>

@@ -1,10 +1,10 @@
-﻿<template>
+<template>
   <div class="detail-page">
     <section class="page-head">
       <div>
         <el-tag type="success" effect="plain">实例详情</el-tag>
         <h1>{{ instance?.instanceTitle || '流程实例详情' }}</h1>
-        <p>查看轻量级流程实例与节点表单提交记录。当前阶段不包含流程引擎任务。</p>
+        <p>查看流程实例、Flowable 关联信息与节点表单提交记录。任务处理功能将在后续版本开发。</p>
       </div>
       <div class="head-actions">
         <el-button round @click="router.back()">返回</el-button>
@@ -13,11 +13,18 @@
     </section>
 
     <el-alert
-      v-if="instance?.status === 'submitted'"
+      v-if="instance?.status === 'running'"
       type="success"
       show-icon
       :closable="false"
-      title="当前实例已提交，仅支持查看，不支持编辑。"
+      title="流程已启动，当前任务处理功能将在后续版本开发。"
+    />
+    <el-alert
+      v-else-if="instance?.status === 'submitted'"
+      type="warning"
+      show-icon
+      :closable="false"
+      title="当前实例已提交，待启动流程引擎，仅支持查看。"
     />
     <el-alert
       v-else-if="instance?.status === 'draft'"
@@ -65,6 +72,18 @@
         <div class="info-card">
           <span>更新时间</span>
           <strong>{{ instance?.updateTime || '-' }}</strong>
+        </div>
+        <div class="info-card">
+          <span>Flowable流程实例ID</span>
+          <strong>{{ instance?.flowableProcessInstanceId || '未启动' }}</strong>
+        </div>
+        <div class="info-card">
+          <span>Flowable流程定义ID</span>
+          <strong>{{ instance?.flowableDefinitionId || '未启动' }}</strong>
+        </div>
+        <div class="info-card">
+          <span>Flowable部署ID</span>
+          <strong>{{ instance?.flowableDeploymentId || '未启动' }}</strong>
         </div>
       </div>
     </section>
@@ -170,7 +189,8 @@ function showJson(row: FormSubmission) {
 
 function statusLabel(status?: string) {
   if (status === 'draft') return '草稿'
-  if (status === 'submitted') return '已提交'
+  if (status === 'submitted') return '已提交，待启动流程引擎'
+  if (status === 'running') return '流程运行中'
   return status || '-'
 }
 

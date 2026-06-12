@@ -13,7 +13,7 @@
       <div class="panel-title-row">
         <div>
           <h2>选择预览范围</h2>
-          <p>当前页面为轻量级流程发起预览，仅保存业务表单数据，不会启动流程引擎，也不会生成审批任务。</p>
+          <p>当前页面提交后会启动 Flowable 流程实例，任务处理与待办中心将在后续版本开发。</p>
         </div>
         <el-tag effect="plain">ProcessTemplate.nodeConfig</el-tag>
       </div>
@@ -137,6 +137,10 @@
             <span>当前节点</span>
             <strong>{{ currentInstance.currentNodeName || currentInstance.currentNodeKey || '-' }}</strong>
           </div>
+          <div class="info-card">
+            <span>Flowable实例ID</span>
+            <strong>{{ currentInstance.flowableProcessInstanceId || '未启动' }}</strong>
+          </div>
         </div>
       </template>
 
@@ -146,7 +150,7 @@
         type="success"
         :closable="false"
         show-icon
-        title="当前实例已提交，暂不可继续编辑。"
+        title="当前实例已提交或已启动 Flowable 流程实例，暂不可继续编辑。"
       />
 
       <section v-if="currentForm" class="form-preview-block">
@@ -170,7 +174,7 @@
           <el-button round type="success" :icon="View" @click="previewData">预览表单数据</el-button>
           <el-button round :icon="CircleCheck" @click="validateForm">校验表单</el-button>
           <el-button round type="primary" :icon="DocumentChecked" :loading="saving" :disabled="isSubmitted" @click="saveDraftInstance">保存为草稿</el-button>
-          <el-button round type="warning" :icon="Upload" :loading="submitting" :disabled="!currentInstance || isSubmitted" @click="submitPreviewInstance">提交预览实例</el-button>
+          <el-button round type="warning" :icon="Upload" :loading="submitting" :disabled="!currentInstance || isSubmitted" @click="submitPreviewInstance">提交并启动流程</el-button>
         </div>
       </section>
     </section>
@@ -277,7 +281,7 @@ const selectedSubmissionJson = ref('')
 const formRendererRef = ref<InstanceType<typeof DynamicFormRenderer> | null>(null)
 
 const formattedData = computed(() => JSON.stringify(formData.value, null, 2))
-const isSubmitted = computed(() => currentInstance.value?.status === 'submitted')
+const isSubmitted = computed(() => ['submitted', 'running'].includes(currentInstance.value?.status || ''))
 const submissionMap = computed(() => {
   const map = new Map<string, FormSubmission>()
   submissions.value.forEach((item) => {
@@ -419,7 +423,7 @@ async function loadResolvedForm(resolved: ResolvedNodeForm) {
 
 async function saveDraftInstance() {
   if (isSubmitted.value) {
-    ElMessage.warning('当前实例已提交，不允许继续编辑。')
+    ElMessage.warning('当前实例已提交或已启动流程，不允许继续编辑。')
     return
   }
   if (!templateDetail.value) {
@@ -483,7 +487,7 @@ async function submitPreviewInstance() {
     return
   }
   if (isSubmitted.value) {
-    ElMessage.warning('当前实例已提交，不能重复提交。')
+    ElMessage.warning('当前实例已提交或已启动流程，不能重复提交。')
     return
   }
   submitting.value = true
@@ -492,7 +496,7 @@ async function submitPreviewInstance() {
     await refreshSubmissions()
     await refreshCurrentInstance()
     applySubmissionDataForNode(selectedNode.value?.nodeId)
-    ElMessage.success('提交成功。当前仅完成业务数据提交，尚未启动流程引擎。')
+    ElMessage.success('提交成功，已启动 Flowable 流程实例。')
   } catch (error) {
     message.value = normalizeError(error, '提交预览实例失败。')
   } finally {
@@ -698,8 +702,8 @@ function formStatusLabel(status?: string) {
 function instanceStatusLabel(status?: string) {
   const map: Record<string, string> = {
     draft: '草稿',
-    submitted: '已提交，待接入流程引擎',
-    running: '运行中',
+    submitted: '已提交，待启动流程引擎',
+    running: '流程运行中',
     completed: '已完成',
     cancelled: '已取消'
   }

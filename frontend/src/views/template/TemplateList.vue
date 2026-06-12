@@ -52,6 +52,18 @@
             <el-tag :type="statusTagType(row.status)" effect="plain">{{ templateStatusLabel(row.status) }}</el-tag>
           </template>
         </el-table-column>
+        <el-table-column label="Flowable部署" min-width="140">
+          <template #default="{ row }">
+            <el-tooltip
+              v-if="row.flowableProcessDefinitionId"
+              placement="top"
+              :content="`deploymentId: ${row.flowableDeploymentId || '-'}；processDefinitionId: ${row.flowableProcessDefinitionId}`"
+            >
+              <el-tag type="success" effect="plain">已部署</el-tag>
+            </el-tooltip>
+            <el-tag v-else type="info" effect="plain">未部署</el-tag>
+          </template>
+        </el-table-column>
         <el-table-column label="来源" width="120">
           <template #default="{ row }">{{ sourceTypeLabel(row.sourceType) }}</template>
         </el-table-column>
@@ -301,10 +313,15 @@ async function submitTemplate() {
 }
 
 async function handlePublish(row: ProcessTemplate) {
-  await ElMessageBox.confirm(`确认发布「${row.templateName}」吗？`, '发布模板', { type: 'warning' })
-  await publishProcessTemplate(row.id)
-  ElMessage.success('模板已发布')
-  await loadPageData()
+  try {
+    await ElMessageBox.confirm(`确认发布「${row.templateName}」吗？发布时会部署 BPMN 到 Flowable。`, '发布模板', { type: 'warning' })
+    await publishProcessTemplate(row.id)
+    ElMessage.success('模板发布成功，并已部署到 Flowable 流程引擎。')
+    await loadPageData()
+  } catch (error) {
+    if (error === 'cancel' || error === 'close') return
+    ElMessage.error(error instanceof Error ? error.message : '模板发布失败：Flowable 部署失败。')
+  }
 }
 
 async function openPreviewDialog(row: ProcessTemplate) {

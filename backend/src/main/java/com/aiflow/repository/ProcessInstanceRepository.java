@@ -12,23 +12,17 @@ public interface ProcessInstanceRepository extends JpaRepository<ProcessInstance
 
     Optional<ProcessInstance> findByIdAndDeleted(Long id, Integer deleted);
 
-    List<ProcessInstance> findByTemplateIdAndDeleted(Long templateId, Integer deleted);
-
     @Query("""
-            select instance
-            from ProcessInstance instance
-            where instance.deleted = 0
-              and (:templateId is null or instance.templateId = :templateId)
-              and (:status is null or :status = '' or instance.status = :status)
-              and (
-                :keyword is null
-                or :keyword = ''
-                or lower(instance.instanceTitle) like lower(concat('%', :keyword, '%'))
-                or lower(instance.instanceCode) like lower(concat('%', :keyword, '%'))
-              )
-            order by instance.updateTime desc, instance.createTime desc
+            select p from ProcessInstance p
+            where p.deleted = 0
+              and (:templateId is null or p.templateId = :templateId)
+              and (:status is null or :status = '' or p.status = :status)
+              and (:keyword is null or :keyword = ''
+                   or lower(p.title) like lower(concat('%', :keyword, '%'))
+                   or lower(p.instanceCode) like lower(concat('%', :keyword, '%')))
+            order by p.updatedAt desc, p.createdAt desc
             """)
-    List<ProcessInstance> searchInstances(@Param("templateId") Long templateId,
-                                          @Param("status") String status,
-                                          @Param("keyword") String keyword);
+    List<ProcessInstance> listInstances(@Param("templateId") Long templateId,
+                                        @Param("status") String status,
+                                        @Param("keyword") String keyword);
 }

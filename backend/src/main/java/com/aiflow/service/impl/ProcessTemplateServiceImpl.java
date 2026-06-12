@@ -9,7 +9,9 @@ import com.aiflow.model.FormDefinition;
 import com.aiflow.model.ProcessTemplate;
 import com.aiflow.repository.FormDefinitionRepository;
 import com.aiflow.repository.ProcessTemplateRepository;
+import com.aiflow.service.FlowableDeploymentService;
 import com.aiflow.service.ProcessTemplateService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,6 +30,8 @@ public class ProcessTemplateServiceImpl implements ProcessTemplateService {
 
     private final ProcessTemplateRepository processTemplateRepository;
     private final FormDefinitionRepository formDefinitionRepository;
+    private final FlowableDeploymentService flowableDeploymentService;
+    private final ObjectMapper objectMapper;
 
     @Override
     public ProcessTemplate createTemplate(ProcessTemplate template) {
@@ -89,6 +93,10 @@ public class ProcessTemplateServiceImpl implements ProcessTemplateService {
         if (existing.getStatus() != TemplateStatus.DRAFT && existing.getStatus() != TemplateStatus.REVIEWING) {
             throw new IllegalStateException("only draft or reviewing template can be published");
         }
+
+        validateBpmnXmlForPublish(existing.getBpmnXml());
+        validateNodeConfigForPublish(existing.getNodeConfig());
+        flowableDeploymentService.deployProcessTemplate(existing);
 
         LocalDateTime now = LocalDateTime.now();
         existing.setStatus(TemplateStatus.PUBLISHED);
@@ -154,6 +162,28 @@ public class ProcessTemplateServiceImpl implements ProcessTemplateService {
                 .deleted(0)
                 .build();
         return processTemplateRepository.save(copied);
+    }
+
+    private void validateBpmnXmlForPublish(String bpmnXml) {
+        if (!hasText(bpmnXml)) {
+            throw new IllegalStateException("流程模板缺少 BPMN XML，无法发布到流程引擎。");
+        }
+        String normalized = bpmnXml.trim().toLowerCase();
+        if ((!normalized.contains("<bpmn:definitions") && !normalized.contains("<definitions"))
+                || (!normalized.contains("<bpmn:process") && !normalized.contains("<process"))) {
+            throw new IllegalStateException("BPMN XML 格式不正确，无法部署。");
+        }
+    }
+
+    private void validateNodeConfigForPublish(String nodeConfig) {
+        if (!hasText(nodeConfig)) {
+            return;
+        }
+        try {
+            objectMapper.readTree(nodeConfig);
+        } catch (Exception ex) {
+            throw new IllegalStateException("节点配置 JSON 格式不正确，无法发布模板。");
+        }
     }
 
     private ProcessTemplate getRequiredTemplate(Long id) {
