@@ -64,4 +64,11 @@ public class TemplateMarketController {
         );
         return ApiResponse.success(DtoMapper.toProcessTemplateDTO(copied));
     }
+
+    /** 从市场下架 */
+    @PostMapping("/{marketId}/withdraw")
+    public ApiResponse<Void> withdrawFromMarket(@PathVariable Long marketId) {
+        templateMarketService.withdrawFromMarket(marketId);
+        return ApiResponse.success();
+    }
 }

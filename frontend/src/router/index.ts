@@ -56,6 +56,24 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '流程实例详情', group: '运行' }
       },
       {
+        path: 'tasks/todo',
+        name: 'TaskTodoList',
+        component: () => import('@/views/task/TaskTodoList.vue'),
+        meta: { title: '我的待办', group: '运行' }
+      },
+      {
+        path: 'tasks/done',
+        name: 'TaskDoneList',
+        component: () => import('@/views/task/TaskDoneList.vue'),
+        meta: { title: '我的已办', group: '运行' }
+      },
+      {
+        path: 'tasks/:taskId',
+        name: 'TaskDetail',
+        component: () => import('@/views/task/TaskDetail.vue'),
+        meta: { title: '任务详情', group: '运行' }
+      },
+      {
         path: 'template-market',
         name: 'TemplateMarket',
         component: () => import('@/views/template/TemplateMarket.vue'),

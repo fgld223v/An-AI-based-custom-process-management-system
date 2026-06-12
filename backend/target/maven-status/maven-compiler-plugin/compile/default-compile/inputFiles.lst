@@ -12,6 +12,7 @@ D:\Users\11056\桌面\code\IDEA\An-AI-based-custom-process-management-system\bac
 D:\Users\11056\桌面\code\IDEA\An-AI-based-custom-process-management-system\backend\src\main\java\com\aiflow\controller\ProcessFragmentController.java
 D:\Users\11056\桌面\code\IDEA\An-AI-based-custom-process-management-system\backend\src\main\java\com\aiflow\controller\ProcessInstanceController.java
 D:\Users\11056\桌面\code\IDEA\An-AI-based-custom-process-management-system\backend\src\main\java\com\aiflow\controller\ProcessTemplateController.java
+D:\Users\11056\桌面\code\IDEA\An-AI-based-custom-process-management-system\backend\src\main\java\com\aiflow\controller\TaskController.java
 D:\Users\11056\桌面\code\IDEA\An-AI-based-custom-process-management-system\backend\src\main\java\com\aiflow\controller\TemplateMarketController.java
 D:\Users\11056\桌面\code\IDEA\An-AI-based-custom-process-management-system\backend\src\main\java\com\aiflow\controller\UserController.java
 D:\Users\11056\桌面\code\IDEA\An-AI-based-custom-process-management-system\backend\src\main\java\com\aiflow\controller\WorkflowTemplateController.java
@@ -32,10 +33,11 @@ D:\Users\11056\桌面\code\IDEA\An-AI-based-custom-process-management-system\bac
 D:\Users\11056\桌面\code\IDEA\An-AI-based-custom-process-management-system\backend\src\main\java\com\aiflow\dto\ProcessTemplateCreateRequest.java
 D:\Users\11056\桌面\code\IDEA\An-AI-based-custom-process-management-system\backend\src\main\java\com\aiflow\dto\ProcessTemplateDTO.java
 D:\Users\11056\桌面\code\IDEA\An-AI-based-custom-process-management-system\backend\src\main\java\com\aiflow\dto\ProcessTemplateUpdateRequest.java
+D:\Users\11056\桌面\code\IDEA\An-AI-based-custom-process-management-system\backend\src\main\java\com\aiflow\dto\RuntimeStateDTO.java
 D:\Users\11056\桌面\code\IDEA\An-AI-based-custom-process-management-system\backend\src\main\java\com\aiflow\dto\SaveNodeFormRequest.java
-D:\Users\11056\桌面\code\IDEA\An-AI-based-custom-process-management-system\backend\src\main\java\com\aiflow\dto\SaveNodeFormRequestDTO.java
 D:\Users\11056\桌面\code\IDEA\An-AI-based-custom-process-management-system\backend\src\main\java\com\aiflow\dto\StartProcessPreviewRequest.java
-D:\Users\11056\桌面\code\IDEA\An-AI-based-custom-process-management-system\backend\src\main\java\com\aiflow\dto\StartProcessPreviewRequestDTO.java
+D:\Users\11056\桌面\code\IDEA\An-AI-based-custom-process-management-system\backend\src\main\java\com\aiflow\dto\TaskCompleteRequest.java
+D:\Users\11056\桌面\code\IDEA\An-AI-based-custom-process-management-system\backend\src\main\java\com\aiflow\dto\TaskDTO.java
 D:\Users\11056\桌面\code\IDEA\An-AI-based-custom-process-management-system\backend\src\main\java\com\aiflow\dto\TemplateFormBindingDTO.java
 D:\Users\11056\桌面\code\IDEA\An-AI-based-custom-process-management-system\backend\src\main\java\com\aiflow\dto\TemplateMarketDTO.java
 D:\Users\11056\桌面\code\IDEA\An-AI-based-custom-process-management-system\backend\src\main\java\com\aiflow\dto\UserMeResponse.java
@@ -101,10 +103,14 @@ D:\Users\11056\桌面\code\IDEA\An-AI-based-custom-process-management-system\bac
 D:\Users\11056\桌面\code\IDEA\An-AI-based-custom-process-management-system\backend\src\main\java\com\aiflow\service\impl\ProcessFragmentServiceImpl.java
 D:\Users\11056\桌面\code\IDEA\An-AI-based-custom-process-management-system\backend\src\main\java\com\aiflow\service\impl\ProcessInstanceServiceImpl.java
 D:\Users\11056\桌面\code\IDEA\An-AI-based-custom-process-management-system\backend\src\main\java\com\aiflow\service\impl\ProcessTemplateServiceImpl.java
+D:\Users\11056\桌面\code\IDEA\An-AI-based-custom-process-management-system\backend\src\main\java\com\aiflow\service\impl\TaskQueryServiceImpl.java
+D:\Users\11056\桌面\code\IDEA\An-AI-based-custom-process-management-system\backend\src\main\java\com\aiflow\service\impl\TaskRuntimeServiceImpl.java
 D:\Users\11056\桌面\code\IDEA\An-AI-based-custom-process-management-system\backend\src\main\java\com\aiflow\service\impl\TemplateMarketServiceImpl.java
 D:\Users\11056\桌面\code\IDEA\An-AI-based-custom-process-management-system\backend\src\main\java\com\aiflow\service\impl\WorkflowTemplateServiceImpl.java
 D:\Users\11056\桌面\code\IDEA\An-AI-based-custom-process-management-system\backend\src\main\java\com\aiflow\service\ProcessFragmentService.java
 D:\Users\11056\桌面\code\IDEA\An-AI-based-custom-process-management-system\backend\src\main\java\com\aiflow\service\ProcessInstanceService.java
 D:\Users\11056\桌面\code\IDEA\An-AI-based-custom-process-management-system\backend\src\main\java\com\aiflow\service\ProcessTemplateService.java
+D:\Users\11056\桌面\code\IDEA\An-AI-based-custom-process-management-system\backend\src\main\java\com\aiflow\service\TaskQueryService.java
+D:\Users\11056\桌面\code\IDEA\An-AI-based-custom-process-management-system\backend\src\main\java\com\aiflow\service\TaskRuntimeService.java
 D:\Users\11056\桌面\code\IDEA\An-AI-based-custom-process-management-system\backend\src\main\java\com\aiflow\service\TemplateMarketService.java
 D:\Users\11056\桌面\code\IDEA\An-AI-based-custom-process-management-system\backend\src\main\java\com\aiflow\service\WorkflowTemplateService.java

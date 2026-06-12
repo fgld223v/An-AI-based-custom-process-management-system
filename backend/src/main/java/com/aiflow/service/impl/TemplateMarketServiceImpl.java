@@ -76,6 +76,14 @@ public class TemplateMarketServiceImpl implements TemplateMarketService {
     }
 
     @Override
+    public void withdrawFromMarket(Long marketId) {
+        requireId(marketId, "marketId must not be null");
+        TemplateMarket market = templateMarketRepository.findById(marketId)
+                .orElseThrow(() -> new IllegalArgumentException("market item not found"));
+        templateMarketRepository.delete(market);
+    }
+
+    @Override
     public ProcessTemplate copyTemplateFromMarket(Long marketId, Long userId, String newTemplateName) {
         requireId(marketId, "marketId must not be null");
         requireId(userId, "userId must not be null");

@@ -24,3 +24,7 @@ export async function updateProcessTemplate(id: number, data: ProcessTemplatePay
 export async function publishProcessTemplate(id: number) {
   return await request.post<ProcessTemplate>(`/api/process-templates/${id}/publish`)
 }
+
+export async function unpublishProcessTemplate(id: number) {
+  return await request.post<ProcessTemplate>(`/api/process-templates/${id}/unpublish`)
+}

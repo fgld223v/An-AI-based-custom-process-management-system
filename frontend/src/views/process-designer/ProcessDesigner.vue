@@ -405,6 +405,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
   Bell,
@@ -426,7 +427,8 @@ import 'bpmn-js/dist/assets/bpmn-font/css/bpmn.css'
 import { showComingSoon } from '@/utils/feedback'
 import { getBizTypes } from '@/api/bizType'
 import { getPublishedForms } from '@/api/formDefinition'
-import { createProcessTemplate, updateProcessTemplate } from '@/api/processTemplate'
+import { createProcessTemplate, getProcessTemplateDetail, updateProcessTemplate } from '@/api/processTemplate'
+import { useTemplateStore } from '@/stores/template'
 import type { BizType, FormDefinition } from '@/types/workflow'
 
 type BusinessType =
@@ -581,6 +583,8 @@ const FORM_BINDABLE_BUSINESS_TYPES: BusinessType[] = ['start', 'form_fill', 'app
 const elementCount = ref(0)
 const zoomPercent = ref(100)
 const nodeConfigMap = reactive<Record<string, NodeBusinessConfig>>({})
+const route = useRoute()
+const templateStore = useTemplateStore()
 const currentXml = ref(props.modelValue || defaultBpmnXml())
 const templateSaveForm = reactive({
   templateCode: '',
@@ -608,7 +612,75 @@ onMounted(async () => {
     container: canvasRef.value
   })
   bindModelerEvents()
-  await importDiagram(currentXml.value)
+
+  // 从查询参数加载模板 BPMN（「查看流程图」入口）
+  const templateId = route.query.templateId
+  if (templateId && typeof templateId === 'string') {
+    try {
+      const template = await getProcessTemplateDetail(Number(templateId))
+      if (template?.bpmnXml) {
+        currentXml.value = template.bpmnXml
+        // 同步设置模板 store，使 TopBar 显示当前模板名
+        templateStore.setCurrentTemplate({
+          id: template.id,
+          templateCode: template.templateCode,
+          templateName: template.templateName,
+          bizTypeId: template.bizTypeId ?? undefined,
+          formId: template.formId ?? undefined,
+          version: template.version,
+          status: template.status ?? '',
+          sourceType: template.sourceType,
+          bpmnXml: template.bpmnXml,
+          nodeConfig: template.nodeConfig,
+          formBindConfig: template.formBindConfig
+        } as any)
+      } else {
+        console.warn('[ProcessDesigner] 模板无 BPMN XML，使用默认流程图')
+      }
+    } catch (err) {
+      console.error('[ProcessDesigner] 模板加载失败:', err)
+    }
+  }
+
+  // 确保 XML 非空且合法后再导入
+  const xmlToImport = currentXml.value?.trim()
+  if (xmlToImport && xmlToImport.startsWith('<?xml')) {
+    try {
+      await modeler.value.importXML(xmlToImport)
+    } catch (importErr) {
+      console.error('[ProcessDesigner] importXML 失败，尝试默认流程:', importErr)
+      // 回退到默认流程图
+      const defaultXml = defaultBpmnXml()
+      try {
+        currentXml.value = defaultXml
+        await modeler.value.importXML(defaultXml)
+      } catch (fallbackErr) {
+        console.error('[ProcessDesigner] 默认流程导入也失败了:', fallbackErr)
+        ElMessage.error('流程图加载失败，请检查 BPMN XML 格式')
+        return
+      }
+    }
+  } else {
+    // XML 为空或格式异常，加载默认流程
+    console.warn('[ProcessDesigner] XML 为空或格式异常，加载默认流程')
+    const defaultXml = defaultBpmnXml()
+    currentXml.value = defaultXml
+    try {
+      await modeler.value.importXML(defaultXml)
+    } catch (err) {
+      console.error('[ProcessDesigner] 默认流程导入失败:', err)
+      ElMessage.error('流程图加载失败')
+      return
+    }
+  }
+
+  // 导入成功后的后处理
+  const canvas = modeler.value.get('canvas')
+  canvas.zoom('fit-viewport', 'auto')
+  await syncXml(false)
+  refreshStats()
+  setTimeout(addPaletteTooltips, 0)
+
   await Promise.all([loadBizTypeOptions(), loadPublishedFormOptions()])
 })
 

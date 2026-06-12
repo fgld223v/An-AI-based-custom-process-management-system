@@ -137,6 +137,22 @@ public class ProcessTemplateServiceImpl implements ProcessTemplateService {
     }
 
     @Override
+    public ProcessTemplate unpublishTemplate(Long id) {
+        requireId(id, "id must not be null");
+        ProcessTemplate existing = getRequiredTemplate(id);
+        if (existing.getStatus() != TemplateStatus.PUBLISHED) {
+            throw new IllegalStateException("only published template can be unpublished");
+        }
+        LocalDateTime now = LocalDateTime.now();
+        existing.setStatus(TemplateStatus.DRAFT);
+        existing.setFlowableDeploymentId(null);
+        existing.setFlowableProcessDefinitionId(null);
+        existing.setPublishedAt(null);
+        existing.setUpdatedAt(now);
+        return processTemplateRepository.save(existing);
+    }
+
+    @Override
     public ProcessTemplate copyTemplate(ProcessTemplate sourceTemplate, Long createdBy, String newTemplateName) {
         if (sourceTemplate == null) {
             throw new IllegalArgumentException("sourceTemplate must not be null");

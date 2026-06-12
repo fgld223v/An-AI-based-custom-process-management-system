@@ -16,3 +16,7 @@ export async function publishTemplateToMarket(data: MarketPublishPayload) {
 export async function copyTemplateFromMarket(marketId: number, data: MarketCopyPayload) {
   return await request.post<ProcessTemplate>(`/api/template-market/${marketId}/copy`, data)
 }
+
+export async function withdrawFromMarket(marketId: number) {
+  return await request.post<void>(`/api/template-market/${marketId}/withdraw`)
+}

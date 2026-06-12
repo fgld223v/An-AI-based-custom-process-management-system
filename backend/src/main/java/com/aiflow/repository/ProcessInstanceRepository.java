@@ -12,6 +12,8 @@ public interface ProcessInstanceRepository extends JpaRepository<ProcessInstance
 
     Optional<ProcessInstance> findByIdAndDeleted(Long id, Integer deleted);
 
+    Optional<ProcessInstance> findByFlowableProcessInstanceIdAndDeleted(String flowableProcessInstanceId, Integer deleted);
+
     @Query("""
             select p from ProcessInstance p
             where p.deleted = 0

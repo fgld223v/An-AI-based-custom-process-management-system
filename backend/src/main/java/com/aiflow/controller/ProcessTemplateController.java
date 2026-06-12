@@ -64,4 +64,11 @@ public class ProcessTemplateController {
         ProcessTemplate saved = processTemplateService.publishTemplate(id);
         return ApiResponse.success(DtoMapper.toProcessTemplateDTO(saved));
     }
+
+    /** 撤回已发布模板 → 回到 draft 状态 */
+    @PostMapping("/{id}/unpublish")
+    public ApiResponse<ProcessTemplateDTO> unpublishTemplate(@PathVariable Long id) {
+        ProcessTemplate saved = processTemplateService.unpublishTemplate(id);
+        return ApiResponse.success(DtoMapper.toProcessTemplateDTO(saved));
+    }
 }

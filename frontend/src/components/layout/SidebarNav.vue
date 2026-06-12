@@ -29,6 +29,7 @@
 </template>
 
 <script setup lang="ts">
+import { onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   CirclePlus,
@@ -46,6 +47,7 @@ import {
   TrendCharts
 } from '@element-plus/icons-vue'
 import { showComingSoon } from '@/utils/feedback'
+import { getMyTasks } from '@/api/task'
 
 interface MenuItem {
   label: string
@@ -57,8 +59,9 @@ interface MenuItem {
 
 const route = useRoute()
 const router = useRouter()
+const todoCount = ref<number | null>(null)
 
-const menuGroups: Array<{ title: string; items: MenuItem[] }> = [
+const menuGroups = ref<Array<{ title: string; items: MenuItem[] }>>([
   {
     title: '流程',
     items: [
@@ -74,7 +77,8 @@ const menuGroups: Array<{ title: string; items: MenuItem[] }> = [
       { label: '流程实例', path: '/process/instances', icon: Tickets, available: true },
       { label: '运行监控', path: '/placeholder/monitor', icon: Monitor },
       { label: '执行追踪', path: '/placeholder/tracing', icon: TrendCharts },
-      { label: '我的待办', path: '/placeholder/todo', icon: Tickets, badge: '3' }
+      { label: '待办任务', path: '/tasks/todo', icon: Tickets, available: true, badge: '' },
+      { label: '已办任务', path: '/tasks/done', icon: Tickets, available: true }
     ]
   },
   {
@@ -94,7 +98,24 @@ const menuGroups: Array<{ title: string; items: MenuItem[] }> = [
       { label: '定时任务', path: '/placeholder/schedule', icon: Timer }
     ]
   }
-]
+])
+
+onMounted(async () => {
+  try {
+    const tasks = await getMyTasks()
+    todoCount.value = tasks.length
+    // 更新待办 badge
+    const runGroup = menuGroups.value.find(g => g.title === '运行')
+    if (runGroup) {
+      const todoItem = runGroup.items.find(i => i.path === '/tasks/todo')
+      if (todoItem && tasks.length > 0) {
+        todoItem.badge = String(tasks.length)
+      }
+    }
+  } catch {
+    // badge 获取失败不阻塞侧边栏渲染
+  }
+})
 
 function handleClick(item: MenuItem) {
   if (item.available) {

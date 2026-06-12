@@ -51,14 +51,21 @@ public class SecurityConfig {
                                 "/api/forms/*/publish",
                                 "/api/process-templates",
                                 "/api/process-templates/*/publish",
+                                "/api/process-templates/*/unpublish",
+                                "/api/process-fragments",
+                                "/api/process-fragments/*/publish",
                                 "/api/template-market/publish-template",
                                 "/api/template-market/*/copy",
+                                "/api/template-market/*/withdraw",
                                 "/api/process-instances/draft",
-                                "/api/process-instances/node-form"
+                                "/api/process-instances/node-form",
+                                "/api/tasks/*/complete",
+                                "/api/ai/**"
                         ).permitAll()
                         .requestMatchers(HttpMethod.PUT,
                                 "/api/forms/*",
                                 "/api/process-templates/*",
+                                "/api/process-fragments/*",
                                 "/api/process-instances/*/submit"
                         ).permitAll()
                         .requestMatchers(HttpMethod.GET,
@@ -67,8 +74,11 @@ public class SecurityConfig {
                                 "/api/forms",
                                 "/api/forms/**",
                                 "/api/process-templates/**",
+                                "/api/process-fragments/**",
                                 "/api/template-market/**",
-                                "/api/process-instances/**"
+                                "/api/process-instances/**",
+                                "/api/tasks/**",
+                                "/api/templates/**"
                         ).permitAll()
                         .requestMatchers("/error").permitAll()
                         .anyRequest().authenticated()

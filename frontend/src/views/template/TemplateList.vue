@@ -70,12 +70,21 @@
         <el-table-column label="更新时间" min-width="170">
           <template #default="{ row }">{{ formatTime(row.updatedAt) }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="330" fixed="right">
+        <el-table-column label="市场" width="80">
           <template #default="{ row }">
-            <el-button link type="primary" @click="openEditDialog(row)">编辑</el-button>
+            <el-tag v-if="getMarketItem(row.id)" type="warning" size="small" effect="plain">已上架</el-tag>
+            <span v-else style="color:var(--muted);font-size:12px">-</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="420" fixed="right">
+          <template #default="{ row }">
+            <el-button link type="primary" :disabled="!canEdit(row.status)" @click="openEditDialog(row)">编辑</el-button>
             <el-button link type="success" :disabled="!canPublish(row.status)" @click="handlePublish(row)">发布</el-button>
-            <el-button link type="primary" @click="openPreviewDialog(row)">预览表单</el-button>
-            <el-button link type="warning" :disabled="normalizeStatus(row.status) !== 'published'" @click="openMarketDialog(row)">上架</el-button>
+            <el-button link type="danger" :disabled="normalizeStatus(row.status) !== 'published'" @click="handleUnpublish(row)">撤回</el-button>
+            <el-button link type="primary" @click="openPreviewDialog(row)">预览</el-button>
+            <el-button link type="warning" :disabled="normalizeStatus(row.status) !== 'published' || Boolean(getMarketItem(row.id))" @click="openMarketDialog(row)">上架</el-button>
+            <el-button v-if="getMarketItem(row.id)" link type="danger" @click="handleWithdraw(row)">下架</el-button>
+            <el-button link type="primary" @click="goToDesigner(row)">流程图</el-button>
           </template>
         </el-table-column>
         <template #empty>
@@ -171,6 +180,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Refresh } from '@element-plus/icons-vue'
 import DynamicFormRenderer from '@/components/form/DynamicFormRenderer.vue'
@@ -181,16 +191,19 @@ import {
   getProcessTemplateBoundForm,
   getProcessTemplates,
   publishProcessTemplate,
+  unpublishProcessTemplate,
   updateProcessTemplate
 } from '@/api/processTemplate'
-import { publishTemplateToMarket } from '@/api/templateMarket'
-import type { BizType, FormDefinition, ProcessTemplate, ProcessTemplatePayload, TemplateFormBinding } from '@/types/workflow'
+import { getTemplateMarketList, publishTemplateToMarket, withdrawFromMarket } from '@/api/templateMarket'
+import type { BizType, FormDefinition, ProcessTemplate, ProcessTemplatePayload, TemplateFormBinding, TemplateMarketItem } from '@/types/workflow'
 
+const router = useRouter()
 const loading = ref(false)
 const saving = ref(false)
 const templates = ref<ProcessTemplate[]>([])
 const bizTypes = ref<BizType[]>([])
 const forms = ref<FormDefinition[]>([])
+const marketItems = ref<TemplateMarketItem[]>([])
 const templateDialogVisible = ref(false)
 const marketDialogVisible = ref(false)
 const previewDialogVisible = ref(false)
@@ -230,14 +243,16 @@ onMounted(loadPageData)
 async function loadPageData() {
   loading.value = true
   try {
-    const [templateList, bizTypeList, formList] = await Promise.all([
+    const [templateList, bizTypeList, formList, marketList] = await Promise.all([
       getProcessTemplates(),
       getBizTypes(),
-      getPublishedForms()
+      getPublishedForms(),
+      getTemplateMarketList()
     ])
     templates.value = templateList
     bizTypes.value = bizTypeList
     forms.value = formList
+    marketItems.value = marketList
   } finally {
     loading.value = false
   }
@@ -376,6 +391,40 @@ async function submitMarket() {
   } finally {
     saving.value = false
   }
+}
+
+function getMarketItem(templateId: number): TemplateMarketItem | undefined {
+  return marketItems.value.find(m => m.sourceId === templateId)
+}
+
+async function handleUnpublish(row: ProcessTemplate) {
+  try {
+    await ElMessageBox.confirm(`确认撤回「${row.templateName}」吗？模板将回到草稿状态，Flowable 部署信息将被清除。`, '撤回模板', { type: 'warning' })
+    await unpublishProcessTemplate(row.id)
+    ElMessage.success('模板已撤回为草稿')
+    await loadPageData()
+  } catch (error) {
+    if (error === 'cancel' || error === 'close') return
+    ElMessage.error(error instanceof Error ? error.message : '撤回失败')
+  }
+}
+
+async function handleWithdraw(row: ProcessTemplate) {
+  const marketItem = getMarketItem(row.id)
+  if (!marketItem) return
+  try {
+    await ElMessageBox.confirm(`确认从市场下架「${row.templateName}」吗？`, '下架模板', { type: 'warning' })
+    await withdrawFromMarket(marketItem.id)
+    ElMessage.success('已从市场下架')
+    await loadPageData()
+  } catch (error) {
+    if (error === 'cancel' || error === 'close') return
+    ElMessage.error(error instanceof Error ? error.message : '下架失败')
+  }
+}
+
+function goToDesigner(row: ProcessTemplate) {
+  router.push(`/process-designer?templateId=${row.id}`)
 }
 
 function bizTypeName(id?: number | null) {

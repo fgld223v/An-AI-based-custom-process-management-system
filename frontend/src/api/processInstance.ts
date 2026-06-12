@@ -3,6 +3,7 @@ import type {
   FormSubmission,
   ProcessInstance,
   ProcessInstanceListParams,
+  RuntimeState,
   SaveNodeFormPayload,
   StartProcessPreviewPayload
 } from '@/types/workflow'
@@ -29,4 +30,8 @@ export async function getProcessInstanceDetail(id: number) {
 
 export async function getProcessInstanceSubmissions(id: number) {
   return await request.get<FormSubmission[]>(`/api/process-instances/${id}/submissions`) || []
+}
+
+export async function getRuntimeState(id: number) {
+  return await request.get<RuntimeState>(`/api/process-instances/${id}/runtime-state`)
 }

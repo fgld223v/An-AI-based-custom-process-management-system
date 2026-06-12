@@ -20,5 +20,10 @@ public interface ProcessTemplateService {
 
     TemplateFormBindingDTO getTemplateBoundForm(Long templateId);
 
+    /**
+     * 撤回已发布模板，将状态重置为 draft。
+     */
+    ProcessTemplate unpublishTemplate(Long id);
+
     ProcessTemplate copyTemplate(ProcessTemplate sourceTemplate, Long createdBy, String newTemplateName);
 }

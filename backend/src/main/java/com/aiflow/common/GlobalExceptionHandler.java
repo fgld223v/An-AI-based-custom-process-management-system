@@ -35,7 +35,7 @@ public class GlobalExceptionHandler {
     public ApiResponse<Void> handleMethodArgumentNotValidException(MethodArgumentNotValidException e) {
         String message = e.getBindingResult().getFieldErrors().stream()
                 .findFirst()
-                .map(error -> error.getField() + " " + error.getDefaultMessage())
+                .map(error -> "'" + error.getField() + "' " + error.getDefaultMessage())
                 .orElse("参数校验失败");
         return ApiResponse.fail(400, message);
     }

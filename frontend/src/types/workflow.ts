@@ -188,3 +188,37 @@ export interface SaveNodeFormPayload {
   formDataJson: string
   status?: 'draft' | 'submitted'
 }
+
+export interface RuntimeState {
+  businessInstanceId: number
+  flowableProcessInstanceId: string
+  currentTaskKey?: string
+  currentTaskName?: string
+  formId?: number | null
+  completed?: boolean
+}
+
+/** 任务项 — 来自 TaskDTO */
+export interface TaskItem {
+  taskId: string
+  taskName: string
+  taskDefinitionKey: string
+  processInstanceId: string
+  businessInstanceId: number
+  instanceCode: string
+  instanceTitle: string
+  assignee?: string | null
+  createTime?: string
+  dueDate?: string | null
+  endTime?: string | null
+  status: string
+  formId?: number | null
+}
+
+/** 完成任务请求 */
+export interface TaskCompletePayload {
+  instanceId: number
+  nodeKey: string
+  formId: number
+  formData: Record<string, unknown>
+}
