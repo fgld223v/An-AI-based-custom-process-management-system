@@ -14,25 +14,24 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 @Data
+@Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
 @Entity
 @Table(name = "form_submission")
 public class FormSubmission {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "id")
     private Long id;
 
-    @Column(name = "process_instance_id")
+    @Column(name = "process_instance_id", nullable = false)
     private Long processInstanceId;
 
-    @Column(name = "template_id")
+    @Column(name = "template_id", nullable = false)
     private Long templateId;
 
-    @Column(name = "node_key")
+    @Column(name = "node_key", nullable = false)
     private String nodeKey;
 
     @Column(name = "node_name")
@@ -41,21 +40,21 @@ public class FormSubmission {
     @Column(name = "business_type")
     private String businessType;
 
-    @Column(name = "form_id")
+    @Column(name = "form_id", nullable = false)
     private Long formId;
 
     @Column(name = "form_data_json", columnDefinition = "LONGTEXT")
     private String formDataJson;
 
-    @Column(name = "status", length = 32)
+    @Column(name = "status", nullable = false)
     private String status;
 
-    @Column(name = "created_at")
-    private LocalDateTime createTime;
+    @Column(name = "created_at", nullable = false)
+    private LocalDateTime createdAt;
 
-    @Column(name = "updated_at")
-    private LocalDateTime updateTime;
+    @Column(name = "updated_at", nullable = false)
+    private LocalDateTime updatedAt;
 
-    @Column(name = "deleted", columnDefinition = "TINYINT")
+    @Column(name = "deleted", nullable = false, columnDefinition = "TINYINT")
     private Integer deleted;
 }

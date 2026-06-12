@@ -8,11 +8,10 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 @Data
+@Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
 public class FormSubmissionDTO {
-
     private Long id;
     private Long processInstanceId;
     private Long templateId;

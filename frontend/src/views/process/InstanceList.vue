@@ -1,10 +1,10 @@
-﻿<template>
+<template>
   <div class="instance-page">
     <section class="page-head">
       <div>
         <el-tag type="success" effect="plain">轻量实例</el-tag>
         <h1>流程实例</h1>
-        <p>查看通过发起预览创建的草稿与已提交实例。当前阶段仅展示业务表单数据，不启动流程引擎。</p>
+        <p>查看通过发起预览创建的草稿、已提交与运行中实例。当前阶段仅启动 Flowable 流程实例，任务处理将在后续版本开放。</p>
       </div>
       <el-button round type="success" :icon="Refresh" :loading="loading" @click="loadInstances">刷新</el-button>
     </section>
@@ -19,6 +19,7 @@
             <el-option label="全部" value="" />
             <el-option label="草稿" value="draft" />
             <el-option label="已提交" value="submitted" />
+            <el-option label="流程运行中" value="running" />
           </el-select>
         </el-form-item>
         <el-form-item label="流程模板">
@@ -43,7 +44,7 @@
         </el-table-column>
         <el-table-column label="状态" width="110">
           <template #default="{ row }">
-            <el-tag :type="row.status === 'draft' ? 'info' : 'success'" effect="plain">{{ statusLabel(row.status) }}</el-tag>
+            <el-tag :type="statusTagType(row.status)" effect="plain">{{ statusLabel(row.status) }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column label="当前节点" min-width="160">
@@ -132,8 +133,16 @@ function templateLabel(templateId?: number) {
 
 function statusLabel(status?: string) {
   if (status === 'draft') return '草稿'
-  if (status === 'submitted') return '已提交'
+  if (status === 'submitted') return '已提交，待启动流程引擎'
+  if (status === 'running') return '流程运行中'
   return status || '-'
+}
+
+function statusTagType(status?: string) {
+  if (status === 'draft') return 'info'
+  if (status === 'submitted') return 'warning'
+  if (status === 'running') return 'success'
+  return 'info'
 }
 
 function normalizeError(error: unknown, fallback: string) {

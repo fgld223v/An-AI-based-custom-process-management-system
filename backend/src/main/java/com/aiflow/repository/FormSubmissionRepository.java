@@ -8,9 +8,7 @@ import java.util.Optional;
 
 public interface FormSubmissionRepository extends JpaRepository<FormSubmission, Long> {
 
-    List<FormSubmission> findByProcessInstanceIdAndDeletedOrderByUpdateTimeDescCreateTimeDesc(Long processInstanceId, Integer deleted);
-
-    List<FormSubmission> findByProcessInstanceIdAndDeleted(Long processInstanceId, Integer deleted);
+    List<FormSubmission> findByProcessInstanceIdAndDeletedOrderByUpdatedAtDescCreatedAtDesc(Long processInstanceId, Integer deleted);
 
     Optional<FormSubmission> findByProcessInstanceIdAndNodeKeyAndDeleted(Long processInstanceId, String nodeKey, Integer deleted);
 }

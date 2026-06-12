@@ -31,3 +31,7 @@ mybatis-plus:
 jwt:
   secret: change-this-secret-to-a-long-random-string-at-least-32-bytes
   expiration-minutes: 1440
+
+flowable:
+  database-schema-update: true
+  async-executor-activate: false

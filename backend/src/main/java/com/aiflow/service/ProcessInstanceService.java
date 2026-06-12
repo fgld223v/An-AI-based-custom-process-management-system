@@ -2,8 +2,8 @@ package com.aiflow.service;
 
 import com.aiflow.dto.FormSubmissionDTO;
 import com.aiflow.dto.ProcessInstanceDTO;
-import com.aiflow.dto.SaveNodeFormRequestDTO;
-import com.aiflow.dto.StartProcessPreviewRequestDTO;
+import com.aiflow.dto.SaveNodeFormRequest;
+import com.aiflow.dto.StartProcessPreviewRequest;
 
 import java.util.List;
 
@@ -11,13 +11,13 @@ public interface ProcessInstanceService {
 
     List<ProcessInstanceDTO> listInstances(Long templateId, String status, String keyword);
 
-    ProcessInstanceDTO createDraft(StartProcessPreviewRequestDTO request);
+    ProcessInstanceDTO getInstance(Long id);
 
-    FormSubmissionDTO saveNodeForm(SaveNodeFormRequestDTO request);
+    List<FormSubmissionDTO> listSubmissions(Long processInstanceId);
 
-    ProcessInstanceDTO submitInstance(Long instanceId);
+    ProcessInstanceDTO createDraft(StartProcessPreviewRequest request);
 
-    ProcessInstanceDTO getInstanceDetail(Long instanceId);
+    FormSubmissionDTO saveNodeForm(SaveNodeFormRequest request);
 
-    List<FormSubmissionDTO> listSubmissions(Long instanceId);
+    ProcessInstanceDTO submitInstance(Long id);
 }

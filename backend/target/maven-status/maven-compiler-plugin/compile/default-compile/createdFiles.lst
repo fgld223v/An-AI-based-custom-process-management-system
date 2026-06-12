@@ -1,5 +1,6 @@
 com\aiflow\dto\MarketCopyRequest.class
 com\aiflow\enums\FormStatus.class
+com\aiflow\dto\SaveNodeFormRequest.class
 com\aiflow\enums\AbstractDatabaseEnumConverter.class
 com\aiflow\model\ProcessInstance.class
 com\example\aiflow\module\template\dto\WorkflowTemplateRequest.class
@@ -34,11 +35,11 @@ com\aiflow\config\DataInitializer.class
 com\example\aiflow\module\user\entity\SysUser.class
 com\example\aiflow\module\user\runner\DefaultAdminInitializer.class
 com\aiflow\dto\TemplateFormBindingDTO$TemplateFormBindingDTOBuilder.class
+com\aiflow\dto\StartProcessPreviewRequest.class
 com\aiflow\model\FormDefinition$FormDefinitionBuilder.class
 com\aiflow\dto\FormDefinitionDTO.class
 com\aiflow\service\FormDefinitionService.class
 com\aiflow\dto\FormSubmissionDTO$FormSubmissionDTOBuilder.class
-com\aiflow\dto\StartProcessPreviewRequestDTO.class
 com\aiflow\model\ProcessTemplate.class
 com\aiflow\common\AiflowGlobalExceptionHandler.class
 com\aiflow\repository\TemplateMarketRepository.class
@@ -61,6 +62,8 @@ com\aiflow\enums\TemplateSourceType.class
 com\aiflow\dto\ProcessTemplateDTO.class
 com\example\aiflow\security\SecurityUtils.class
 com\example\aiflow\module\template\service\WorkflowTemplateService.class
+com\aiflow\service\impl\FlowableRuntimeServiceImpl$1.class
+com\aiflow\service\impl\FlowableDeploymentServiceImpl.class
 com\aiflow\model\Department$DepartmentBuilder.class
 com\example\aiflow\module\template\dto\WorkflowTemplateResponse.class
 com\aiflow\enums\DatabaseEnum.class
@@ -70,6 +73,7 @@ com\aiflow\controller\TemplateMarketController.class
 com\example\aiflow\module\ai\controller\AiPlaceholderController.class
 com\example\aiflow\security\JwtTokenProvider.class
 com\aiflow\common\ApiResponse.class
+com\aiflow\service\impl\FlowableRuntimeServiceImpl.class
 com\example\aiflow\module\auth\dto\LoginRequest.class
 com\aiflow\model\ProcessFragment$ProcessFragmentBuilder.class
 com\aiflow\controller\ProcessFragmentController.class
@@ -99,13 +103,13 @@ com\aiflow\dto\ProcessFragmentUpdateRequest.class
 com\aiflow\dto\ProcessFragmentDTO$ProcessFragmentDTOBuilder.class
 com\example\aiflow\module\user\mapper\SysUserMapper.class
 com\aiflow\enums\SystemRole.class
+com\aiflow\service\FlowableDeploymentService.class
 com\example\aiflow\AiFlowApplication.class
 com\aiflow\enums\FragmentStatus.class
 com\example\aiflow\module\user\dto\UserMeResponse.class
 com\aiflow\controller\ProcessInstanceController.class
 com\aiflow\repository\BizTypeDictRepository.class
 com\aiflow\dto\ProcessTemplateDTO$ProcessTemplateDTOBuilder.class
-com\aiflow\dto\SaveNodeFormRequestDTO.class
 com\aiflow\enums\MarketTypeConverter.class
 com\aiflow\service\impl\TemplateMarketServiceImpl.class
 com\aiflow\dto\DtoMapper.class
@@ -115,6 +119,7 @@ com\aiflow\enums\TemplateSourceTypeConverter.class
 com\aiflow\model\SysUser$SysUserBuilder.class
 com\aiflow\service\impl\FormDefinitionServiceImpl.class
 com\aiflow\model\TemplateFragmentRef.class
+com\aiflow\service\FlowableRuntimeService.class
 com\aiflow\repository\TemplateFragmentRefRepository.class
 com\aiflow\model\ProcessInstance$ProcessInstanceBuilder.class
 com\aiflow\model\FormSubmission.class

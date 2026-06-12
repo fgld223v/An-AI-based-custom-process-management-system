@@ -2,17 +2,15 @@ package com.aiflow.service.impl;
 
 import com.aiflow.dto.FormSubmissionDTO;
 import com.aiflow.dto.ProcessInstanceDTO;
-import com.aiflow.dto.SaveNodeFormRequestDTO;
-import com.aiflow.dto.StartProcessPreviewRequestDTO;
-import com.aiflow.enums.FormStatus;
-import com.aiflow.model.FormDefinition;
+import com.aiflow.dto.SaveNodeFormRequest;
+import com.aiflow.dto.StartProcessPreviewRequest;
 import com.aiflow.model.FormSubmission;
 import com.aiflow.model.ProcessInstance;
 import com.aiflow.model.ProcessTemplate;
-import com.aiflow.repository.FormDefinitionRepository;
 import com.aiflow.repository.FormSubmissionRepository;
 import com.aiflow.repository.ProcessInstanceRepository;
 import com.aiflow.repository.ProcessTemplateRepository;
+import com.aiflow.service.FlowableRuntimeService;
 import com.aiflow.service.ProcessInstanceService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -29,124 +27,143 @@ public class ProcessInstanceServiceImpl implements ProcessInstanceService {
 
     private static final String STATUS_DRAFT = "draft";
     private static final String STATUS_SUBMITTED = "submitted";
+    private static final String STATUS_RUNNING = "running";
     private static final DateTimeFormatter CODE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS");
 
     private final ProcessInstanceRepository processInstanceRepository;
     private final FormSubmissionRepository formSubmissionRepository;
     private final ProcessTemplateRepository processTemplateRepository;
-    private final FormDefinitionRepository formDefinitionRepository;
+    private final FlowableRuntimeService flowableRuntimeService;
 
     @Override
     @Transactional(readOnly = true)
     public List<ProcessInstanceDTO> listInstances(Long templateId, String status, String keyword) {
-        String normalizedStatus = normalizeInstanceStatusFilter(status);
-        String normalizedKeyword = normalizeText(keyword);
-        return processInstanceRepository.searchInstances(templateId, normalizedStatus, normalizedKeyword).stream()
-                .map(this::toProcessInstanceDTO)
+        return processInstanceRepository.listInstances(templateId, normalize(status), normalize(keyword)).stream()
+                .map(this::toDto)
                 .toList();
     }
+
     @Override
-    public ProcessInstanceDTO createDraft(StartProcessPreviewRequestDTO request) {
+    @Transactional(readOnly = true)
+    public ProcessInstanceDTO getInstance(Long id) {
+        return toDto(getRequiredInstance(id));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<FormSubmissionDTO> listSubmissions(Long processInstanceId) {
+        getRequiredInstance(processInstanceId);
+        return formSubmissionRepository
+                .findByProcessInstanceIdAndDeletedOrderByUpdatedAtDescCreatedAtDesc(processInstanceId, 0)
+                .stream()
+                .map(this::toDto)
+                .toList();
+    }
+
+    @Override
+    public ProcessInstanceDTO createDraft(StartProcessPreviewRequest request) {
         if (request == null) {
-            throw new IllegalArgumentException("请求不能为空");
+            throw new IllegalArgumentException("request must not be null");
         }
-        ProcessTemplate template = getRequiredTemplate(request.getTemplateId());
-        Long formId = request.getFormId();
-        if (formId != null) {
-            getPublishedForm(formId);
-        }
+        requireId(request.getTemplateId(), "templateId must not be null");
+        requireId(request.getFormId(), "formId must not be null");
+        requireText(request.getInstanceTitle(), "instanceTitle must not be blank");
+        requireText(request.getStartNodeKey(), "startNodeKey must not be blank");
+
+        ProcessTemplate template = processTemplateRepository.findByIdAndDeleted(request.getTemplateId(), 0)
+                .orElseThrow(() -> new IllegalArgumentException("process template not found"));
 
         LocalDateTime now = LocalDateTime.now();
         ProcessInstance instance = ProcessInstance.builder()
-                .templateId(template.getId())
                 .instanceCode("PI_" + now.format(CODE_TIME_FORMATTER))
-                .instanceTitle(hasText(request.getInstanceTitle()) ? request.getInstanceTitle().trim() : template.getTemplateName() + "-" + now.toLocalDate())
-                .status(STATUS_DRAFT)
-                .formId(formId)
-                .applicantId(0L)
+                .templateId(template.getId())
+                .formId(request.getFormId())
+                .applicantId(1L)
                 .bizTypeId(template.getBizTypeId())
-                .currentNodeKey(normalizeText(request.getStartNodeKey()))
-                .currentNodeName(normalizeText(request.getStartNodeName()))
-                .currentBusinessType(normalizeText(request.getBusinessType()))
-                .formDataJson(normalizeText(request.getFormDataJson()))
-                .createTime(now)
-                .updateTime(now)
+                .title(request.getInstanceTitle().trim())
+                .status(STATUS_DRAFT)
+                .formData(request.getFormDataJson())
+                .currentNodeKey(request.getStartNodeKey())
+                .currentNodeName(request.getStartNodeName())
+                .currentBusinessType(request.getBusinessType())
+                .flowableDefinitionId(template.getFlowableProcessDefinitionId())
+                .flowableDeploymentId(template.getFlowableDeploymentId())
+                .createdAt(now)
+                .updatedAt(now)
                 .deleted(0)
                 .build();
         ProcessInstance saved = processInstanceRepository.save(instance);
 
-        if (hasText(request.getFormDataJson()) && formId != null && hasText(request.getStartNodeKey())) {
-            saveSubmission(saved.getId(), template.getId(), request.getStartNodeKey(), request.getStartNodeName(), request.getBusinessType(), formId, request.getFormDataJson(), STATUS_DRAFT, now);
-        }
+        saveSubmission(saved, template.getId(), request.getStartNodeKey(), request.getStartNodeName(),
+                request.getBusinessType(), request.getFormId(), request.getFormDataJson(), STATUS_DRAFT, now);
 
-        return toProcessInstanceDTO(saved);
+        return toDto(saved);
     }
 
     @Override
-    public FormSubmissionDTO saveNodeForm(SaveNodeFormRequestDTO request) {
+    public FormSubmissionDTO saveNodeForm(SaveNodeFormRequest request) {
         if (request == null) {
-            throw new IllegalArgumentException("请求不能为空");
+            throw new IllegalArgumentException("request must not be null");
         }
+        requireId(request.getProcessInstanceId(), "processInstanceId must not be null");
+        requireId(request.getTemplateId(), "templateId must not be null");
+        requireId(request.getFormId(), "formId must not be null");
+        requireText(request.getNodeKey(), "nodeKey must not be blank");
+
         ProcessInstance instance = getRequiredInstance(request.getProcessInstanceId());
-        ProcessTemplate template = getRequiredTemplate(request.getTemplateId());
-        if (!template.getId().equals(instance.getTemplateId())) {
-            throw new IllegalArgumentException("流程模板与流程实例不匹配");
+        if (STATUS_SUBMITTED.equals(instance.getStatus()) || STATUS_RUNNING.equals(instance.getStatus())) {
+            throw new IllegalStateException("当前实例已提交或已启动流程，仅支持查看，不支持继续保存。");
         }
-        getPublishedForm(request.getFormId());
-        requireText(request.getNodeKey(), "节点ID不能为空");
-        requireText(request.getFormDataJson(), "表单数据不能为空");
-        if (!STATUS_DRAFT.equals(instance.getStatus())) {
-            throw new IllegalStateException("当前实例已提交，暂不可继续编辑。");
+        if (!request.getTemplateId().equals(instance.getTemplateId())) {
+            throw new IllegalArgumentException("templateId does not match current process instance");
         }
-        String status = normalizeSubmissionStatus(request.getStatus());
 
         LocalDateTime now = LocalDateTime.now();
-        FormSubmission saved = saveSubmission(instance.getId(), template.getId(), request.getNodeKey(), request.getNodeName(), request.getBusinessType(), request.getFormId(), request.getFormDataJson(), status, now);
+        FormSubmission submission = saveSubmission(instance, request.getTemplateId(), request.getNodeKey(),
+                request.getNodeName(), request.getBusinessType(), request.getFormId(), request.getFormDataJson(),
+                normalizeStatus(request.getStatus(), STATUS_DRAFT), now);
 
-        instance.setCurrentNodeKey(normalizeText(request.getNodeKey()));
-        instance.setCurrentNodeName(normalizeText(request.getNodeName()));
-        instance.setCurrentBusinessType(normalizeText(request.getBusinessType()));
         instance.setFormId(request.getFormId());
-        instance.setFormDataJson(normalizeText(request.getFormDataJson()));
-        instance.setUpdateTime(now);
+        instance.setFormData(request.getFormDataJson());
+        instance.setCurrentNodeKey(request.getNodeKey());
+        instance.setCurrentNodeName(request.getNodeName());
+        instance.setCurrentBusinessType(request.getBusinessType());
+        instance.setUpdatedAt(now);
         processInstanceRepository.save(instance);
 
-        return toFormSubmissionDTO(saved);
+        return toDto(submission);
     }
 
     @Override
-    public ProcessInstanceDTO submitInstance(Long instanceId) {
-        ProcessInstance instance = getRequiredInstance(instanceId);
-        if (!STATUS_DRAFT.equals(instance.getStatus())) {
-            throw new IllegalStateException(STATUS_SUBMITTED.equals(instance.getStatus()) ? "当前实例已提交，不能重复提交。" : "只有草稿实例可以提交。");
+    public ProcessInstanceDTO submitInstance(Long id) {
+        ProcessInstance instance = getRequiredInstance(id);
+        if (STATUS_RUNNING.equals(instance.getStatus())) {
+            throw new IllegalStateException("当前实例已启动流程引擎，不能重复提交。");
         }
-LocalDateTime now = LocalDateTime.now();
-        instance.setStatus(STATUS_SUBMITTED);
-        instance.setUpdateTime(now);
-        formSubmissionRepository.findByProcessInstanceIdAndDeleted(instance.getId(), 0).forEach(submission -> {
+        if (hasText(instance.getFlowableProcessInstanceId())) {
+            throw new IllegalStateException("当前实例已关联 Flowable 流程实例，不能重复启动。");
+        }
+        if (!STATUS_DRAFT.equals(instance.getStatus()) && !STATUS_SUBMITTED.equals(instance.getStatus())) {
+            throw new IllegalStateException("当前实例状态不允许提交并启动流程。");
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        ProcessInstance started = flowableRuntimeService.startProcessInstance(instance);
+        started.setUpdatedAt(now);
+        ProcessInstance saved = processInstanceRepository.save(started);
+
+        List<FormSubmission> submissions = formSubmissionRepository
+                .findByProcessInstanceIdAndDeletedOrderByUpdatedAtDescCreatedAtDesc(id, 0);
+        for (FormSubmission submission : submissions) {
             submission.setStatus(STATUS_SUBMITTED);
-            submission.setUpdateTime(now);
-            formSubmissionRepository.save(submission);
-        });
-        return toProcessInstanceDTO(processInstanceRepository.save(instance));
+            submission.setUpdatedAt(now);
+        }
+        formSubmissionRepository.saveAll(submissions);
+
+        return toDto(saved);
     }
 
-    @Override
-    @Transactional(readOnly = true)
-    public ProcessInstanceDTO getInstanceDetail(Long instanceId) {
-        return toProcessInstanceDTO(getRequiredInstance(instanceId));
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public List<FormSubmissionDTO> listSubmissions(Long instanceId) {
-        getRequiredInstance(instanceId);
-        return formSubmissionRepository.findByProcessInstanceIdAndDeletedOrderByUpdateTimeDescCreateTimeDesc(instanceId, 0).stream()
-                .map(this::toFormSubmissionDTO)
-                .toList();
-    }
-
-    private FormSubmission saveSubmission(Long instanceId,
+    private FormSubmission saveSubmission(ProcessInstance instance,
                                           Long templateId,
                                           String nodeKey,
                                           String nodeName,
@@ -155,97 +172,38 @@ LocalDateTime now = LocalDateTime.now();
                                           String formDataJson,
                                           String status,
                                           LocalDateTime now) {
-        String normalizedNodeKey = normalizeText(nodeKey);
         FormSubmission submission = formSubmissionRepository
-                .findByProcessInstanceIdAndNodeKeyAndDeleted(instanceId, normalizedNodeKey, 0)
+                .findByProcessInstanceIdAndNodeKeyAndDeleted(instance.getId(), nodeKey, 0)
                 .orElseGet(() -> FormSubmission.builder()
-                        .processInstanceId(instanceId)
+                        .processInstanceId(instance.getId())
                         .templateId(templateId)
-                        .nodeKey(normalizedNodeKey)
-                        .createTime(now)
+                        .nodeKey(nodeKey)
+                        .createdAt(now)
                         .deleted(0)
                         .build());
 
         submission.setTemplateId(templateId);
-        submission.setNodeName(normalizeText(nodeName));
-        submission.setBusinessType(normalizeText(businessType));
+        submission.setNodeName(nodeName);
+        submission.setBusinessType(businessType);
         submission.setFormId(formId);
-        submission.setFormDataJson(normalizeText(formDataJson));
+        submission.setFormDataJson(formDataJson);
         submission.setStatus(status);
-        submission.setUpdateTime(now);
+        submission.setUpdatedAt(now);
         return formSubmissionRepository.save(submission);
     }
 
-    private ProcessTemplate getRequiredTemplate(Long templateId) {
-        if (templateId == null) {
-            throw new IllegalArgumentException("流程模板ID不能为空");
-        }
-        return processTemplateRepository.findByIdAndDeleted(templateId, 0)
-                .orElseThrow(() -> new IllegalArgumentException("流程模板不存在。"));
+    private ProcessInstance getRequiredInstance(Long id) {
+        requireId(id, "id must not be null");
+        return processInstanceRepository.findByIdAndDeleted(id, 0)
+                .orElseThrow(() -> new IllegalArgumentException("process instance not found"));
     }
 
-    private ProcessInstance getRequiredInstance(Long instanceId) {
-        if (instanceId == null) {
-            throw new IllegalArgumentException("流程实例ID不能为空");
-        }
-        return processInstanceRepository.findByIdAndDeleted(instanceId, 0)
-                .orElseThrow(() -> new IllegalArgumentException("流程实例不存在。"));
-    }
-
-    private FormDefinition getPublishedForm(Long formId) {
-        if (formId == null) {
-            throw new IllegalArgumentException("表单ID不能为空");
-        }
-        FormDefinition form = formDefinitionRepository.findByIdAndDeleted(formId, 0)
-                .orElseThrow(() -> new IllegalArgumentException("表单不存在。"));
-        if (form.getStatus() != FormStatus.PUBLISHED) {
-            throw new IllegalStateException("表单必须先发布后才能绑定或提交。");
-        }
-        return form;
-    }
-
-    private String normalizeInstanceStatusFilter(String status) {
-        if (!hasText(status)) {
-            return null;
-        }
-        String value = status.trim().toLowerCase();
-        if (!STATUS_DRAFT.equals(value) && !STATUS_SUBMITTED.equals(value)) {
-            throw new IllegalArgumentException("状态只能是 draft 或 submitted。");
-        }
-        return value;
-    }
-    private String normalizeSubmissionStatus(String status) {
-        if (!hasText(status)) {
-            return STATUS_DRAFT;
-        }
-        String value = status.trim().toLowerCase();
-        if (!STATUS_DRAFT.equals(value) && !STATUS_SUBMITTED.equals(value)) {
-            throw new IllegalArgumentException("状态只能是 draft 或 submitted。");
-        }
-        return value;
-    }
-
-    private void requireText(String value, String message) {
-        if (!hasText(value)) {
-            throw new IllegalArgumentException(message);
-        }
-    }
-
-    private boolean hasText(String value) {
-        return value != null && !value.trim().isEmpty();
-    }
-
-    private String normalizeText(String value) {
-        return hasText(value) ? value.trim() : null;
-    }
-
-    private ProcessInstanceDTO toProcessInstanceDTO(ProcessInstance entity) {
-        if (entity == null) return null;
+    private ProcessInstanceDTO toDto(ProcessInstance entity) {
         return ProcessInstanceDTO.builder()
                 .id(entity.getId())
                 .templateId(entity.getTemplateId())
                 .instanceCode(entity.getInstanceCode())
-                .instanceTitle(entity.getInstanceTitle())
+                .instanceTitle(entity.getTitle())
                 .status(entity.getStatus())
                 .currentNodeKey(entity.getCurrentNodeKey())
                 .currentNodeName(entity.getCurrentNodeName())
@@ -253,13 +211,12 @@ LocalDateTime now = LocalDateTime.now();
                 .flowableProcessInstanceId(entity.getFlowableProcessInstanceId())
                 .flowableDefinitionId(entity.getFlowableDefinitionId())
                 .flowableDeploymentId(entity.getFlowableDeploymentId())
-                .createTime(entity.getCreateTime())
-                .updateTime(entity.getUpdateTime())
+                .createTime(entity.getCreatedAt())
+                .updateTime(entity.getUpdatedAt())
                 .build();
     }
 
-    private FormSubmissionDTO toFormSubmissionDTO(FormSubmission entity) {
-        if (entity == null) return null;
+    private FormSubmissionDTO toDto(FormSubmission entity) {
         return FormSubmissionDTO.builder()
                 .id(entity.getId())
                 .processInstanceId(entity.getProcessInstanceId())
@@ -270,8 +227,33 @@ LocalDateTime now = LocalDateTime.now();
                 .formId(entity.getFormId())
                 .formDataJson(entity.getFormDataJson())
                 .status(entity.getStatus())
-                .createTime(entity.getCreateTime())
-                .updateTime(entity.getUpdateTime())
+                .createTime(entity.getCreatedAt())
+                .updateTime(entity.getUpdatedAt())
                 .build();
+    }
+
+    private String normalizeStatus(String value, String defaultValue) {
+        String normalized = normalize(value);
+        return normalized == null ? defaultValue : normalized;
+    }
+
+    private String normalize(String value) {
+        return hasText(value) ? value.trim() : null;
+    }
+
+    private void requireId(Long id, String message) {
+        if (id == null) {
+            throw new IllegalArgumentException(message);
+        }
+    }
+
+    private void requireText(String value, String message) {
+        if (!hasText(value)) {
+            throw new IllegalArgumentException(message);
+        }
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.trim().isEmpty();
     }
 }
