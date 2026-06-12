@@ -52,11 +52,14 @@ public class SecurityConfig {
                                 "/api/process-templates",
                                 "/api/process-templates/*/publish",
                                 "/api/template-market/publish-template",
-                                "/api/template-market/*/copy"
+                                "/api/template-market/*/copy",
+                                "/api/process-instances/draft",
+                                "/api/process-instances/node-form"
                         ).permitAll()
                         .requestMatchers(HttpMethod.PUT,
                                 "/api/forms/*",
-                                "/api/process-templates/*"
+                                "/api/process-templates/*",
+                                "/api/process-instances/*/submit"
                         ).permitAll()
                         .requestMatchers(HttpMethod.GET,
                                 "/api/health",
@@ -64,7 +67,8 @@ public class SecurityConfig {
                                 "/api/forms",
                                 "/api/forms/**",
                                 "/api/process-templates/**",
-                                "/api/template-market/**"
+                                "/api/template-market/**",
+                                "/api/process-instances/**"
                         ).permitAll()
                         .requestMatchers("/error").permitAll()
                         .anyRequest().authenticated()

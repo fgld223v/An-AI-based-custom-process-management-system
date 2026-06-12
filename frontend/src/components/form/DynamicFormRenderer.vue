@@ -85,7 +85,7 @@
           @update:model-value="updateValue(field.field, $event)"
         />
         <div v-else-if="field.type === 'upload'" class="upload-placeholder">
-          <el-button plain disabled>附件字段占位</el-button>
+          <el-button plain disabled>上传占位</el-button>
           <span>{{ field.placeholder || '当前阶段暂不上传附件' }}</span>
         </div>
         <el-input

@@ -1,9 +1,10 @@
 package com.aiflow.service.impl;
 
-import com.aiflow.enums.TemplateSourceType;
-import com.aiflow.enums.TemplateStatus;
 import com.aiflow.dto.DtoMapper;
 import com.aiflow.dto.TemplateFormBindingDTO;
+import com.aiflow.enums.FormStatus;
+import com.aiflow.enums.TemplateSourceType;
+import com.aiflow.enums.TemplateStatus;
 import com.aiflow.model.FormDefinition;
 import com.aiflow.model.ProcessTemplate;
 import com.aiflow.repository.FormDefinitionRepository;
@@ -42,6 +43,7 @@ public class ProcessTemplateServiceImpl implements ProcessTemplateService {
         if (processTemplateRepository.existsByTemplateCodeAndVersion(template.getTemplateCode(), template.getVersion())) {
             throw new IllegalStateException("templateCode and version already exist");
         }
+        validatePublishedForm(template.getFormId());
 
         LocalDateTime now = LocalDateTime.now();
         if (template.getStatus() == null) {
@@ -68,6 +70,7 @@ public class ProcessTemplateServiceImpl implements ProcessTemplateService {
             throw new IllegalStateException("only draft or reviewing template can be updated");
         }
         requireText(template.getTemplateName(), "templateName must not be blank");
+        validatePublishedForm(template.getFormId());
 
         existing.setTemplateName(template.getTemplateName().trim());
         existing.setBizTypeId(template.getBizTypeId());
@@ -114,11 +117,10 @@ public class ProcessTemplateServiceImpl implements ProcessTemplateService {
         ProcessTemplate template = processTemplateRepository.findByIdAndDeleted(templateId, 0)
                 .orElseThrow(() -> new IllegalArgumentException("template not found"));
         if (template.getFormId() == null) {
-            throw new IllegalStateException("当前流程模板未绑定表单");
+            throw new IllegalStateException("current process template has no bound form");
         }
 
-        FormDefinition form = formDefinitionRepository.findByIdAndDeleted(template.getFormId(), 0)
-                .orElseThrow(() -> new IllegalStateException("绑定表单不存在或已被删除"));
+        FormDefinition form = getPublishedForm(template.getFormId());
 
         return TemplateFormBindingDTO.builder()
                 .template(DtoMapper.toProcessTemplateDTO(template))
@@ -137,7 +139,7 @@ public class ProcessTemplateServiceImpl implements ProcessTemplateService {
         LocalDateTime now = LocalDateTime.now();
         ProcessTemplate copied = ProcessTemplate.builder()
                 .templateCode("COPY_" + sourceTemplate.getTemplateCode() + "_" + now.format(COPY_CODE_TIME_FORMATTER))
-                .templateName(hasText(newTemplateName) ? newTemplateName : sourceTemplate.getTemplateName() + "-副本")
+                .templateName(hasText(newTemplateName) ? newTemplateName : sourceTemplate.getTemplateName() + "-copy")
                 .bizTypeId(sourceTemplate.getBizTypeId())
                 .formId(sourceTemplate.getFormId())
                 .version(1)
@@ -157,6 +159,21 @@ public class ProcessTemplateServiceImpl implements ProcessTemplateService {
     private ProcessTemplate getRequiredTemplate(Long id) {
         return processTemplateRepository.findByIdAndDeleted(id, 0)
                 .orElseThrow(() -> new IllegalArgumentException("template not found"));
+    }
+
+    private void validatePublishedForm(Long formId) {
+        if (formId != null) {
+            getPublishedForm(formId);
+        }
+    }
+
+    private FormDefinition getPublishedForm(Long formId) {
+        FormDefinition form = formDefinitionRepository.findByIdAndDeleted(formId, 0)
+                .orElseThrow(() -> new IllegalStateException("bound form does not exist or has been deleted"));
+        if (form.getStatus() != FormStatus.PUBLISHED) {
+            throw new IllegalStateException("bound form must be published");
+        }
+        return form;
     }
 
     private void requireId(Long id, String message) {
