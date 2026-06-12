@@ -44,6 +44,18 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '流程发起预览', group: '运行' }
       },
       {
+        path: 'process/instances',
+        name: 'ProcessInstanceList',
+        component: () => import('@/views/process/InstanceList.vue'),
+        meta: { title: '流程实例', group: '运行' }
+      },
+      {
+        path: 'process/instances/:id',
+        name: 'ProcessInstanceDetail',
+        component: () => import('@/views/process/InstanceDetail.vue'),
+        meta: { title: '流程实例详情', group: '运行' }
+      },
+      {
         path: 'template-market',
         name: 'TemplateMarket',
         component: () => import('@/views/template/TemplateMarket.vue'),

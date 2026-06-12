@@ -130,3 +130,61 @@ export interface MarketCopyPayload {
   userId: number
   newTemplateName?: string
 }
+
+export interface ProcessInstanceListParams {
+  templateId?: number | null
+  status?: string
+  keyword?: string
+}
+
+export interface ProcessInstance {
+  id: number
+  templateId: number
+  instanceCode: string
+  instanceTitle: string
+  status: string
+  currentNodeKey?: string | null
+  currentNodeName?: string | null
+  currentBusinessType?: string | null
+  flowableProcessInstanceId?: string | null
+  flowableDefinitionId?: string | null
+  flowableDeploymentId?: string | null
+  createTime?: string
+  updateTime?: string
+}
+
+export interface FormSubmission {
+  id: number
+  processInstanceId: number
+  templateId: number
+  nodeKey: string
+  nodeName?: string | null
+  businessType?: string | null
+  formId: number
+  formDataJson?: string | null
+  status: string
+  createTime?: string
+  updateTime?: string
+}
+
+export interface StartProcessPreviewPayload {
+  templateId: number
+  instanceTitle: string
+  startNodeKey: string
+  startNodeName: string
+  businessType: string
+  formId: number
+  formDataJson: string
+  status?: 'draft' | 'submitted'
+}
+
+export interface SaveNodeFormPayload {
+  processInstanceId: number
+  templateId: number
+  nodeKey: string
+  nodeName: string
+  businessType: string
+  formId: number
+  formDataJson: string
+  status?: 'draft' | 'submitted'
+}

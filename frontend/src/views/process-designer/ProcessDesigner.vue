@@ -70,6 +70,65 @@
           <el-input v-model="selectedConfig.nodeName" placeholder="请输入节点名称" @change="updateSelectedName" />
         </el-form-item>
 
+        <section v-if="isFormBindableNode(selectedConfig)" class="node-form-section">
+          <el-divider content-position="left">表单绑定</el-divider>
+          <el-alert
+            type="info"
+            :closable="false"
+            show-icon
+            title="当前仅保存节点表单绑定配置；运行时将优先使用节点表单，否则按配置回退到模板默认表单。"
+          />
+          <el-form-item label="表单绑定模式">
+            <el-select v-model="selectedConfig.formBindingMode" style="width: 100%" @change="handleFormBindingModeChange">
+              <el-option label="不使用表单" value="none" />
+              <el-option label="使用模板默认表单" value="template_default" />
+              <el-option label="绑定节点表单" value="node_form" />
+            </el-select>
+          </el-form-item>
+          <el-form-item v-if="selectedConfig.formBindingMode === 'node_form'" label="绑定表单">
+            <el-select
+              v-model="selectedConfig.formId"
+              clearable
+              filterable
+              placeholder="请选择已发布表单"
+              style="width: 100%"
+              :loading="formsLoading"
+              @visible-change="handleFormSelectVisibleChange"
+              @change="syncNodeConfig"
+            >
+              <el-option v-for="item in forms" :key="item.id" :label="item.formName" :value="item.id" />
+            </el-select>
+            <div class="designer-empty-hint">
+              <span v-if="forms.length === 0">暂无已发布表单，可先在表单设计器中创建并发布表单。</span>
+              <el-button text type="success" :loading="formsLoading" @click="refreshPublishedForms">刷新表单</el-button>
+            </div>
+          </el-form-item>
+          <el-form-item label="表单填写模式">
+            <el-select v-model="selectedConfig.formMode" style="width: 100%" @change="syncNodeConfig">
+              <el-option label="新建填写" value="create" />
+              <el-option label="编辑已有数据" value="edit" />
+              <el-option label="补充填写" value="supplement" />
+              <el-option label="只读查看" value="readonly" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="允许暂存">
+            <el-switch v-model="selectedConfig.draftAllowed" active-text="允许" inactive-text="不允许" @change="syncNodeConfig" />
+          </el-form-item>
+          <el-form-item label="提交时校验">
+            <el-switch v-model="selectedConfig.validateOnSubmit" active-text="校验" inactive-text="不校验" @change="syncNodeConfig" />
+          </el-form-item>
+          <el-form-item label="提交按钮文案">
+            <el-input v-model="selectedConfig.submitButtonText" placeholder="例如 提交申请" @change="syncNodeConfig" />
+          </el-form-item>
+        </section>
+        <el-alert
+          v-else
+          class="node-form-section"
+          type="info"
+          :closable="false"
+          show-icon
+          title="当前节点不需要绑定表单。"
+        />
         <template v-if="selectedConfig.businessType === 'start'">
           <el-form-item label="发起方式">
             <el-select v-model="selectedConfig.startMode" @change="syncNodeConfig">
@@ -85,25 +144,12 @@
               <el-option label="指定部门" value="DEPARTMENT" />
             </el-select>
           </el-form-item>
-          <el-form-item label="关联申请表单">
-            <el-input v-model="selectedConfig.formId" placeholder="例如 leave_apply_form" @change="syncNodeConfig" />
-          </el-form-item>
           <el-form-item label="是否需要登录">
             <el-switch v-model="selectedConfig.loginRequired" active-text="需要" inactive-text="不需要" @change="syncNodeConfig" />
           </el-form-item>
         </template>
 
         <template v-else-if="selectedConfig.businessType === 'form_fill'">
-          <el-form-item label="绑定表单">
-            <el-input v-model="selectedConfig.formId" placeholder="只保存表单ID或编码" @change="syncNodeConfig" />
-          </el-form-item>
-          <el-form-item label="表单模式">
-            <el-select v-model="selectedConfig.formMode" @change="syncNodeConfig">
-              <el-option label="新建填写" value="CREATE" />
-              <el-option label="补充填写" value="SUPPLEMENT" />
-              <el-option label="修改已有数据" value="EDIT_EXISTING" />
-            </el-select>
-          </el-form-item>
           <el-form-item label="可编辑字段">
             <el-input
               :model-value="selectedConfig.editableFields.join(',')"
@@ -121,13 +167,7 @@
           <el-form-item label="是否允许上传附件">
             <el-switch v-model="selectedConfig.attachmentAllowed" active-text="允许" inactive-text="不允许" @change="syncNodeConfig" />
           </el-form-item>
-          <el-form-item label="是否允许暂存草稿">
-            <el-switch v-model="selectedConfig.draftAllowed" active-text="允许" inactive-text="不允许" @change="syncNodeConfig" />
-          </el-form-item>
-          <el-form-item label="提交按钮文案">
-            <el-input v-model="selectedConfig.submitButtonText" placeholder="例如 提交申请" @change="syncNodeConfig" />
-          </el-form-item>
-        </template>
+          </template>
 
         <template v-else-if="selectedConfig.businessType === 'approval'">
           <el-form-item label="审批人类型">
@@ -413,9 +453,15 @@ interface NodeBusinessConfig {
   bpmnType: string
   businessType: BusinessType
   nodeName: string
-  formId: string
+  formBindingMode: 'none' | 'template_default' | 'node_form'
+  formId: number | null
+  useTemplateFallback: boolean
+  formMode: string
   editableFields: string[]
+  readonlyFields: string[]
+  hiddenFields: string[]
   requiredFields: string[]
+  validateOnSubmit: boolean
   assigneeType: string
   assigneeValue: string
   approvalMode: string
@@ -441,7 +487,6 @@ interface NodeBusinessConfig {
   startMode: string
   startPermission: string
   loginRequired: boolean
-  formMode: string
   attachmentAllowed: boolean
   draftAllowed: boolean
   submitButtonText: string
@@ -478,6 +523,17 @@ const BUSINESS_NODE_CONFIGS: BusinessNodeConfig[] = [
   { label: '系统动作', businessType: 'system_action', bpmnType: 'bpmn:ServiceTask', defaultName: '系统处理', icon: Operation },
   { label: '流程结束', businessType: 'end', bpmnType: 'bpmn:EndEvent', defaultName: '流程结束', icon: Finished }
 ]
+const FLOWABLE_NODE_TYPE_MAP: Record<BusinessType, string> = {
+  start: 'bpmn:StartEvent',
+  form_fill: 'bpmn:UserTask',
+  approval: 'bpmn:UserTask',
+  generic_task: 'bpmn:UserTask',
+  condition: 'bpmn:ExclusiveGateway',
+  parallel: 'bpmn:ParallelGateway',
+  notify: 'bpmn:SendTask',
+  system_action: 'bpmn:ServiceTask',
+  end: 'bpmn:EndEvent'
+}
 
 const PALETTE_TOOLTIPS = [
   { selectors: ['[data-action="hand-tool"]', '.bpmn-icon-hand-tool'], text: '拖动画布' },
@@ -520,6 +576,8 @@ const templateSaving = ref(false)
 const savedTemplateId = ref<number | null>(null)
 const bizTypes = ref<BizType[]>([])
 const forms = ref<FormDefinition[]>([])
+const formsLoading = ref(false)
+const FORM_BINDABLE_BUSINESS_TYPES: BusinessType[] = ['start', 'form_fill', 'approval', 'generic_task']
 const elementCount = ref(0)
 const zoomPercent = ref(100)
 const nodeConfigMap = reactive<Record<string, NodeBusinessConfig>>({})
@@ -551,6 +609,7 @@ onMounted(async () => {
   })
   bindModelerEvents()
   await importDiagram(currentXml.value)
+  await Promise.all([loadBizTypeOptions(), loadPublishedFormOptions()])
 })
 
 onBeforeUnmount(() => {
@@ -562,7 +621,10 @@ function bindModelerEvents() {
   eventBus.on('selection.changed', (event: { newSelection: BpmnElement[] }) => {
     selectedElement.value = event.newSelection[0] || null
     if (selectedElement.value) {
-      ensureNodeConfig(selectedElement.value)
+      const config = ensureNodeConfig(selectedElement.value)
+      if (isFormBindableNode(config)) {
+        void loadPublishedFormOptions()
+      }
     }
   })
   eventBus.on('commandStack.changed', async () => {
@@ -606,16 +668,45 @@ async function exportXml() {
 
 async function saveXml() {
   await syncXml(true)
+  if (!validateTemplateForFlowablePreparation()) return
   emit('save', currentXml.value)
   await ensureTemplateOptionsLoaded()
   templateSaveVisible.value = true
 }
 
 async function ensureTemplateOptionsLoaded() {
-  if (bizTypes.value.length > 0 || forms.value.length > 0) return
-  const [bizTypeList, formList] = await Promise.all([getBizTypes(), getPublishedForms()])
-  bizTypes.value = bizTypeList
-  forms.value = formList
+  await Promise.all([loadBizTypeOptions(), loadPublishedFormOptions()])
+}
+
+async function loadBizTypeOptions() {
+  if (bizTypes.value.length > 0) return
+  try {
+    bizTypes.value = await getBizTypes()
+  } catch {
+    ElMessage.warning('业务类型加载失败，请检查后端服务。')
+  }
+}
+
+async function loadPublishedFormOptions(force = false) {
+  if (!force && forms.value.length > 0) return
+  formsLoading.value = true
+  try {
+    forms.value = await getPublishedForms()
+  } catch {
+    ElMessage.warning('已发布表单加载失败，请检查后端服务。')
+  } finally {
+    formsLoading.value = false
+  }
+}
+
+async function refreshPublishedForms() {
+  await loadPublishedFormOptions(true)
+}
+
+function handleFormSelectVisibleChange(visible: boolean) {
+  if (visible) {
+    void loadPublishedFormOptions()
+  }
 }
 
 async function submitTemplateSave() {
@@ -629,6 +720,7 @@ async function submitTemplateSave() {
   }
 
   await syncXml(true)
+  if (!validateTemplateForFlowablePreparation()) return
   templateSaving.value = true
   try {
     const payload = {
@@ -638,7 +730,7 @@ async function submitTemplateSave() {
       formId: templateSaveForm.formId,
       sourceType: 'manual',
       bpmnXml: currentXml.value,
-      nodeConfig: JSON.stringify(nodeConfigMap),
+      nodeConfig: JSON.stringify(buildPersistableNodeConfig()),
       formBindConfig: JSON.stringify({ formId: templateSaveForm.formId }),
       // TODO: 后续接入登录后替换为当前用户 ID。
       createdBy: 1
@@ -707,6 +799,8 @@ function ensureNodeConfig(element: BpmnElement, defaultName?: string, businessTy
     const inferredBusinessType = businessType || inferBusinessType(element)
     const nodeName = defaultName || element.businessObject?.name || getDefaultNodeName(inferredBusinessType, element.type)
     nodeConfigMap[element.id] = createDefaultNodeConfig(element, inferredBusinessType, nodeName)
+  } else {
+    nodeConfigMap[element.id] = normalizeNodeFormConfig(nodeConfigMap[element.id])
   }
   return nodeConfigMap[element.id]
 }
@@ -717,9 +811,14 @@ function createDefaultNodeConfig(element: BpmnElement, businessType: BusinessTyp
     bpmnType: element.type,
     businessType,
     nodeName,
-    formId: '',
+    formBindingMode: 'none',
+    formId: null,
+    useTemplateFallback: false,
     editableFields: [],
+    readonlyFields: [],
+    hiddenFields: [],
     requiredFields: [],
+    validateOnSubmit: true,
     assigneeType: 'ROLE',
     assigneeValue: '',
     approvalMode: 'SINGLE',
@@ -745,7 +844,7 @@ function createDefaultNodeConfig(element: BpmnElement, businessType: BusinessTyp
     startMode: 'MANUAL',
     startPermission: 'ALL',
     loginRequired: true,
-    formMode: 'CREATE',
+    formMode: 'edit',
     attachmentAllowed: true,
     draftAllowed: true,
     submitButtonText: '提交申请',
@@ -764,9 +863,10 @@ function createDefaultNodeConfig(element: BpmnElement, businessType: BusinessTyp
     remark: ''
   }
 
+  applyDefaultFormBinding(base, businessType)
+
   if (businessType === 'approval') {
     base.assigneeType = 'MANAGER'
-    base.submitButtonText = ''
   }
   if (businessType === 'notify') {
     base.actionType = 'NOTIFY'
@@ -813,6 +913,148 @@ function getBusinessLabel(businessType: BusinessType) {
   return label || '普通任务'
 }
 
+function isFormBindableNode(config?: NodeBusinessConfig | null) {
+  return Boolean(config && FORM_BINDABLE_BUSINESS_TYPES.includes(config.businessType))
+}
+
+async function handleFormBindingModeChange() {
+  if (!selectedConfig.value) return
+  if (selectedConfig.value.formBindingMode === 'none') {
+    selectedConfig.value.formId = null
+    selectedConfig.value.useTemplateFallback = false
+  }
+  if (selectedConfig.value.formBindingMode === 'template_default') {
+    selectedConfig.value.formId = null
+    selectedConfig.value.useTemplateFallback = true
+  }
+  if (selectedConfig.value.formBindingMode === 'node_form') {
+    selectedConfig.value.useTemplateFallback = true
+    await loadPublishedFormOptions()
+  }
+  syncNodeConfig()
+}
+
+function applyDefaultFormBinding(config: NodeBusinessConfig, businessType: BusinessType) {
+  if (businessType === 'start') {
+    config.formBindingMode = 'template_default'
+    config.formId = null
+    config.useTemplateFallback = true
+    config.formMode = 'create'
+    config.validateOnSubmit = true
+    config.draftAllowed = true
+    config.submitButtonText = '提交申请'
+    return
+  }
+  if (businessType === 'form_fill') {
+    config.formBindingMode = 'node_form'
+    config.formId = null
+    config.useTemplateFallback = true
+    config.formMode = 'supplement'
+    config.validateOnSubmit = true
+    config.draftAllowed = true
+    config.submitButtonText = '提交表单'
+    return
+  }
+  if (businessType === 'approval') {
+    config.formBindingMode = 'none'
+    config.formId = null
+    config.useTemplateFallback = false
+    config.formMode = 'edit'
+    config.validateOnSubmit = true
+    config.draftAllowed = false
+    config.submitButtonText = '提交审批'
+    return
+  }
+  if (businessType === 'generic_task') {
+    config.formBindingMode = 'none'
+    config.formId = null
+    config.useTemplateFallback = false
+    config.formMode = 'edit'
+    config.validateOnSubmit = true
+    config.draftAllowed = true
+    config.submitButtonText = '提交任务'
+  }
+}
+
+function normalizeNodeFormConfig(config: NodeBusinessConfig): NodeBusinessConfig {
+  const normalized = config
+  if (!isFormBindableNode(normalized)) {
+    delete (normalized as Partial<NodeBusinessConfig>).formId
+    delete (normalized as Partial<NodeBusinessConfig>).formBindingMode
+    delete (normalized as Partial<NodeBusinessConfig>).useTemplateFallback
+    return normalized
+  }
+  normalized.formBindingMode = normalized.formBindingMode || (normalized.formId ? 'node_form' : 'none')
+  normalized.formId = normalized.formId ? Number(normalized.formId) : null
+  normalized.useTemplateFallback = normalized.formBindingMode === 'template_default' || normalized.formBindingMode === 'node_form'
+  normalized.formMode = normalized.formMode || 'edit'
+  normalized.editableFields = normalized.editableFields || []
+  normalized.readonlyFields = normalized.readonlyFields || []
+  normalized.hiddenFields = normalized.hiddenFields || []
+  normalized.requiredFields = normalized.requiredFields || []
+  normalized.validateOnSubmit = normalized.validateOnSubmit ?? true
+  normalized.draftAllowed = normalized.draftAllowed ?? true
+  normalized.submitButtonText = normalized.submitButtonText || '提交'
+  return normalized
+}
+
+function buildPersistableNodeConfig() {
+  return Object.fromEntries(
+    Object.entries(nodeConfigMap).map(([nodeId, config]) => [nodeId, normalizeNodeFormConfig({ ...config })])
+  )
+}
+
+function validateTemplateForFlowablePreparation() {
+  if (!validateBpmnXmlReady()) return false
+  if (!validateNodeConfigAlignment()) return false
+  if (!validateNodeFormBindings()) return false
+  return true
+}
+
+function validateBpmnXmlReady() {
+  const xml = currentXml.value.trim()
+  if (!xml) {
+    ElMessage.warning('BPMN XML 不能为空，请先绘制或导入流程图。')
+    return false
+  }
+  if (!xml.includes('<bpmn:definitions') || !xml.includes('<bpmn:process')) {
+    ElMessage.warning('BPMN XML 不完整，必须包含 definitions 和 process。')
+    return false
+  }
+  return true
+}
+
+function validateNodeConfigAlignment() {
+  if (!modeler.value) return true
+  const elementRegistry = modeler.value.get('elementRegistry')
+  for (const [nodeId, config] of Object.entries(nodeConfigMap)) {
+    if (nodeId !== config.nodeId) {
+      ElMessage.warning('节点配置不一致：配置 key ' + nodeId + ' 与 nodeId ' + config.nodeId + ' 不一致。')
+      return false
+    }
+    const element = elementRegistry.get(nodeId)
+    if (!element) {
+      ElMessage.warning('节点配置不一致：BPMN XML 中找不到节点 ' + nodeId + '。')
+      return false
+    }
+    if (config.bpmnType && element.type !== config.bpmnType) {
+      ElMessage.warning('节点配置不一致：节点 ' + nodeId + ' 的 BPMN 类型已变化，请重新确认节点属性。')
+      return false
+    }
+  }
+  return true
+}
+
+function validateNodeFormBindings() {
+  for (const config of Object.values(nodeConfigMap)) {
+    const normalized = normalizeNodeFormConfig(config)
+    if (isFormBindableNode(normalized) && normalized.formBindingMode === 'node_form' && !normalized.formId) {
+      ElMessage.warning('节点【' + normalized.nodeName + '】已选择绑定节点表单，请选择具体表单。')
+      return false
+    }
+  }
+  return true
+}
 function updateSelectedName() {
   if (!selectedElement.value || !modeler.value || !selectedConfig.value) return
   const modeling = modeler.value.get('modeling')

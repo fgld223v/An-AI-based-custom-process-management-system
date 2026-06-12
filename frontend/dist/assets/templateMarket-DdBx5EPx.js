@@ -1,0 +1,1 @@
+import{ag as a}from"./index-DbD024i_.js";async function r(){return await a.get("/api/template-market")||[]}async function i(t){return await a.post("/api/template-market/publish-template",t)}async function m(t,e){return await a.post(`/api/template-market/${t}/copy`,e)}export{m as c,r as g,i as p};

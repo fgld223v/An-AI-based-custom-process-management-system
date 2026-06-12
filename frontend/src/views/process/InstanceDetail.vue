@@ -1,0 +1,299 @@
+﻿<template>
+  <div class="detail-page">
+    <section class="page-head">
+      <div>
+        <el-tag type="success" effect="plain">实例详情</el-tag>
+        <h1>{{ instance?.instanceTitle || '流程实例详情' }}</h1>
+        <p>查看轻量级流程实例与节点表单提交记录。当前阶段不包含流程引擎任务。</p>
+      </div>
+      <div class="head-actions">
+        <el-button round @click="router.back()">返回</el-button>
+        <el-button v-if="instance?.status === 'draft'" round type="success" @click="continueEdit">继续编辑</el-button>
+      </div>
+    </section>
+
+    <el-alert
+      v-if="instance?.status === 'submitted'"
+      type="success"
+      show-icon
+      :closable="false"
+      title="当前实例已提交，仅支持查看，不支持编辑。"
+    />
+    <el-alert
+      v-else-if="instance?.status === 'draft'"
+      type="info"
+      show-icon
+      :closable="false"
+      title="当前实例为草稿，可返回发起预览页继续编辑。"
+    />
+    <el-alert v-if="message" type="warning" show-icon :closable="false" :title="message" />
+
+    <section class="info-panel" v-loading="loading">
+      <div class="info-grid">
+        <div class="info-card">
+          <span>实例编号</span>
+          <strong>{{ instance?.instanceCode || '-' }}</strong>
+        </div>
+        <div class="info-card">
+          <span>实例标题</span>
+          <strong>{{ instance?.instanceTitle || '-' }}</strong>
+        </div>
+        <div class="info-card">
+          <span>状态</span>
+          <strong>{{ statusLabel(instance?.status) }}</strong>
+        </div>
+        <div class="info-card">
+          <span>模板ID</span>
+          <strong>{{ instance?.templateId || '-' }}</strong>
+        </div>
+        <div class="info-card">
+          <span>当前节点ID</span>
+          <strong>{{ instance?.currentNodeKey || '-' }}</strong>
+        </div>
+        <div class="info-card">
+          <span>当前节点名称</span>
+          <strong>{{ instance?.currentNodeName || '-' }}</strong>
+        </div>
+        <div class="info-card">
+          <span>当前业务类型</span>
+          <strong>{{ businessTypeLabel(instance?.currentBusinessType) }}</strong>
+        </div>
+        <div class="info-card">
+          <span>创建时间</span>
+          <strong>{{ instance?.createTime || '-' }}</strong>
+        </div>
+        <div class="info-card">
+          <span>更新时间</span>
+          <strong>{{ instance?.updateTime || '-' }}</strong>
+        </div>
+      </div>
+    </section>
+
+    <section class="table-panel">
+      <div class="section-title">
+        <h2>节点表单提交记录</h2>
+        <el-tag effect="plain">{{ submissions.length }} 条</el-tag>
+      </div>
+      <el-table v-loading="submissionsLoading" :data="submissions" border empty-text="暂无提交记录">
+        <el-table-column prop="nodeName" label="节点名称" min-width="150" />
+        <el-table-column prop="nodeKey" label="节点ID" min-width="150" />
+        <el-table-column label="业务类型" min-width="120">
+          <template #default="{ row }">{{ businessTypeLabel(row.businessType) }}</template>
+        </el-table-column>
+        <el-table-column prop="formId" label="表单ID" width="90" />
+        <el-table-column label="状态" width="110">
+          <template #default="{ row }">{{ statusLabel(row.status) }}</template>
+        </el-table-column>
+        <el-table-column prop="createTime" label="创建时间" min-width="180" />
+        <el-table-column prop="updateTime" label="更新时间" min-width="180" />
+        <el-table-column label="操作" width="120" fixed="right">
+          <template #default="{ row }">
+            <el-button text type="primary" @click="showJson(row)">查看 JSON</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </section>
+
+    <el-dialog v-model="jsonVisible" title="formData JSON" width="680px">
+      <el-alert v-if="jsonParseError" type="warning" show-icon :closable="false" title="表单数据不是合法 JSON，已展示原始内容。" />
+      <pre>{{ selectedJson }}</pre>
+    </el-dialog>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { onMounted, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { getProcessInstanceDetail, getProcessInstanceSubmissions } from '@/api/processInstance'
+import type { FormSubmission, ProcessInstance } from '@/types/workflow'
+
+const route = useRoute()
+const router = useRouter()
+const loading = ref(false)
+const submissionsLoading = ref(false)
+const message = ref('')
+const instance = ref<ProcessInstance | null>(null)
+const submissions = ref<FormSubmission[]>([])
+const jsonVisible = ref(false)
+const selectedJson = ref('')
+const jsonParseError = ref(false)
+
+onMounted(async () => {
+  await Promise.all([loadInstance(), loadSubmissions()])
+})
+
+async function loadInstance() {
+  const id = Number(route.params.id)
+  if (!id) {
+    message.value = '流程实例详情加载失败。'
+    return
+  }
+  loading.value = true
+  try {
+    instance.value = await getProcessInstanceDetail(id)
+  } catch (error) {
+    message.value = normalizeError(error, '流程实例详情加载失败。')
+  } finally {
+    loading.value = false
+  }
+}
+
+async function loadSubmissions() {
+  const id = Number(route.params.id)
+  if (!id) return
+  submissionsLoading.value = true
+  try {
+    submissions.value = await getProcessInstanceSubmissions(id)
+  } catch (error) {
+    message.value = normalizeError(error, '表单提交记录加载失败。')
+  } finally {
+    submissionsLoading.value = false
+  }
+}
+
+function continueEdit() {
+  if (!instance.value) return
+  router.push(`/process/start-preview?instanceId=${instance.value.id}`)
+}
+
+function showJson(row: FormSubmission) {
+  jsonParseError.value = false
+  const value = row.formDataJson || '{}'
+  try {
+    selectedJson.value = JSON.stringify(JSON.parse(value), null, 2)
+  } catch {
+    selectedJson.value = value
+    jsonParseError.value = true
+  }
+  jsonVisible.value = true
+}
+
+function statusLabel(status?: string) {
+  if (status === 'draft') return '草稿'
+  if (status === 'submitted') return '已提交'
+  return status || '-'
+}
+
+function businessTypeLabel(type?: string | null) {
+  const map: Record<string, string> = {
+    start: '开始/发起',
+    form_fill: '表单填写',
+    approval: '审批处理',
+    generic_task: '人工任务'
+  }
+  return map[type || ''] || type || '-'
+}
+
+function normalizeError(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message) return error.message
+  return fallback
+}
+</script>
+
+<style scoped>
+.detail-page {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.page-head,
+.info-panel,
+.table-panel {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: var(--shadow);
+}
+
+.page-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 24px;
+}
+
+.page-head h1 {
+  margin: 10px 0 6px;
+  font-size: 28px;
+}
+
+.page-head p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.head-actions,
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.info-panel,
+.table-panel {
+  padding: 18px;
+}
+
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.info-card {
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--el-fill-color-lighter);
+}
+
+.info-card span {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.info-card strong {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.section-title {
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.section-title h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+pre {
+  margin: 14px 0 0;
+  padding: 16px;
+  border-radius: 8px;
+  background: #111827;
+  color: #e5e7eb;
+  overflow: auto;
+}
+
+@media (max-width: 900px) {
+  .info-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .page-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .info-grid {
+    grid-template-columns: 1fr;
+  }
+}
+</style>

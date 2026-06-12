@@ -1,4 +1,4 @@
-sys_userCREATE DATABASE IF NOT EXISTS ai_workflow_mvp
+CREATE DATABASE IF NOT EXISTS ai_workflow_mvp
   DEFAULT CHARACTER SET utf8mb4
   DEFAULT COLLATE utf8mb4_unicode_ci;
 
@@ -251,10 +251,14 @@ CREATE TABLE IF NOT EXISTS process_instance (
   applicant_id BIGINT UNSIGNED NOT NULL COMMENT '申请人ID',
   biz_type_id BIGINT UNSIGNED NULL COMMENT '业务类型ID',
   title VARCHAR(256) NOT NULL COMMENT '流程标题',
-  status ENUM('running','pending_modify','completed','rejected','cancelled') NOT NULL DEFAULT 'running' COMMENT '状态',
-  form_data JSON NULL COMMENT '表单数据',
+  status VARCHAR(32) NOT NULL DEFAULT 'draft' COMMENT '状态：当前阶段仅使用 draft/submitted',
+  form_data LONGTEXT NULL COMMENT '表单数据',
   current_node_key VARCHAR(128) NULL COMMENT '当前节点Key',
+  current_node_name VARCHAR(128) NULL COMMENT '当前节点名称',
+  current_business_type VARCHAR(64) NULL COMMENT '当前节点业务类型',
   flowable_process_instance_id VARCHAR(128) NULL COMMENT 'Flowable流程实例ID',
+  flowable_definition_id VARCHAR(128) NULL COMMENT 'Flowable流程定义ID',
+  flowable_deployment_id VARCHAR(128) NULL COMMENT 'Flowable部署ID',
   started_at DATETIME NULL COMMENT '开始时间',
   ended_at DATETIME NULL COMMENT '结束时间',
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -268,6 +272,8 @@ CREATE TABLE IF NOT EXISTS process_instance (
   KEY idx_process_instance_biz_type_id (biz_type_id),
   KEY idx_process_instance_status (status),
   KEY idx_process_instance_flowable_instance_id (flowable_process_instance_id),
+  KEY idx_process_instance_flowable_definition_id (flowable_definition_id),
+  KEY idx_process_instance_flowable_deployment_id (flowable_deployment_id),
   KEY idx_process_instance_created_at (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='流程实例业务表';
 
@@ -513,4 +519,30 @@ INSERT INTO biz_type_dict (parent_id, type_code, type_name, description, sort_or
 SELECT (SELECT id FROM biz_type_dict WHERE type_code = 'management' LIMIT 1), 'contract_approval', '合同审批', '合同审批流程', 41, 1
 WHERE NOT EXISTS (SELECT 1 FROM biz_type_dict WHERE type_code = 'contract_approval');
 
+
+-- 节点表单提交记录表：当前阶段仅用于运行时预览的数据暂存，不代表正式审批任务
+CREATE TABLE IF NOT EXISTS form_submission (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  process_instance_id BIGINT UNSIGNED NOT NULL COMMENT '流程实例ID',
+  template_id BIGINT UNSIGNED NOT NULL COMMENT '流程模板ID',
+  node_key VARCHAR(128) NOT NULL COMMENT 'BPMN节点Key',
+  node_name VARCHAR(128) NULL COMMENT '节点名称',
+  business_type VARCHAR(64) NULL COMMENT '节点业务类型',
+  form_id BIGINT UNSIGNED NOT NULL COMMENT '表单ID',
+  form_data_json LONGTEXT NULL COMMENT '表单数据JSON',
+  status VARCHAR(32) NOT NULL DEFAULT 'draft' COMMENT '提交状态：draft/submitted',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  deleted TINYINT NOT NULL DEFAULT 0 COMMENT '0-未删除,1-已删除',
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_form_submission_instance_node (process_instance_id, node_key),
+  KEY idx_form_submission_instance_id (process_instance_id),
+  KEY idx_form_submission_template_id (template_id),
+  KEY idx_form_submission_form_id (form_id),
+  KEY idx_form_submission_status (status),
+  KEY idx_form_submission_created_at (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='节点表单提交记录表';
+
 SET FOREIGN_KEY_CHECKS = 1;
+
+
