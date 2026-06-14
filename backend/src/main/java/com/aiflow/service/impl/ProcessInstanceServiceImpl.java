@@ -160,6 +160,22 @@ public class ProcessInstanceServiceImpl implements ProcessInstanceService {
         }
         formSubmissionRepository.saveAll(submissions);
 
+        // 检查 Flowable 流程是否已立即结束（如排他网关条件直接路由到 EndEvent）
+        if (hasText(instance.getFlowableProcessInstanceId())) {
+            Task activeTask = taskService.createTaskQuery()
+                    .processInstanceId(instance.getFlowableProcessInstanceId())
+                    .singleResult();
+            if (activeTask == null) {
+                instance.setStatus("completed");
+                instance.setEndedAt(now);
+                instance.setCurrentNodeKey(null);
+                instance.setCurrentNodeName(null);
+                instance.setCurrentBusinessType(null);
+                instance.setUpdatedAt(now);
+                processInstanceRepository.save(instance);
+            }
+        }
+
         return toDto(instance);
     }
 
