@@ -159,6 +159,18 @@ public class FlowableRuntimeServiceImpl implements FlowableRuntimeService {
         variables.put("instanceTitle", instance.getTitle());
         variables.put("allFormData", allFormData);
         variables.put("startFormData", startFormData == null ? Map.of() : startFormData);
+
+        // 将 startFormData 中的字段提升为顶层流程变量，
+        // 使 BPMN 排他网关条件表达式可直接引用（如 ${leaveDays > 3}）
+        if (startFormData != null) {
+            for (Map.Entry<String, Object> entry : startFormData.entrySet()) {
+                Object value = entry.getValue();
+                if (value instanceof Number || value instanceof String || value instanceof Boolean) {
+                    variables.put(entry.getKey(), value);
+                }
+            }
+        }
+
         return variables;
     }
 
