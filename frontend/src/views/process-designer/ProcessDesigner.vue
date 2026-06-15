@@ -200,6 +200,30 @@
           <el-form-item label="超时设置">
             <el-input v-model="selectedConfig.timeoutConfig.remindAfter" placeholder="例如 24h 后提醒" @change="syncNodeConfig" />
           </el-form-item>
+          <el-form-item label="自动通过规则">
+            <el-switch v-model="selectedConfig.approvalRule.enabled" active-text="启用" inactive-text="关闭" @change="syncNodeConfig" />
+          </el-form-item>
+          <el-form-item v-if="selectedConfig.approvalRule.enabled" label="规则字段">
+            <el-select v-model="selectedConfig.approvalRule.field" allow-create filterable default-first-option @change="syncNodeConfig">
+              <el-option label="请假天数 leaveDays" value="leaveDays" />
+              <el-option label="申请天数 days" value="days" />
+              <el-option label="金额 amount" value="amount" />
+            </el-select>
+          </el-form-item>
+          <el-form-item v-if="selectedConfig.approvalRule.enabled" label="判断条件">
+            <el-input v-model="selectedConfig.approvalRule.value" placeholder="例如 3" @change="syncNodeConfig">
+              <template #prepend>
+                <el-select v-model="selectedConfig.approvalRule.operator" style="width: 88px" @change="syncNodeConfig">
+                  <el-option label="<" value="<" />
+                  <el-option label="<=" value="<=" />
+                  <el-option label=">" value=">" />
+                  <el-option label=">=" value=">=" />
+                  <el-option label="==" value="==" />
+                  <el-option label="!=" value="!=" />
+                </el-select>
+              </template>
+            </el-input>
+          </el-form-item>
           <el-form-item label="驳回规则">
             <el-select v-model="selectedConfig.rejectRule" @change="syncNodeConfig">
               <el-option label="退回申请人" value="TO_APPLICANT" />
@@ -484,6 +508,13 @@ interface NodeBusinessConfig {
   timeoutConfig: {
     remindAfter: string
     autoAction: string
+  }
+  approvalRule: {
+    enabled: boolean
+    field: string
+    operator: string
+    value: string | number
+    action: string
   }
   endStatus: string
   startMode: string
@@ -912,6 +943,13 @@ function createDefaultNodeConfig(element: BpmnElement, businessType: BusinessTyp
       remindAfter: '',
       autoAction: ''
     },
+    approvalRule: {
+      enabled: false,
+      field: 'leaveDays',
+      operator: '<',
+      value: 3,
+      action: 'approve'
+    },
     endStatus: 'COMPLETED',
     startMode: 'MANUAL',
     startPermission: 'ALL',
@@ -1050,6 +1088,13 @@ function applyDefaultFormBinding(config: NodeBusinessConfig, businessType: Busin
 
 function normalizeNodeFormConfig(config: NodeBusinessConfig): NodeBusinessConfig {
   const normalized = config
+  normalized.approvalRule = {
+    enabled: normalized.approvalRule?.enabled ?? false,
+    field: normalized.approvalRule?.field || 'leaveDays',
+    operator: normalized.approvalRule?.operator || '<',
+    value: normalized.approvalRule?.value ?? 3,
+    action: normalized.approvalRule?.action || 'approve'
+  }
   if (!isFormBindableNode(normalized)) {
     delete (normalized as Partial<NodeBusinessConfig>).formId
     delete (normalized as Partial<NodeBusinessConfig>).formBindingMode

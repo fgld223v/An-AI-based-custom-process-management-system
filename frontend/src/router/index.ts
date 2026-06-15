@@ -74,6 +74,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '任务详情', group: '运行' }
       },
       {
+        path: 'notifications',
+        name: 'NotificationList',
+        component: () => import('@/views/notification/NotificationList.vue'),
+        meta: { title: '通知中心', group: '运行' }
+      },
+      {
         path: 'template-market',
         name: 'TemplateMarket',
         component: () => import('@/views/template/TemplateMarket.vue'),
@@ -84,6 +90,12 @@ const routes: RouteRecordRaw[] = [
         name: 'Settings',
         component: () => import('@/views/settings/Settings.vue'),
         meta: { title: '设置/权限', group: '系统' }
+      },
+      {
+        path: 'settings/automation',
+        name: 'AutomationSettings',
+        component: () => import('@/views/settings/AutomationSettings.vue'),
+        meta: { title: '自动化策略', group: '系统' }
       },
       {
         path: 'placeholder/:feature',

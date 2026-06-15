@@ -80,6 +80,7 @@ public class SecurityConfig {
                                 "/api/tasks/**",
                                 "/api/templates/**"
                         ).permitAll()
+                        .requestMatchers("/ws/notifications").permitAll()
                         .requestMatchers("/error").permitAll()
                         .anyRequest().authenticated()
                 )

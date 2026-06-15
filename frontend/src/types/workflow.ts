@@ -222,3 +222,25 @@ export interface TaskCompletePayload {
   formId: number
   formData: Record<string, unknown>
 }
+
+export interface NotificationItem {
+  id: number
+  receiverId: number
+  type: string
+  title: string
+  content?: string | null
+  targetType?: string | null
+  targetId?: number | null
+  targetUrl?: string | null
+  isRead: boolean
+  readAt?: string | null
+  createTime?: string
+  updateTime?: string
+}
+
+export interface NotificationQuery {
+  receiverId?: number
+  type?: string
+  isRead?: boolean
+  keyword?: string
+}

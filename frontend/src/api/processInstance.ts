@@ -1,6 +1,7 @@
 ﻿import request from './request'
 import type {
   FormSubmission,
+  NotificationItem,
   ProcessInstance,
   ProcessInstanceListParams,
   RuntimeState,
@@ -34,4 +35,8 @@ export async function getProcessInstanceSubmissions(id: number) {
 
 export async function getRuntimeState(id: number) {
   return await request.get<RuntimeState>(`/api/process-instances/${id}/runtime-state`)
+}
+
+export async function urgeProcessInstance(id: number) {
+  return await request.post<NotificationItem>(`/api/process-instances/${id}/urge`)
 }
