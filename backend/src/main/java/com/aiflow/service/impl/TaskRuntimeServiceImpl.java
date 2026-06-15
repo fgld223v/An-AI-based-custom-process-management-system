@@ -2,12 +2,16 @@ package com.aiflow.service.impl;
 
 import com.aiflow.dto.TaskCompleteRequest;
 import com.aiflow.dto.TaskDTO;
+import com.aiflow.entity.UserEntity;
+import com.aiflow.mapper.SysUserMapper;
 import com.aiflow.model.FormSubmission;
 import com.aiflow.model.ProcessInstance;
 import com.aiflow.model.ProcessTemplate;
 import com.aiflow.repository.FormSubmissionRepository;
 import com.aiflow.repository.ProcessInstanceRepository;
 import com.aiflow.repository.ProcessTemplateRepository;
+import com.aiflow.service.ApproverResolverService;
+import com.aiflow.service.RuleEvaluatorService;
 import com.aiflow.service.TaskRuntimeService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -51,6 +55,9 @@ public class TaskRuntimeServiceImpl implements TaskRuntimeService {
     private final ProcessInstanceRepository processInstanceRepository;
     private final FormSubmissionRepository formSubmissionRepository;
     private final ProcessTemplateRepository processTemplateRepository;
+    private final ApproverResolverService approverResolverService;
+    private final SysUserMapper sysUserMapper;
+    private final RuleEvaluatorService ruleEvaluatorService;
     private final ObjectMapper objectMapper;
 
     @Override
@@ -135,31 +142,28 @@ public class TaskRuntimeServiceImpl implements TaskRuntimeService {
         }
 
         // ================================================================
-        // 6. 查询下一任务
+        // 6-7. 查询下一任务并执行审批规则自动流转
         // ================================================================
-        Task nextTask = taskService.createTaskQuery()
-                .processInstanceId(task.getProcessInstanceId())
-                .singleResult();
+        Task nextTask = ruleEvaluatorService.evaluateAndAutoComplete(instance);
 
         // ================================================================
-        // 7. 刷新 ProcessInstance 状态
+        // 8. 审批人解析与分配（下一个 UserTask 自动分配 assignee）
         // ================================================================
         if (nextTask != null) {
-            // 流程仍在运行，更新当前节点信息
-            instance.setCurrentNodeKey(nextTask.getTaskDefinitionKey());
-            instance.setCurrentNodeName(nextTask.getName());
-            instance.setCurrentBusinessType(
-                    resolveBusinessType(instance.getTemplateId(), nextTask.getTaskDefinitionKey()));
-        } else {
-            // 流程已结束
-            instance.setStatus(STATUS_COMPLETED);
-            instance.setEndedAt(now);
-            instance.setCurrentNodeKey(null);
-            instance.setCurrentNodeName(null);
-            instance.setCurrentBusinessType(null);
+            String strategy = resolveAssignStrategy(instance.getTemplateId(), nextTask.getTaskDefinitionKey());
+            String assignValue = resolveAssignValue(instance.getTemplateId(), nextTask.getTaskDefinitionKey());
+            if (strategy != null && !strategy.isBlank()) {
+                List<Long> approverIds = approverResolverService.resolveApprovers(
+                        instance.getId(), nextTask.getTaskDefinitionKey(), strategy, assignValue);
+                if (!approverIds.isEmpty()) {
+                    // 取第一个审批人（MVP 简化：单审批人）
+                    UserEntity approver = sysUserMapper.selectById(approverIds.get(0));
+                    if (approver != null) {
+                        taskService.setAssignee(nextTask.getId(), String.valueOf(approver.getId()));
+                    }
+                }
+            }
         }
-        instance.setUpdatedAt(now);
-        processInstanceRepository.save(instance);
 
         // 构建返回结果：下一任务或 null
         if (nextTask != null) {
@@ -264,11 +268,160 @@ public class TaskRuntimeServiceImpl implements TaskRuntimeService {
         }
     }
 
+    /**
+     * 从 nodeConfig 读取审批节点的 assignStrategy。
+     */
+    private String resolveAssignStrategy(Long templateId, String taskDefinitionKey) {
+        Object val = getNodeConfigField(templateId, taskDefinitionKey, "assignStrategy");
+        return val != null ? val.toString() : null;
+    }
+
+    /**
+     * 从 nodeConfig 读取审批节点的 assignValue。
+     */
+    private String resolveAssignValue(Long templateId, String taskDefinitionKey) {
+        Object val = getNodeConfigField(templateId, taskDefinitionKey, "assignValue");
+        return val != null ? val.toString() : null;
+    }
+
+    private Object getNodeConfigField(Long templateId, String taskDefinitionKey, String field) {
+        ProcessTemplate template = processTemplateRepository
+                .findByIdAndDeleted(templateId, 0).orElse(null);
+        if (template == null || !hasText(template.getNodeConfig())) return null;
+        try {
+            List<Map<String, Object>> nodes = objectMapper.readValue(
+                    template.getNodeConfig(), new TypeReference<List<Map<String, Object>>>() {});
+            for (Map<String, Object> node : nodes) {
+                if (taskDefinitionKey.equals(node.get("nodeKey"))) {
+                    return node.get(field);
+                }
+            }
+        } catch (Exception ignored) { /* ignore */ }
+        return null;
+    }
+
     private boolean hasText(String value) {
         return value != null && !value.trim().isEmpty();
     }
 
     private String safeMessage(Exception ex) {
         return hasText(ex.getMessage()) ? ex.getMessage() : ex.getClass().getSimpleName();
+    }
+
+    // ========================================================================
+    // 驳回/退回
+    // ========================================================================
+
+    @Override
+    public void rejectTask(String taskId, Long instanceId, String rejectReason) {
+        // 1. 查询 Flowable Task
+        Task task = taskService.createTaskQuery().taskId(taskId).singleResult();
+        if (task == null) {
+            throw new IllegalArgumentException("任务不存在或已完成。");
+        }
+
+        // 2. 查询业务 ProcessInstance
+        ProcessInstance instance = processInstanceRepository
+                .findByIdAndDeleted(instanceId, 0)
+                .orElseThrow(() -> new IllegalArgumentException("流程实例不存在。"));
+        if (!STATUS_RUNNING.equals(instance.getStatus())) {
+            throw new IllegalStateException(
+                    "当前实例状态为【" + instance.getStatus() + "】，仅 running 状态可驳回。");
+        }
+
+        // 3. 确定退回目标节点（nodeConfig 中当前节点的上一个）
+        String previousNodeKey = resolvePreviousNodeKey(instance.getTemplateId(), task.getTaskDefinitionKey());
+        String previousNodeName = null;
+        ProcessTemplate template = processTemplateRepository
+                .findByIdAndDeleted(instance.getTemplateId(), 0).orElse(null);
+        if (template != null && hasText(template.getNodeConfig())) {
+            try {
+                List<Map<String, Object>> nodes = objectMapper.readValue(
+                        template.getNodeConfig(), new TypeReference<List<Map<String, Object>>>() {});
+                for (Map<String, Object> node : nodes) {
+                    if (previousNodeKey.equals(node.get("nodeKey"))) {
+                        previousNodeName = node.get("nodeName") != null ? node.get("nodeName").toString() : null;
+                        break;
+                    }
+                }
+            } catch (Exception ignored) { /* ignore */ }
+        }
+
+        // 4. 保存驳回 FormSubmission（upsert by instanceId + nodeKey，永久保留）
+        LocalDateTime now = LocalDateTime.now();
+        Map<String, Object> rejectData = new HashMap<>();
+        rejectData.put("rejectReason", rejectReason);
+        rejectData.put("rejectedAt", now.toString());
+
+        FormSubmission submission = formSubmissionRepository
+                .findByProcessInstanceIdAndNodeKeyAndDeleted(instance.getId(), task.getTaskDefinitionKey(), 0)
+                .orElseGet(() -> FormSubmission.builder()
+                        .processInstanceId(instance.getId())
+                        .templateId(instance.getTemplateId())
+                        .nodeKey(task.getTaskDefinitionKey())
+                        .createdAt(now)
+                        .deleted(0)
+                        .build());
+        submission.setNodeName(task.getName());
+        submission.setBusinessType("approval");
+        submission.setFormId(resolveFormId(instance.getTemplateId(), task.getTaskDefinitionKey()));
+        submission.setFormDataJson(toJson(rejectData));
+        submission.setStatus("rejected");
+        submission.setUpdatedAt(now);
+        formSubmissionRepository.save(submission);
+
+        // 5. 完成 Flowable 任务（传入驳回变量）
+        Map<String, Object> variables = new HashMap<>();
+        variables.put("rejected", true);
+        variables.put("rejectReason", rejectReason);
+        try {
+            taskService.complete(taskId, variables);
+        } catch (Exception ex) {
+            throw new IllegalStateException("驳回操作失败：" + safeMessage(ex), ex);
+        }
+
+        // 6. 回退 ProcessInstance 状态
+        instance.setCurrentNodeKey(previousNodeKey);
+        instance.setCurrentNodeName(previousNodeName);
+        instance.setStatus("rejected");
+        instance.setFlowableProcessInstanceId(null);
+        instance.setFlowableDefinitionId(null);
+        instance.setFlowableDeploymentId(null);
+        instance.setUpdatedAt(now);
+        processInstanceRepository.save(instance);
+    }
+
+    /**
+     * 根据 nodeConfig 顺序找到当前节点的上一个可编辑节点 key。
+     * 跳过网关等路由节点，回退到最近的 UserTask 或 StartEvent。
+     */
+    private String resolvePreviousNodeKey(Long templateId, String currentTaskKey) {
+        ProcessTemplate template = processTemplateRepository
+                .findByIdAndDeleted(templateId, 0).orElse(null);
+        if (template == null || !hasText(template.getNodeConfig())) {
+            return "StartEvent_1";
+        }
+        try {
+            List<Map<String, Object>> nodes = objectMapper.readValue(
+                    template.getNodeConfig(), new TypeReference<List<Map<String, Object>>>() {});
+            int currentIdx = -1;
+            for (int i = 0; i < nodes.size(); i++) {
+                String nk = nodes.get(i).get("nodeKey") != null
+                        ? nodes.get(i).get("nodeKey").toString() : null;
+                if (currentTaskKey.equals(nk)) {
+                    currentIdx = i;
+                    break;
+                }
+            }
+            // 向前查找最近的非网关节点
+            for (int i = currentIdx - 1; i >= 0; i--) {
+                String nk = nodes.get(i).get("nodeKey") != null
+                        ? nodes.get(i).get("nodeKey").toString() : null;
+                if (nk != null && !nk.toLowerCase().contains("gateway")) {
+                    return nk;
+                }
+            }
+        } catch (Exception ignored) { /* ignore */ }
+        return "StartEvent_1";
     }
 }

@@ -20,3 +20,9 @@ export async function getTask(taskId: string) {
 export async function completeTask(taskId: string, data: TaskCompletePayload) {
   return await request.post<TaskItem | null>(`/api/tasks/${taskId}/complete`, data)
 }
+
+/** 驳回任务 */
+export async function rejectTask(taskId: string, data: { instanceId: number; rejectReason: string }) {
+  return await request.post<void>(`/api/tasks/${taskId}/reject`, data)
+}
+

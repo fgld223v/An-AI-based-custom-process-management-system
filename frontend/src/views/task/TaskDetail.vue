@@ -99,7 +99,8 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { completeTask, getTask } from '@/api/task'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { completeTask, getTask, rejectTask as rejectTaskApi } from '@/api/task'
 import type { TaskItem } from '@/types/workflow'
 
 const route = useRoute()
@@ -112,7 +113,8 @@ const task = ref<TaskItem | null>(null)
 
 const form = reactive({
   approvalResult: 'agree',
-  approvalComment: ''
+  approvalComment: '',
+  rejectReason: ''
 })
 
 onMounted(() => loadTask())
@@ -139,20 +141,64 @@ async function handleSubmit() {
   message.value = ''
   successMsg.value = ''
   try {
-    await completeTask(task.value.taskId, {
-      instanceId: task.value.businessInstanceId,
-      nodeKey: task.value.taskDefinitionKey,
-      formId: task.value.formId ?? 0,
-      formData: {
-        approvalResult: form.approvalResult,
-        approvalComment: form.approvalComment
+    if (form.approvalResult === 'reject') {
+      // 驳回：调用 rejectTask
+      if (!form.approvalComment?.trim()) {
+        message.value = '驳回时必须填写审批意见'
+        submitting.value = false
+        return
       }
-    })
-    successMsg.value = '审批完成！流程已流转。'
-    // 刷新为已办状态
+      await rejectTaskApi(task.value.taskId, {
+        instanceId: task.value.businessInstanceId,
+        rejectReason: form.approvalComment
+      })
+      successMsg.value = '已驳回，流程退回至上一节点。'
+    } else {
+      // 同意：调用 completeTask
+      await completeTask(task.value.taskId, {
+        instanceId: task.value.businessInstanceId,
+        nodeKey: task.value.taskDefinitionKey,
+        formId: task.value.formId ?? 0,
+        formData: {
+          approvalResult: form.approvalResult,
+          approvalComment: form.approvalComment
+        }
+      })
+      successMsg.value = '审批通过！流程已流转。'
+    }
     setTimeout(() => router.push('/tasks/done'), 1200)
   } catch (error) {
     message.value = normalizeError(error, '审批提交失败。')
+  } finally {
+    submitting.value = false
+  }
+}
+
+
+async function handleReject() {
+  if (!task.value) return
+  try {
+    const result = await ElMessageBox.prompt('请输入驳回原因', '驳回任务', {
+      confirmButtonText: '确认驳回',
+      cancelButtonText: '取消',
+      type: 'warning' as const,
+      inputType: 'textarea',
+      inputPlaceholder: '请填写驳回原因...'
+    })
+    const reason = result?.value
+    if (!reason?.trim()) {
+      ElMessage.warning('驳回原因不能为空')
+      return
+    }
+    submitting.value = true
+    await rejectTaskApi(task.value.taskId, {
+      instanceId: task.value.businessInstanceId,
+      rejectReason: reason.trim()
+    })
+    ElMessage.success('已驳回，流程退回至上一节点')
+    setTimeout(() => router.push('/tasks/done'), 1000)
+  } catch {
+    // 用户取消驳回
   } finally {
     submitting.value = false
   }

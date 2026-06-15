@@ -26,7 +26,11 @@ public class UserEntity {
 
     private String role;
 
-    private Boolean enabled;
+    private Long departmentId;
+
+    private Integer enabled;
+
+    private Integer deleted;
 
     private LocalDateTime createdTime;
 

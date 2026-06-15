@@ -3,6 +3,7 @@ package com.aiflow.controller;
 import com.aiflow.common.ApiResponse;
 import com.aiflow.dto.TaskCompleteRequest;
 import com.aiflow.dto.TaskDTO;
+import com.aiflow.dto.TaskRejectRequest;
 import com.aiflow.service.TaskQueryService;
 import com.aiflow.service.TaskRuntimeService;
 import lombok.RequiredArgsConstructor;
@@ -47,5 +48,13 @@ public class TaskController {
                                              @RequestBody TaskCompleteRequest request) {
         TaskDTO nextTask = taskRuntimeService.completeTask(taskId, request);
         return ApiResponse.success(nextTask);
+    }
+
+    /** 驳回任务 */
+    @PostMapping("/{taskId}/reject")
+    public ApiResponse<Void> rejectTask(@PathVariable String taskId,
+                                        @RequestBody TaskRejectRequest request) {
+        taskRuntimeService.rejectTask(taskId, request.getInstanceId(), request.getRejectReason());
+        return ApiResponse.success();
     }
 }

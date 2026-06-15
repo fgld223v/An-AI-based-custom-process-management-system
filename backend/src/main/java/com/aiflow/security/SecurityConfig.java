@@ -60,6 +60,7 @@ public class SecurityConfig {
                                 "/api/process-instances/draft",
                                 "/api/process-instances/node-form",
                                 "/api/tasks/*/complete",
+                                "/api/tasks/*/reject",
                                 "/api/ai/**"
                         ).permitAll()
                         .requestMatchers(HttpMethod.PUT,
@@ -78,8 +79,10 @@ public class SecurityConfig {
                                 "/api/template-market/**",
                                 "/api/process-instances/**",
                                 "/api/tasks/**",
+                                "/api/statistics/**",
                                 "/api/templates/**"
                         ).permitAll()
+                        .requestMatchers("/ws/notifications").permitAll()
                         .requestMatchers("/error").permitAll()
                         .anyRequest().authenticated()
                 )

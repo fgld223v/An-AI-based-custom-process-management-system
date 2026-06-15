@@ -149,6 +149,24 @@
           </el-form-item>
         </template>
 
+        <template v-else-if="selectedConfig.businessType === 'condition'">
+          <el-divider content-position="left">条件分支配置</el-divider>
+          <el-form-item label="分支描述">
+            <el-input v-model="selectedConfig.branchDescription" placeholder="例如：请假天数判断" @change="syncNodeConfig" />
+          </el-form-item>
+          <el-form-item label="条件表达式">
+            <el-input v-model="selectedConfig.conditionExpression" type="textarea" :rows="3"
+              placeholder="例如：leaveDays > 3" @change="syncNodeConfig" />
+            <div class="designer-empty-hint">使用流程变量编写条件，如 leaveDays > 3、amount >= 5000</div>
+          </el-form-item>
+          <el-form-item label="条件字段">
+            <el-input v-model="selectedConfig.conditionField" placeholder="例如：leaveDays" @change="syncNodeConfig" />
+          </el-form-item>
+          <el-form-item label="默认分支">
+            <el-input v-model="selectedConfig.defaultFlow" placeholder="无条件匹配时的兜底分支ID" @change="syncNodeConfig" />
+          </el-form-item>
+        </template>
+
         <template v-else-if="selectedConfig.businessType === 'form_fill'">
           <el-form-item label="可编辑字段">
             <el-input
@@ -197,8 +215,35 @@
           <el-form-item label="审批意见是否必填">
             <el-switch v-model="selectedConfig.commentRequired" active-text="必填" inactive-text="选填" @change="syncNodeConfig" />
           </el-form-item>
+          <el-form-item label="允许驳回">
+            <el-switch v-model="selectedConfig.allowReject" active-text="允许" inactive-text="不允许" @change="syncNodeConfig" />
+          </el-form-item>
           <el-form-item label="超时设置">
             <el-input v-model="selectedConfig.timeoutConfig.remindAfter" placeholder="例如 24h 后提醒" @change="syncNodeConfig" />
+          </el-form-item>
+          <el-form-item label="自动通过规则">
+            <el-switch v-model="selectedConfig.approvalRule.enabled" active-text="启用" inactive-text="关闭" @change="syncNodeConfig" />
+          </el-form-item>
+          <el-form-item v-if="selectedConfig.approvalRule.enabled" label="规则字段">
+            <el-select v-model="selectedConfig.approvalRule.field" allow-create filterable default-first-option @change="syncNodeConfig">
+              <el-option label="请假天数 leaveDays" value="leaveDays" />
+              <el-option label="申请天数 days" value="days" />
+              <el-option label="金额 amount" value="amount" />
+            </el-select>
+          </el-form-item>
+          <el-form-item v-if="selectedConfig.approvalRule.enabled" label="判断条件">
+            <el-input v-model="selectedConfig.approvalRule.value" placeholder="例如 3" @change="syncNodeConfig">
+              <template #prepend>
+                <el-select v-model="selectedConfig.approvalRule.operator" style="width: 88px" @change="syncNodeConfig">
+                  <el-option label="<" value="<" />
+                  <el-option label="<=" value="<=" />
+                  <el-option label=">" value=">" />
+                  <el-option label=">=" value=">=" />
+                  <el-option label="==" value="==" />
+                  <el-option label="!=" value="!=" />
+                </el-select>
+              </template>
+            </el-input>
           </el-form-item>
           <el-form-item label="驳回规则">
             <el-select v-model="selectedConfig.rejectRule" @change="syncNodeConfig">
@@ -206,27 +251,6 @@
               <el-option label="退回上一节点" value="TO_PREVIOUS" />
               <el-option label="直接结束流程" value="END_PROCESS" />
             </el-select>
-          </el-form-item>
-        </template>
-
-        <template v-else-if="selectedConfig.businessType === 'condition'">
-          <el-form-item label="判断字段">
-            <el-input v-model="selectedConfig.conditionField" placeholder="例如 leaveDays / amount / approvalResult" @change="syncNodeConfig" />
-          </el-form-item>
-          <el-form-item label="条件表达式">
-            <el-input
-              v-model="selectedConfig.conditionExpression"
-              type="textarea"
-              :rows="3"
-              placeholder="例如 请假天数 > 3 / 报销金额 >= 10000 / 审批结果 == 同意"
-              @change="syncNodeConfig"
-            />
-          </el-form-item>
-          <el-form-item label="默认分支">
-            <el-input v-model="selectedConfig.defaultFlow" placeholder="默认连线ID" @change="syncNodeConfig" />
-          </el-form-item>
-          <el-form-item label="分支说明">
-            <el-input v-model="selectedConfig.branchDescription" type="textarea" :rows="2" @change="syncNodeConfig" />
           </el-form-item>
         </template>
 
@@ -485,6 +509,13 @@ interface NodeBusinessConfig {
     remindAfter: string
     autoAction: string
   }
+  approvalRule: {
+    enabled: boolean
+    field: string
+    operator: string
+    value: string | number
+    action: string
+  }
   endStatus: string
   startMode: string
   startPermission: string
@@ -495,6 +526,9 @@ interface NodeBusinessConfig {
   transferAllowed: boolean
   addSignAllowed: boolean
   commentRequired: boolean
+  allowReject: boolean
+  assignStrategy: string
+  assignValue: string
   branchDescription: string
   parallelDescription: string
   waitStrategy: string
@@ -909,6 +943,8 @@ function createDefaultNodeConfig(element: BpmnElement, businessType: BusinessTyp
     validateOnSubmit: true,
     assigneeType: 'ROLE',
     assigneeValue: '',
+    assignStrategy: '',
+    assignValue: '',
     approvalMode: 'SINGLE',
     rejectRule: 'TO_APPLICANT',
     conditionField: '',
@@ -928,6 +964,13 @@ function createDefaultNodeConfig(element: BpmnElement, businessType: BusinessTyp
       remindAfter: '',
       autoAction: ''
     },
+    approvalRule: {
+      enabled: false,
+      field: 'leaveDays',
+      operator: '<',
+      value: 3,
+      action: 'approve'
+    },
     endStatus: 'COMPLETED',
     startMode: 'MANUAL',
     startPermission: 'ALL',
@@ -939,6 +982,7 @@ function createDefaultNodeConfig(element: BpmnElement, businessType: BusinessTyp
     transferAllowed: false,
     addSignAllowed: false,
     commentRequired: true,
+    allowReject: false,
     branchDescription: '',
     parallelDescription: '',
     waitStrategy: 'ALL_COMPLETED',
@@ -1066,6 +1110,13 @@ function applyDefaultFormBinding(config: NodeBusinessConfig, businessType: Busin
 
 function normalizeNodeFormConfig(config: NodeBusinessConfig): NodeBusinessConfig {
   const normalized = config
+  normalized.approvalRule = {
+    enabled: normalized.approvalRule?.enabled ?? false,
+    field: normalized.approvalRule?.field || 'leaveDays',
+    operator: normalized.approvalRule?.operator || '<',
+    value: normalized.approvalRule?.value ?? 3,
+    action: normalized.approvalRule?.action || 'approve'
+  }
   if (!isFormBindableNode(normalized)) {
     delete (normalized as Partial<NodeBusinessConfig>).formId
     delete (normalized as Partial<NodeBusinessConfig>).formBindingMode
@@ -1160,6 +1211,21 @@ function updateListField(field: 'editableFields' | 'requiredFields', value: stri
 }
 
 function syncNodeConfig() {
+  // 将前端 assigneeType 映射为后端 assignStrategy
+  if (selectedConfig.value) {
+    const typeMap: Record<string, string> = {
+      'MANAGER': 'DIRECT_SUPERVISOR',
+      'DEPT_LEADER': 'DEPARTMENT_MANAGER',
+      'USER': 'SPECIFIC_USERS',
+      'ROLE': 'ROLE'
+    }
+    if (selectedConfig.value.assigneeType) {
+      selectedConfig.value.assignStrategy = typeMap[selectedConfig.value.assigneeType] || ''
+    }
+    if (selectedConfig.value.assigneeValue) {
+      selectedConfig.value.assignValue = selectedConfig.value.assigneeValue
+    }
+  }
   void syncXml(false)
 }
 

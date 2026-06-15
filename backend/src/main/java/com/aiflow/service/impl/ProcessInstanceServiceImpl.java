@@ -13,6 +13,7 @@ import com.aiflow.repository.ProcessInstanceRepository;
 import com.aiflow.repository.ProcessTemplateRepository;
 import com.aiflow.service.FlowableRuntimeService;
 import com.aiflow.service.ProcessInstanceService;
+import com.aiflow.service.RuleEvaluatorService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -40,6 +41,7 @@ public class ProcessInstanceServiceImpl implements ProcessInstanceService {
     private final FormSubmissionRepository formSubmissionRepository;
     private final ProcessTemplateRepository processTemplateRepository;
     private final FlowableRuntimeService flowableRuntimeService;
+    private final RuleEvaluatorService ruleEvaluatorService;
     private final TaskService taskService;
     private final ObjectMapper objectMapper;
 
@@ -160,6 +162,25 @@ public class ProcessInstanceServiceImpl implements ProcessInstanceService {
         }
         formSubmissionRepository.saveAll(submissions);
 
+        // 检查 Flowable 流程是否已立即结束（如排他网关条件直接路由到 EndEvent）
+        if (hasText(instance.getFlowableProcessInstanceId())) {
+            Task activeTask = taskService.createTaskQuery()
+                    .processInstanceId(instance.getFlowableProcessInstanceId())
+                    .singleResult();
+            if (activeTask == null) {
+                instance.setStatus("completed");
+                instance.setEndedAt(now);
+                instance.setCurrentNodeKey(null);
+                instance.setCurrentNodeName(null);
+                instance.setCurrentBusinessType(null);
+                instance.setUpdatedAt(now);
+                processInstanceRepository.save(instance);
+            } else {
+                ruleEvaluatorService.evaluateAndAutoComplete(instance);
+            }
+        }
+
+        instance = getRequiredInstance(id);
         return toDto(instance);
     }
 
