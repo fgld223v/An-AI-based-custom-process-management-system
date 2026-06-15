@@ -27,3 +27,9 @@ Thumbs.db
 # ========== 其他脚本/临时文件（按需） ==========
 *.pyc
 __pycache__/
+
+# ========== sql脚步 ==========
+*.sql
+backend/run-dev.ps1
+backend/src/main/resources/db/schema.sql
+backend/src/main/resources/db/schema.sql
