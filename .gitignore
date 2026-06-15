@@ -1,3 +1,4 @@
+application-local.yml
 # ========== Java 编译产物（重点，解决你现在 target 问题） ==========
 target/
 *.class
