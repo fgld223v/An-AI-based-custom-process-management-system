@@ -8,6 +8,16 @@
       </div>
       <div class="head-actions">
         <el-button round @click="router.back()">返回</el-button>
+        <el-button
+          v-if="canUrge"
+          round
+          type="warning"
+          :icon="Bell"
+          :loading="urgeLoading"
+          @click="urgeCurrentTask"
+        >
+          催办
+        </el-button>
         <el-button v-if="instance?.templateId" round type="primary" @click="viewBpmn">查看流程图</el-button>
         <el-button v-if="instance?.status === 'draft'" round type="success" @click="continueEdit">继续编辑</el-button>
       </div>
@@ -142,9 +152,11 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { getProcessInstanceDetail, getProcessInstanceSubmissions, getRuntimeState } from '@/api/processInstance'
+import { Bell } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
+import { getProcessInstanceDetail, getProcessInstanceSubmissions, getRuntimeState, urgeProcessInstance } from '@/api/processInstance'
 import type { FormSubmission, ProcessInstance, RuntimeState } from '@/types/workflow'
 
 const route = useRoute()
@@ -158,6 +170,11 @@ const runtimeState = ref<RuntimeState | null>(null)
 const jsonVisible = ref(false)
 const selectedJson = ref('')
 const jsonParseError = ref(false)
+const urgeLoading = ref(false)
+
+const canUrge = computed(() => {
+  return instance.value?.status === 'running' && runtimeState.value?.completed !== true
+})
 
 onMounted(async () => {
   await Promise.all([loadInstance(), loadSubmissions()])
@@ -209,6 +226,19 @@ function continueEdit() {
 function viewBpmn() {
   if (!instance.value?.templateId) return
   router.push(`/process-designer?templateId=${instance.value.templateId}`)
+}
+
+async function urgeCurrentTask() {
+  if (!instance.value) return
+  urgeLoading.value = true
+  try {
+    await urgeProcessInstance(instance.value.id)
+    ElMessage.success('已发送催办通知')
+  } catch (error) {
+    ElMessage.error(normalizeError(error, '催办失败，请稍后重试。'))
+  } finally {
+    urgeLoading.value = false
+  }
 }
 
 function showJson(row: FormSubmission) {
