@@ -95,7 +95,7 @@ const menuGroups = ref<Array<{ title: string; items: MenuItem[] }>>([
     title: '系统',
     items: [
       { label: '设置/权限', path: '/settings', icon: Setting, available: true },
-      { label: '自动化策略', path: '/placeholder/automation', icon: Operation },
+      { label: '自动化策略', path: '/settings/automation', icon: Operation, available: true },
       { label: 'AI资源池', path: '/placeholder/ai-pool', icon: Cpu },
       { label: '定时任务', path: '/placeholder/schedule', icon: Timer }
     ]

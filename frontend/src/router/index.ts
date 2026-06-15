@@ -92,6 +92,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '设置/权限', group: '系统' }
       },
       {
+        path: 'settings/automation',
+        name: 'AutomationSettings',
+        component: () => import('@/views/settings/AutomationSettings.vue'),
+        meta: { title: '自动化策略', group: '系统' }
+      },
+      {
         path: 'placeholder/:feature',
         name: 'Placeholder',
         component: () => import('@/views/placeholder/Placeholder.vue'),
