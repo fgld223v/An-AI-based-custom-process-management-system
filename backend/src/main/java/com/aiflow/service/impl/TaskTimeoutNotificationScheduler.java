@@ -29,7 +29,7 @@ import java.util.Optional;
 public class TaskTimeoutNotificationScheduler {
 
     private static final String NOTIFICATION_TYPE = "timeout_warning";
-    private static final String TARGET_TYPE = "flowable_task";
+    private static final String TARGET_TYPE_PREFIX = "flowable_task:";
     private static final Long DEFAULT_RECEIVER_ID = 1L;
 
     private final TaskService taskService;
@@ -62,9 +62,10 @@ public class TaskTimeoutNotificationScheduler {
     }
 
     private boolean createTimeoutNotificationIfAbsent(Task task, LocalDateTime deadline) {
+        String targetType = targetType(task);
         String targetUrl = "/tasks/" + task.getId();
         boolean exists = notificationRepository
-                .existsByTypeAndTargetTypeAndTargetUrlAndDeleted(NOTIFICATION_TYPE, TARGET_TYPE, targetUrl, 0);
+                .existsByTypeAndTargetTypeAndDeleted(NOTIFICATION_TYPE, targetType, 0);
         if (exists) {
             return false;
         }
@@ -82,11 +83,15 @@ public class TaskTimeoutNotificationScheduler {
         request.setType(NOTIFICATION_TYPE);
         request.setTitle("任务超时提醒");
         request.setContent(buildContent(task, instance, elapsedHours, deadline));
-        request.setTargetType(TARGET_TYPE);
+        request.setTargetType(targetType);
         request.setTargetId(businessInstanceId);
         request.setTargetUrl(targetUrl);
         notificationService.createNotification(request);
         return true;
+    }
+
+    private String targetType(Task task) {
+        return TARGET_TYPE_PREFIX + task.getId();
     }
 
     private String buildContent(Task task, ProcessInstance instance, long elapsedHours, LocalDateTime deadline) {

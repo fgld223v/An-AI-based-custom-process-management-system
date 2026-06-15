@@ -6,6 +6,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Transient;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -28,7 +29,7 @@ public class Notification {
     @Column(name = "receiver_id", nullable = false)
     private Long receiverId;
 
-    @Column(name = "type", nullable = false)
+    @Column(name = "type", nullable = false, columnDefinition = "ENUM('task_remind','timeout_warning','approval_result','system_notice')")
     private String type;
 
     @Column(name = "title", nullable = false)
@@ -43,10 +44,10 @@ public class Notification {
     @Column(name = "target_id")
     private Long targetId;
 
-    @Column(name = "target_url")
+    @Transient
     private String targetUrl;
 
-    @Column(name = "is_read", nullable = false, columnDefinition = "TINYINT")
+    @Column(name = "read_status", nullable = false, columnDefinition = "TINYINT")
     private Boolean isRead;
 
     @Column(name = "read_at")
