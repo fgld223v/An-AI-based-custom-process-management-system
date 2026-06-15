@@ -2,12 +2,15 @@ package com.aiflow.service.impl;
 
 import com.aiflow.dto.TaskCompleteRequest;
 import com.aiflow.dto.TaskDTO;
+import com.aiflow.entity.UserEntity;
+import com.aiflow.mapper.SysUserMapper;
 import com.aiflow.model.FormSubmission;
 import com.aiflow.model.ProcessInstance;
 import com.aiflow.model.ProcessTemplate;
 import com.aiflow.repository.FormSubmissionRepository;
 import com.aiflow.repository.ProcessInstanceRepository;
 import com.aiflow.repository.ProcessTemplateRepository;
+import com.aiflow.service.ApproverResolverService;
 import com.aiflow.service.TaskRuntimeService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -51,6 +54,8 @@ public class TaskRuntimeServiceImpl implements TaskRuntimeService {
     private final ProcessInstanceRepository processInstanceRepository;
     private final FormSubmissionRepository formSubmissionRepository;
     private final ProcessTemplateRepository processTemplateRepository;
+    private final ApproverResolverService approverResolverService;
+    private final SysUserMapper sysUserMapper;
     private final ObjectMapper objectMapper;
 
     @Override
@@ -161,6 +166,25 @@ public class TaskRuntimeServiceImpl implements TaskRuntimeService {
         instance.setUpdatedAt(now);
         processInstanceRepository.save(instance);
 
+        // ================================================================
+        // 8. 审批人解析与分配（下一个 UserTask 自动分配 assignee）
+        // ================================================================
+        if (nextTask != null) {
+            String strategy = resolveAssignStrategy(instance.getTemplateId(), nextTask.getTaskDefinitionKey());
+            String assignValue = resolveAssignValue(instance.getTemplateId(), nextTask.getTaskDefinitionKey());
+            if (strategy != null && !strategy.isBlank()) {
+                List<Long> approverIds = approverResolverService.resolveApprovers(
+                        instance.getId(), nextTask.getTaskDefinitionKey(), strategy, assignValue);
+                if (!approverIds.isEmpty()) {
+                    // 取第一个审批人（MVP 简化：单审批人）
+                    UserEntity approver = sysUserMapper.selectById(approverIds.get(0));
+                    if (approver != null) {
+                        taskService.setAssignee(nextTask.getId(), String.valueOf(approver.getId()));
+                    }
+                }
+            }
+        }
+
         // 构建返回结果：下一任务或 null
         if (nextTask != null) {
             return toTaskDTO(nextTask, instance);
@@ -262,6 +286,38 @@ public class TaskRuntimeServiceImpl implements TaskRuntimeService {
         } catch (Exception ex) {
             throw new IllegalStateException("表单数据序列化失败。", ex);
         }
+    }
+
+    /**
+     * 从 nodeConfig 读取审批节点的 assignStrategy。
+     */
+    private String resolveAssignStrategy(Long templateId, String taskDefinitionKey) {
+        Object val = getNodeConfigField(templateId, taskDefinitionKey, "assignStrategy");
+        return val != null ? val.toString() : null;
+    }
+
+    /**
+     * 从 nodeConfig 读取审批节点的 assignValue。
+     */
+    private String resolveAssignValue(Long templateId, String taskDefinitionKey) {
+        Object val = getNodeConfigField(templateId, taskDefinitionKey, "assignValue");
+        return val != null ? val.toString() : null;
+    }
+
+    private Object getNodeConfigField(Long templateId, String taskDefinitionKey, String field) {
+        ProcessTemplate template = processTemplateRepository
+                .findByIdAndDeleted(templateId, 0).orElse(null);
+        if (template == null || !hasText(template.getNodeConfig())) return null;
+        try {
+            List<Map<String, Object>> nodes = objectMapper.readValue(
+                    template.getNodeConfig(), new TypeReference<List<Map<String, Object>>>() {});
+            for (Map<String, Object> node : nodes) {
+                if (taskDefinitionKey.equals(node.get("nodeKey"))) {
+                    return node.get(field);
+                }
+            }
+        } catch (Exception ignored) { /* ignore */ }
+        return null;
     }
 
     private boolean hasText(String value) {
