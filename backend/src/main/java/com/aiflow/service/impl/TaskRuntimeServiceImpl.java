@@ -8,6 +8,7 @@ import com.aiflow.model.ProcessTemplate;
 import com.aiflow.repository.FormSubmissionRepository;
 import com.aiflow.repository.ProcessInstanceRepository;
 import com.aiflow.repository.ProcessTemplateRepository;
+import com.aiflow.service.RuleEvaluatorService;
 import com.aiflow.service.TaskRuntimeService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -51,6 +52,7 @@ public class TaskRuntimeServiceImpl implements TaskRuntimeService {
     private final ProcessInstanceRepository processInstanceRepository;
     private final FormSubmissionRepository formSubmissionRepository;
     private final ProcessTemplateRepository processTemplateRepository;
+    private final RuleEvaluatorService ruleEvaluatorService;
     private final ObjectMapper objectMapper;
 
     @Override
@@ -135,31 +137,9 @@ public class TaskRuntimeServiceImpl implements TaskRuntimeService {
         }
 
         // ================================================================
-        // 6. 查询下一任务
+        // 6-7. 查询下一任务并执行审批规则自动流转
         // ================================================================
-        Task nextTask = taskService.createTaskQuery()
-                .processInstanceId(task.getProcessInstanceId())
-                .singleResult();
-
-        // ================================================================
-        // 7. 刷新 ProcessInstance 状态
-        // ================================================================
-        if (nextTask != null) {
-            // 流程仍在运行，更新当前节点信息
-            instance.setCurrentNodeKey(nextTask.getTaskDefinitionKey());
-            instance.setCurrentNodeName(nextTask.getName());
-            instance.setCurrentBusinessType(
-                    resolveBusinessType(instance.getTemplateId(), nextTask.getTaskDefinitionKey()));
-        } else {
-            // 流程已结束
-            instance.setStatus(STATUS_COMPLETED);
-            instance.setEndedAt(now);
-            instance.setCurrentNodeKey(null);
-            instance.setCurrentNodeName(null);
-            instance.setCurrentBusinessType(null);
-        }
-        instance.setUpdatedAt(now);
-        processInstanceRepository.save(instance);
+        Task nextTask = ruleEvaluatorService.evaluateAndAutoComplete(instance);
 
         // 构建返回结果：下一任务或 null
         if (nextTask != null) {

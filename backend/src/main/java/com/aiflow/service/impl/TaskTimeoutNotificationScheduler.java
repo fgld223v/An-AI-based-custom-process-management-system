@@ -9,6 +9,7 @@ import com.aiflow.repository.ProcessInstanceRepository;
 import com.aiflow.repository.ProcessTemplateRepository;
 import com.aiflow.repository.SysUserRepository;
 import com.aiflow.service.NotificationService;
+import com.aiflow.service.RuleEvaluatorService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -42,6 +43,7 @@ public class TaskTimeoutNotificationScheduler {
     private final TaskService taskService;
     private final RuntimeService runtimeService;
     private final NotificationService notificationService;
+    private final RuleEvaluatorService ruleEvaluatorService;
     private final NotificationRepository notificationRepository;
     private final ProcessInstanceRepository processInstanceRepository;
     private final ProcessTemplateRepository processTemplateRepository;
@@ -144,7 +146,7 @@ public class TaskTimeoutNotificationScheduler {
         try {
             taskService.addComment(latestTask.getId(), latestTask.getProcessInstanceId(), "系统自动通过");
             taskService.complete(latestTask.getId(), variables);
-            refreshProcessInstanceState(instance, latestTask, now);
+            ruleEvaluatorService.evaluateAndAutoComplete(instance);
             return true;
         } catch (Exception ex) {
             log.warn("Failed to auto-complete timeout task {}: {}", latestTask.getId(), safeMessage(ex), ex);
