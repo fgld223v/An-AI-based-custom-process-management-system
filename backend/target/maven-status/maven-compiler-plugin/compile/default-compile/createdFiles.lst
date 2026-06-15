@@ -1,4 +1,5 @@
 com\aiflow\dto\MarketCopyRequest.class
+com\aiflow\dto\AiGenerateProcessResponse.class
 com\aiflow\enums\FormStatus.class
 com\aiflow\config\MybatisPlusConfig.class
 com\aiflow\dto\WorkflowTemplatePageRequest.class
@@ -10,6 +11,7 @@ com\aiflow\mapper\SysUserMapper.class
 com\aiflow\model\TemplateMarket.class
 com\aiflow\common\GlobalExceptionHandler.class
 com\aiflow\service\BizTypeService.class
+com\aiflow\config\AiConfig.class
 com\aiflow\service\impl\ProcessTemplateServiceImpl.class
 com\aiflow\enums\FragmentSyncStatus.class
 com\aiflow\security\SecurityUtils.class
@@ -33,6 +35,7 @@ com\aiflow\service\ProcessTemplateService.class
 com\aiflow\dto\WorkflowTemplateRequest.class
 com\aiflow\enums\SystemRoleConverter.class
 com\aiflow\service\impl\ProcessFragmentServiceImpl.class
+com\aiflow\controller\AiController.class
 com\aiflow\dto\LoginResponse.class
 com\aiflow\security\JwtProperties.class
 com\aiflow\config\DataInitializer.class
@@ -66,10 +69,10 @@ com\aiflow\service\TaskQueryService.class
 com\aiflow\controller\UserController.class
 com\aiflow\repository\FormDefinitionRepository.class
 com\aiflow\enums\TemplateStatus.class
+com\aiflow\dto\NodeConfigItem.class
 com\aiflow\security\UserDetailsServiceImpl.class
 com\aiflow\service\WorkflowTemplateService.class
 com\aiflow\enums\TemplateSourceType.class
-com\aiflow\controller\AiPlaceholderController.class
 com\aiflow\dto\ProcessTemplateDTO.class
 com\aiflow\service\impl\FlowableRuntimeServiceImpl$1.class
 com\aiflow\security\JwtTokenProvider.class
@@ -80,6 +83,8 @@ com\aiflow\model\Department$DepartmentBuilder.class
 com\aiflow\enums\DatabaseEnum.class
 com\aiflow\repository\ProcessInstanceRepository.class
 com\aiflow\controller\TemplateMarketController.class
+com\aiflow\service\AiProcessService.class
+com\aiflow\service\AiProcessService$1.class
 com\aiflow\common\ApiResponse.class
 com\aiflow\service\impl\FlowableRuntimeServiceImpl.class
 com\aiflow\model\ProcessFragment$ProcessFragmentBuilder.class
@@ -110,6 +115,7 @@ com\aiflow\model\BizTypeDict.class
 com\aiflow\dto\ProcessFragmentUpdateRequest.class
 com\aiflow\service\impl\TaskRuntimeServiceImpl$2.class
 com\aiflow\dto\ProcessFragmentDTO$ProcessFragmentDTOBuilder.class
+com\aiflow\config\WebClientConfig.class
 com\aiflow\dto\LoginRequest.class
 com\aiflow\enums\SystemRole.class
 com\aiflow\dto\UserMeResponse.class
@@ -138,5 +144,6 @@ com\aiflow\service\impl\TaskQueryServiceImpl$1.class
 com\aiflow\model\BizTypeDict$BizTypeDictBuilder.class
 com\aiflow\dto\ProcessTemplateUpdateRequest.class
 com\aiflow\enums\FormStatusConverter.class
+com\aiflow\dto\AiGenerateRequest.class
 com\aiflow\dto\RuntimeStateDTO.class
 com\aiflow\model\Department.class

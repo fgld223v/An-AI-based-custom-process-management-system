@@ -2,9 +2,11 @@ C:\Users\Xsha\AI-LIUCGL\An-AI-based-custom-process-management-system\backend\src
 C:\Users\Xsha\AI-LIUCGL\An-AI-based-custom-process-management-system\backend\src\main\java\com\aiflow\common\ApiResponse.java
 C:\Users\Xsha\AI-LIUCGL\An-AI-based-custom-process-management-system\backend\src\main\java\com\aiflow\common\BusinessException.java
 C:\Users\Xsha\AI-LIUCGL\An-AI-based-custom-process-management-system\backend\src\main\java\com\aiflow\common\GlobalExceptionHandler.java
+C:\Users\Xsha\AI-LIUCGL\An-AI-based-custom-process-management-system\backend\src\main\java\com\aiflow\config\AiConfig.java
 C:\Users\Xsha\AI-LIUCGL\An-AI-based-custom-process-management-system\backend\src\main\java\com\aiflow\config\DataInitializer.java
 C:\Users\Xsha\AI-LIUCGL\An-AI-based-custom-process-management-system\backend\src\main\java\com\aiflow\config\MybatisPlusConfig.java
-C:\Users\Xsha\AI-LIUCGL\An-AI-based-custom-process-management-system\backend\src\main\java\com\aiflow\controller\AiPlaceholderController.java
+C:\Users\Xsha\AI-LIUCGL\An-AI-based-custom-process-management-system\backend\src\main\java\com\aiflow\config\WebClientConfig.java
+C:\Users\Xsha\AI-LIUCGL\An-AI-based-custom-process-management-system\backend\src\main\java\com\aiflow\controller\AiController.java
 C:\Users\Xsha\AI-LIUCGL\An-AI-based-custom-process-management-system\backend\src\main\java\com\aiflow\controller\AuthController.java
 C:\Users\Xsha\AI-LIUCGL\An-AI-based-custom-process-management-system\backend\src\main\java\com\aiflow\controller\BizTypeController.java
 C:\Users\Xsha\AI-LIUCGL\An-AI-based-custom-process-management-system\backend\src\main\java\com\aiflow\controller\FormDefinitionController.java
@@ -16,6 +18,8 @@ C:\Users\Xsha\AI-LIUCGL\An-AI-based-custom-process-management-system\backend\src
 C:\Users\Xsha\AI-LIUCGL\An-AI-based-custom-process-management-system\backend\src\main\java\com\aiflow\controller\TemplateMarketController.java
 C:\Users\Xsha\AI-LIUCGL\An-AI-based-custom-process-management-system\backend\src\main\java\com\aiflow\controller\UserController.java
 C:\Users\Xsha\AI-LIUCGL\An-AI-based-custom-process-management-system\backend\src\main\java\com\aiflow\controller\WorkflowTemplateController.java
+C:\Users\Xsha\AI-LIUCGL\An-AI-based-custom-process-management-system\backend\src\main\java\com\aiflow\dto\AiGenerateProcessResponse.java
+C:\Users\Xsha\AI-LIUCGL\An-AI-based-custom-process-management-system\backend\src\main\java\com\aiflow\dto\AiGenerateRequest.java
 C:\Users\Xsha\AI-LIUCGL\An-AI-based-custom-process-management-system\backend\src\main\java\com\aiflow\dto\BizTypeDTO.java
 C:\Users\Xsha\AI-LIUCGL\An-AI-based-custom-process-management-system\backend\src\main\java\com\aiflow\dto\DtoMapper.java
 C:\Users\Xsha\AI-LIUCGL\An-AI-based-custom-process-management-system\backend\src\main\java\com\aiflow\dto\FormCreateRequest.java
@@ -26,6 +30,7 @@ C:\Users\Xsha\AI-LIUCGL\An-AI-based-custom-process-management-system\backend\src
 C:\Users\Xsha\AI-LIUCGL\An-AI-based-custom-process-management-system\backend\src\main\java\com\aiflow\dto\LoginResponse.java
 C:\Users\Xsha\AI-LIUCGL\An-AI-based-custom-process-management-system\backend\src\main\java\com\aiflow\dto\MarketCopyRequest.java
 C:\Users\Xsha\AI-LIUCGL\An-AI-based-custom-process-management-system\backend\src\main\java\com\aiflow\dto\MarketPublishRequest.java
+C:\Users\Xsha\AI-LIUCGL\An-AI-based-custom-process-management-system\backend\src\main\java\com\aiflow\dto\NodeConfigItem.java
 C:\Users\Xsha\AI-LIUCGL\An-AI-based-custom-process-management-system\backend\src\main\java\com\aiflow\dto\ProcessFragmentCreateRequest.java
 C:\Users\Xsha\AI-LIUCGL\An-AI-based-custom-process-management-system\backend\src\main\java\com\aiflow\dto\ProcessFragmentDTO.java
 C:\Users\Xsha\AI-LIUCGL\An-AI-based-custom-process-management-system\backend\src\main\java\com\aiflow\dto\ProcessFragmentUpdateRequest.java
@@ -92,6 +97,7 @@ C:\Users\Xsha\AI-LIUCGL\An-AI-based-custom-process-management-system\backend\src
 C:\Users\Xsha\AI-LIUCGL\An-AI-based-custom-process-management-system\backend\src\main\java\com\aiflow\security\SecurityConfig.java
 C:\Users\Xsha\AI-LIUCGL\An-AI-based-custom-process-management-system\backend\src\main\java\com\aiflow\security\SecurityUtils.java
 C:\Users\Xsha\AI-LIUCGL\An-AI-based-custom-process-management-system\backend\src\main\java\com\aiflow\security\UserDetailsServiceImpl.java
+C:\Users\Xsha\AI-LIUCGL\An-AI-based-custom-process-management-system\backend\src\main\java\com\aiflow\service\AiProcessService.java
 C:\Users\Xsha\AI-LIUCGL\An-AI-based-custom-process-management-system\backend\src\main\java\com\aiflow\service\BizTypeService.java
 C:\Users\Xsha\AI-LIUCGL\An-AI-based-custom-process-management-system\backend\src\main\java\com\aiflow\service\FlowableDeploymentService.java
 C:\Users\Xsha\AI-LIUCGL\An-AI-based-custom-process-management-system\backend\src\main\java\com\aiflow\service\FlowableRuntimeService.java

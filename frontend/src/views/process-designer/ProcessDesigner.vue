@@ -642,6 +642,22 @@ onMounted(async () => {
     }
   }
 
+  // 检查是否来自 AI 生成（query 参数 from=ai），如果有则加载 AI 生成的 XML
+  const fromAi = route.query.from === 'ai'
+  const aiXml = sessionStorage.getItem('ai-generated-bpmn')
+  if (fromAi && aiXml) {
+    currentXml.value = aiXml
+    sessionStorage.removeItem('ai-generated-bpmn') // 用完清理
+    templateStore.setCurrentTemplate({
+      id: 0,
+      templateCode: '',
+      templateName: 'AI 生成流程（草稿）',
+      status: '',
+      sourceType: 'ai_generated',
+      bpmnXml: aiXml
+    } as any)
+  }
+
   // 确保 XML 非空且合法后再导入
   const xmlToImport = currentXml.value?.trim()
   if (xmlToImport && xmlToImport.startsWith('<?xml')) {
