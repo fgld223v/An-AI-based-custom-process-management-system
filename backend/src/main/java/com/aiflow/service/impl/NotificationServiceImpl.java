@@ -7,6 +7,7 @@ import com.aiflow.model.Notification;
 import com.aiflow.repository.NotificationRepository;
 import com.aiflow.security.SecurityUtils;
 import com.aiflow.service.NotificationService;
+import com.aiflow.websocket.NotificationWebSocketHandler;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,6 +23,7 @@ public class NotificationServiceImpl implements NotificationService {
     private static final long DEFAULT_RECEIVER_ID = 1L;
 
     private final NotificationRepository notificationRepository;
+    private final NotificationWebSocketHandler notificationWebSocketHandler;
 
     @Override
     @Transactional(readOnly = true)
@@ -70,7 +72,9 @@ public class NotificationServiceImpl implements NotificationService {
                 .updatedAt(now)
                 .deleted(0)
                 .build();
-        return toDto(notificationRepository.save(notification));
+        NotificationDTO dto = toDto(notificationRepository.save(notification));
+        notificationWebSocketHandler.broadcastChanged(dto, "created");
+        return dto;
     }
 
     @Override
@@ -93,7 +97,9 @@ public class NotificationServiceImpl implements NotificationService {
             applyReadStatus(notification, request.getIsRead(), LocalDateTime.now());
         }
         notification.setUpdatedAt(LocalDateTime.now());
-        return toDto(notificationRepository.save(notification));
+        NotificationDTO dto = toDto(notificationRepository.save(notification));
+        notificationWebSocketHandler.broadcastChanged(dto, "updated");
+        return dto;
     }
 
     @Override
@@ -102,7 +108,9 @@ public class NotificationServiceImpl implements NotificationService {
         LocalDateTime now = LocalDateTime.now();
         applyReadStatus(notification, true, now);
         notification.setUpdatedAt(now);
-        return toDto(notificationRepository.save(notification));
+        NotificationDTO dto = toDto(notificationRepository.save(notification));
+        notificationWebSocketHandler.broadcastChanged(dto, "read");
+        return dto;
     }
 
     @Override
@@ -111,7 +119,9 @@ public class NotificationServiceImpl implements NotificationService {
         LocalDateTime now = LocalDateTime.now();
         applyReadStatus(notification, false, now);
         notification.setUpdatedAt(now);
-        return toDto(notificationRepository.save(notification));
+        NotificationDTO dto = toDto(notificationRepository.save(notification));
+        notificationWebSocketHandler.broadcastChanged(dto, "unread");
+        return dto;
     }
 
     @Override
@@ -127,10 +137,12 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     public void deleteNotification(Long id) {
         Notification notification = getRequiredNotification(id);
+        Long receiverId = notification.getReceiverId();
         LocalDateTime now = LocalDateTime.now();
         notification.setDeleted(1);
         notification.setUpdatedAt(now);
         notificationRepository.save(notification);
+        notificationWebSocketHandler.broadcastDeleted(id, receiverId);
     }
 
     private Notification getRequiredNotification(Long id) {
