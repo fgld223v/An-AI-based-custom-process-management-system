@@ -74,6 +74,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '任务详情', group: '运行' }
       },
       {
+        path: 'notifications',
+        name: 'NotificationList',
+        component: () => import('@/views/notification/NotificationList.vue'),
+        meta: { title: '通知中心', group: '运行' }
+      },
+      {
         path: 'template-market',
         name: 'TemplateMarket',
         component: () => import('@/views/template/TemplateMarket.vue'),

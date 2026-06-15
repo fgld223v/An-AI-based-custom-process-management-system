@@ -38,6 +38,7 @@ import {
   Files,
   MagicStick,
   Monitor,
+  Bell,
   Operation,
   Setting,
   Share,
@@ -78,7 +79,8 @@ const menuGroups = ref<Array<{ title: string; items: MenuItem[] }>>([
       { label: '运行监控', path: '/placeholder/monitor', icon: Monitor },
       { label: '执行追踪', path: '/placeholder/tracing', icon: TrendCharts },
       { label: '待办任务', path: '/tasks/todo', icon: Tickets, available: true, badge: '' },
-      { label: '已办任务', path: '/tasks/done', icon: Tickets, available: true }
+      { label: '已办任务', path: '/tasks/done', icon: Tickets, available: true },
+      { label: '通知中心', path: '/notifications', icon: Bell, available: true }
     ]
   },
   {
