@@ -28,7 +28,7 @@ public class UserEntity {
 
     private Long departmentId;
 
-    private Boolean enabled;
+    private Integer enabled;
 
     private Integer deleted;
 
