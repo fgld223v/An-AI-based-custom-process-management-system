@@ -82,9 +82,6 @@
           <el-button type="primary" size="large" :loading="submitting" round @click="handleSubmit">
             提交审批
           </el-button>
-          <el-button type="danger" size="large" :loading="submitting" round @click="handleReject">
-            驳回
-          </el-button>
           <el-button size="large" round @click="router.push('/tasks/todo')">取消</el-button>
         </el-form-item>
       </el-form>
@@ -144,17 +141,31 @@ async function handleSubmit() {
   message.value = ''
   successMsg.value = ''
   try {
-    await completeTask(task.value.taskId, {
-      instanceId: task.value.businessInstanceId,
-      nodeKey: task.value.taskDefinitionKey,
-      formId: task.value.formId ?? 0,
-      formData: {
-        approvalResult: form.approvalResult,
-        approvalComment: form.approvalComment
+    if (form.approvalResult === 'reject') {
+      // 驳回：调用 rejectTask
+      if (!form.approvalComment?.trim()) {
+        message.value = '驳回时必须填写审批意见'
+        submitting.value = false
+        return
       }
-    })
-    successMsg.value = '审批完成！流程已流转。'
-    // 刷新为已办状态
+      await rejectTaskApi(task.value.taskId, {
+        instanceId: task.value.businessInstanceId,
+        rejectReason: form.approvalComment
+      })
+      successMsg.value = '已驳回，流程退回至上一节点。'
+    } else {
+      // 同意：调用 completeTask
+      await completeTask(task.value.taskId, {
+        instanceId: task.value.businessInstanceId,
+        nodeKey: task.value.taskDefinitionKey,
+        formId: task.value.formId ?? 0,
+        formData: {
+          approvalResult: form.approvalResult,
+          approvalComment: form.approvalComment
+        }
+      })
+      successMsg.value = '审批通过！流程已流转。'
+    }
     setTimeout(() => router.push('/tasks/done'), 1200)
   } catch (error) {
     message.value = normalizeError(error, '审批提交失败。')
