@@ -56,7 +56,7 @@ public class TaskUrgeServiceImpl implements TaskUrgeService {
     @Override
     @Transactional
     public boolean autoUrgeTask(Task task, ProcessInstance instance) {
-        if (task == null || instance == null) {
+        if (task == null || !isRunningInstance(instance)) {
             return false;
         }
         String targetType = targetType(task);
@@ -116,5 +116,11 @@ public class TaskUrgeServiceImpl implements TaskUrgeService {
 
     private boolean hasText(String value) {
         return value != null && !value.trim().isEmpty();
+    }
+
+    private boolean isRunningInstance(ProcessInstance instance) {
+        return instance != null
+                && "running".equals(instance.getStatus())
+                && hasText(instance.getFlowableProcessInstanceId());
     }
 }

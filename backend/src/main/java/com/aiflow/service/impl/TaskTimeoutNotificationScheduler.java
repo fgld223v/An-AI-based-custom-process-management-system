@@ -68,7 +68,7 @@ public class TaskTimeoutNotificationScheduler {
             ProcessInstance instance = processInstanceRepository
                     .findByFlowableProcessInstanceIdAndDeleted(task.getProcessInstanceId(), 0)
                     .orElse(null);
-            if (instance == null) {
+            if (!isRunningInstance(instance)) {
                 continue;
             }
             if (createTimeoutNotificationIfAbsent(task, instance, deadline)) {
@@ -84,6 +84,9 @@ public class TaskTimeoutNotificationScheduler {
     }
 
     private boolean createTimeoutNotificationIfAbsent(Task task, ProcessInstance instance, LocalDateTime deadline) {
+        if (!isRunningInstance(instance)) {
+            return false;
+        }
         String targetType = targetType(task);
         String targetUrl = "/tasks/" + task.getId();
         boolean exists = notificationRepository
@@ -109,6 +112,9 @@ public class TaskTimeoutNotificationScheduler {
     }
 
     private boolean autoCompleteTimeoutTask(Task task, ProcessInstance instance) {
+        if (!isRunningInstance(instance)) {
+            return false;
+        }
         Task latestTask = taskService.createTaskQuery()
                 .taskId(task.getId())
                 .singleResult();
@@ -234,6 +240,12 @@ public class TaskTimeoutNotificationScheduler {
 
     private boolean hasText(String value) {
         return value != null && !value.trim().isEmpty();
+    }
+
+    private boolean isRunningInstance(ProcessInstance instance) {
+        return instance != null
+                && "running".equals(instance.getStatus())
+                && hasText(instance.getFlowableProcessInstanceId());
     }
 
     private String safeMessage(Exception ex) {
