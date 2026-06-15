@@ -271,4 +271,121 @@ public class TaskRuntimeServiceImpl implements TaskRuntimeService {
     private String safeMessage(Exception ex) {
         return hasText(ex.getMessage()) ? ex.getMessage() : ex.getClass().getSimpleName();
     }
+
+    // ========================================================================
+    // 驳回/退回
+    // ========================================================================
+
+    @Override
+    public void rejectTask(String taskId, Long instanceId, String rejectReason) {
+        // 1. 查询 Flowable Task
+        Task task = taskService.createTaskQuery().taskId(taskId).singleResult();
+        if (task == null) {
+            throw new IllegalArgumentException("任务不存在或已完成。");
+        }
+
+        // 2. 查询业务 ProcessInstance
+        ProcessInstance instance = processInstanceRepository
+                .findByIdAndDeleted(instanceId, 0)
+                .orElseThrow(() -> new IllegalArgumentException("流程实例不存在。"));
+        if (!STATUS_RUNNING.equals(instance.getStatus())) {
+            throw new IllegalStateException(
+                    "当前实例状态为【" + instance.getStatus() + "】，仅 running 状态可驳回。");
+        }
+
+        // 3. 确定退回目标节点（nodeConfig 中当前节点的上一个）
+        String previousNodeKey = resolvePreviousNodeKey(instance.getTemplateId(), task.getTaskDefinitionKey());
+        String previousNodeName = null;
+        ProcessTemplate template = processTemplateRepository
+                .findByIdAndDeleted(instance.getTemplateId(), 0).orElse(null);
+        if (template != null && hasText(template.getNodeConfig())) {
+            try {
+                List<Map<String, Object>> nodes = objectMapper.readValue(
+                        template.getNodeConfig(), new TypeReference<List<Map<String, Object>>>() {});
+                for (Map<String, Object> node : nodes) {
+                    if (previousNodeKey.equals(node.get("nodeKey"))) {
+                        previousNodeName = node.get("nodeName") != null ? node.get("nodeName").toString() : null;
+                        break;
+                    }
+                }
+            } catch (Exception ignored) { /* ignore */ }
+        }
+
+        // 4. 保存驳回 FormSubmission（upsert by instanceId + nodeKey，永久保留）
+        LocalDateTime now = LocalDateTime.now();
+        Map<String, Object> rejectData = new HashMap<>();
+        rejectData.put("rejectReason", rejectReason);
+        rejectData.put("rejectedAt", now.toString());
+
+        FormSubmission submission = formSubmissionRepository
+                .findByProcessInstanceIdAndNodeKeyAndDeleted(instance.getId(), task.getTaskDefinitionKey(), 0)
+                .orElseGet(() -> FormSubmission.builder()
+                        .processInstanceId(instance.getId())
+                        .templateId(instance.getTemplateId())
+                        .nodeKey(task.getTaskDefinitionKey())
+                        .createdAt(now)
+                        .deleted(0)
+                        .build());
+        submission.setNodeName(task.getName());
+        submission.setBusinessType("approval");
+        submission.setFormId(resolveFormId(instance.getTemplateId(), task.getTaskDefinitionKey()));
+        submission.setFormDataJson(toJson(rejectData));
+        submission.setStatus("rejected");
+        submission.setUpdatedAt(now);
+        formSubmissionRepository.save(submission);
+
+        // 5. 完成 Flowable 任务（传入驳回变量）
+        Map<String, Object> variables = new HashMap<>();
+        variables.put("rejected", true);
+        variables.put("rejectReason", rejectReason);
+        try {
+            taskService.complete(taskId, variables);
+        } catch (Exception ex) {
+            throw new IllegalStateException("驳回操作失败：" + safeMessage(ex), ex);
+        }
+
+        // 6. 回退 ProcessInstance 状态
+        instance.setCurrentNodeKey(previousNodeKey);
+        instance.setCurrentNodeName(previousNodeName);
+        instance.setStatus("rejected");
+        instance.setFlowableProcessInstanceId(null);
+        instance.setFlowableDefinitionId(null);
+        instance.setFlowableDeploymentId(null);
+        instance.setUpdatedAt(now);
+        processInstanceRepository.save(instance);
+    }
+
+    /**
+     * 根据 nodeConfig 顺序找到当前节点的上一个可编辑节点 key。
+     * 跳过网关等路由节点，回退到最近的 UserTask 或 StartEvent。
+     */
+    private String resolvePreviousNodeKey(Long templateId, String currentTaskKey) {
+        ProcessTemplate template = processTemplateRepository
+                .findByIdAndDeleted(templateId, 0).orElse(null);
+        if (template == null || !hasText(template.getNodeConfig())) {
+            return "StartEvent_1";
+        }
+        try {
+            List<Map<String, Object>> nodes = objectMapper.readValue(
+                    template.getNodeConfig(), new TypeReference<List<Map<String, Object>>>() {});
+            int currentIdx = -1;
+            for (int i = 0; i < nodes.size(); i++) {
+                String nk = nodes.get(i).get("nodeKey") != null
+                        ? nodes.get(i).get("nodeKey").toString() : null;
+                if (currentTaskKey.equals(nk)) {
+                    currentIdx = i;
+                    break;
+                }
+            }
+            // 向前查找最近的非网关节点
+            for (int i = currentIdx - 1; i >= 0; i--) {
+                String nk = nodes.get(i).get("nodeKey") != null
+                        ? nodes.get(i).get("nodeKey").toString() : null;
+                if (nk != null && !nk.toLowerCase().contains("gateway")) {
+                    return nk;
+                }
+            }
+        } catch (Exception ignored) { /* ignore */ }
+        return "StartEvent_1";
+    }
 }
