@@ -33,3 +33,4 @@ __pycache__/
 backend/run-dev.ps1
 backend/src/main/resources/db/schema.sql
 backend/src/main/resources/db/schema.sql
+application-local.yml
