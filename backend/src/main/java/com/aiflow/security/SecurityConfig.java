@@ -60,6 +60,7 @@ public class SecurityConfig {
                                 "/api/process-instances/draft",
                                 "/api/process-instances/node-form",
                                 "/api/tasks/*/complete",
+                                "/api/tasks/*/reject",
                                 "/api/ai/**"
                         ).permitAll()
                         .requestMatchers(HttpMethod.PUT,
