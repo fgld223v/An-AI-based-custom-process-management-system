@@ -90,6 +90,12 @@ const routes: RouteRecordRaw[] = [
         name: 'Placeholder',
         component: () => import('@/views/placeholder/Placeholder.vue'),
         meta: { title: '功能预告' }
+      },
+      {
+        path: 'ai/generate-process',
+        name: 'AiGenerateProcess',
+        component: () => import('@/views/ai/AiGenerateProcess.vue'),
+        meta: { title: 'AI智能生成流程', group: '流程' }
       }
     ]
   }
