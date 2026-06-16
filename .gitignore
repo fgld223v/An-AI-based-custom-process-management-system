@@ -28,6 +28,10 @@ Thumbs.db
 *.pyc
 __pycache__/
 
+# ========== 前端构建产物与依赖 ==========
+frontend/dist/
+frontend/node_modules/
+
 # ========== sql脚步 ==========
 *.sql
 backend/run-dev.ps1

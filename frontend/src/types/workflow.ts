@@ -213,6 +213,18 @@ export interface TaskItem {
   endTime?: string | null
   status: string
   formId?: number | null
+  /** 审批方式：SINGLE（单人）、ALL（会签）、ANY（或签） */
+  approvalMode?: string | null
+  /** 多实例总数（会签/或签时有值） */
+  nrOfInstances?: number | null
+  /** 多实例已完成数 */
+  nrOfCompletedInstances?: number | null
+  /** 多实例进行中数 */
+  nrOfActiveInstances?: number | null
+  /** 所有审批人 ID（逗号分隔） */
+  allAssignees?: string | null
+  /** 审批进度描述 */
+  approvalProgress?: string | null
 }
 
 /** 完成任务请求 */

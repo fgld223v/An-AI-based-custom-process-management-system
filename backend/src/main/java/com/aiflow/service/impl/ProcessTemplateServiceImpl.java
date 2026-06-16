@@ -115,7 +115,8 @@ public class ProcessTemplateServiceImpl implements ProcessTemplateService {
     @Transactional(readOnly = true)
     public Optional<ProcessTemplate> findById(Long id) {
         requireId(id, "id must not be null");
-        return processTemplateRepository.findById(id);
+        // 使用 findByIdAndDeleted 确保只查询未删除的模板，并保证 LONGTEXT 字段（bpmnXml）在事务内被加载
+        return processTemplateRepository.findByIdAndDeleted(id, 0);
     }
 
     @Override
@@ -203,6 +204,7 @@ public class ProcessTemplateServiceImpl implements ProcessTemplateService {
     }
 
     private ProcessTemplate getRequiredTemplate(Long id) {
+        // 确保在事务内加载，LONGTEXT 字段（bpmnXml）可被正确读取
         return processTemplateRepository.findByIdAndDeleted(id, 0)
                 .orElseThrow(() -> new IllegalArgumentException("template not found"));
     }

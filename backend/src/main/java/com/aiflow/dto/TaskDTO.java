@@ -67,4 +67,23 @@ public class TaskDTO {
 
     /** 当前任务对应的表单 ID（来自 ProcessTemplate.formBindConfig） */
     private Long formId;
+
+    // ================================================================
+    // 多实例（会签/或签）相关字段
+    // ================================================================
+
+    /** 审批方式：SINGLE（单人）、ALL（会签）、ANY（或签） */
+    private String approvalMode;
+
+    /** 多实例总数（会签/或签时有值） */
+    private Integer nrOfInstances;
+
+    /** 多实例已完成数 */
+    private Integer nrOfCompletedInstances;
+
+    /** 多实例进行中数 */
+    private Integer nrOfActiveInstances;
+
+    /** 其他审批人（逗号分隔的用户ID），多实例场景下列出所有审批人 */
+    private String allAssignees;
 }

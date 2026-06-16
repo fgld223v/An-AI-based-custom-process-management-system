@@ -20,7 +20,7 @@ let lastErrorTime = 0
 
 const request = axios.create({
   baseURL: '',
-  timeout: 15000
+  timeout: 60000  // AI 流程生成调用 DeepSeek API 可能耗时 15-30 秒
 }) as unknown as DataRequest
 
 request.interceptors.request.use((config) => {

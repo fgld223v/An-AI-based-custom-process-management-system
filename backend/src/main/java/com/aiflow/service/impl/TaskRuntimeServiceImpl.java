@@ -16,6 +16,7 @@ import com.aiflow.service.TaskRuntimeService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.flowable.engine.RuntimeService;
 import org.flowable.engine.TaskService;
 import org.flowable.task.api.Task;
@@ -41,6 +42,7 @@ import java.util.Map;
  *   <li>刷新 ProcessInstance 状态（currentNodeKey/Name/BusinessType 或标记 completed）</li>
  * </ol>
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -144,22 +146,39 @@ public class TaskRuntimeServiceImpl implements TaskRuntimeService {
         // ================================================================
         // 6-7. 查询下一任务并执行审批规则自动流转
         // ================================================================
+        // 判断当前任务是否为多实例（会签/或签）
+        boolean isMultiInstance = isMultiInstanceNode(
+                instance.getTemplateId(), task.getTaskDefinitionKey());
         Task nextTask = ruleEvaluatorService.evaluateAndAutoComplete(instance);
 
         // ================================================================
         // 8. 审批人解析与分配（下一个 UserTask 自动分配 assignee）
         // ================================================================
         if (nextTask != null) {
-            String strategy = resolveAssignStrategy(instance.getTemplateId(), nextTask.getTaskDefinitionKey());
-            String assignValue = resolveAssignValue(instance.getTemplateId(), nextTask.getTaskDefinitionKey());
-            if (strategy != null && !strategy.isBlank()) {
-                List<Long> approverIds = approverResolverService.resolveApprovers(
-                        instance.getId(), nextTask.getTaskDefinitionKey(), strategy, assignValue);
-                if (!approverIds.isEmpty()) {
-                    // 取第一个审批人（MVP 简化：单审批人）
-                    UserEntity approver = sysUserMapper.selectById(approverIds.get(0));
-                    if (approver != null) {
-                        taskService.setAssignee(nextTask.getId(), String.valueOf(approver.getId()));
+            // 多实例场景：如果下一任务是同节点多实例的另一个副本，
+            // 跳过手动分配（由 MultiInstanceAssigneeListener 处理）
+            boolean isNextTaskSameMultiInstance = isMultiInstance
+                    && nextTask.getTaskDefinitionKey().equals(task.getTaskDefinitionKey());
+
+            if (!isNextTaskSameMultiInstance) {
+                String strategy = resolveAssignStrategy(instance.getTemplateId(), nextTask.getTaskDefinitionKey());
+                String assignValue = resolveAssignValue(instance.getTemplateId(), nextTask.getTaskDefinitionKey());
+
+                // 检查下一个节点是否也是多实例（会签/或签）
+                boolean nextIsMultiInstance = isMultiInstanceNode(
+                        instance.getTemplateId(), nextTask.getTaskDefinitionKey());
+
+                if (nextIsMultiInstance) {
+                    // 下一个节点是多实例 → 由 MultiInstanceAssigneeListener 分配
+                    // 不在此处手动分配
+                } else if (strategy != null && !strategy.isBlank()) {
+                    List<Long> approverIds = approverResolverService.resolveApprovers(
+                            instance.getId(), nextTask.getTaskDefinitionKey(), strategy, assignValue);
+                    if (!approverIds.isEmpty()) {
+                        UserEntity approver = sysUserMapper.selectById(approverIds.get(0));
+                        if (approver != null) {
+                            taskService.setAssignee(nextTask.getId(), String.valueOf(approver.getId()));
+                        }
                     }
                 }
             }
@@ -309,6 +328,20 @@ public class TaskRuntimeServiceImpl implements TaskRuntimeService {
     }
 
     // ========================================================================
+    // 多实例判断
+    // ========================================================================
+
+    /**
+     * 判断指定节点是否为多实例（会签/或签）。
+     */
+    private boolean isMultiInstanceNode(Long templateId, String nodeKey) {
+        Object mode = getNodeConfigField(templateId, nodeKey, "approvalMode");
+        if (mode == null) return false;
+        String modeStr = mode.toString().toUpperCase();
+        return "ALL".equals(modeStr) || "ANY".equals(modeStr);
+    }
+
+    // ========================================================================
     // 驳回/退回
     // ========================================================================
 
@@ -327,6 +360,19 @@ public class TaskRuntimeServiceImpl implements TaskRuntimeService {
         if (!STATUS_RUNNING.equals(instance.getStatus())) {
             throw new IllegalStateException(
                     "当前实例状态为【" + instance.getStatus() + "】，仅 running 状态可驳回。");
+        }
+
+        // 2.5 多实例（会签/或签）驳回：需先取消所有兄弟任务
+        boolean isMultiInstance = isMultiInstanceNode(
+                instance.getTemplateId(), task.getTaskDefinitionKey());
+        if (isMultiInstance) {
+            // 删除 Flowable 流程实例以取消所有剩余多实例任务
+            try {
+                runtimeService.deleteProcessInstance(
+                        task.getProcessInstanceId(), "会签/或签驳回：驳回人=" + rejectReason);
+            } catch (Exception ex) {
+                log.warn("删除多实例流程失败（可能已结束）: {}", ex.getMessage());
+            }
         }
 
         // 3. 确定退回目标节点（nodeConfig 中当前节点的上一个）
@@ -371,13 +417,16 @@ public class TaskRuntimeServiceImpl implements TaskRuntimeService {
         formSubmissionRepository.save(submission);
 
         // 5. 完成 Flowable 任务（传入驳回变量）
-        Map<String, Object> variables = new HashMap<>();
-        variables.put("rejected", true);
-        variables.put("rejectReason", rejectReason);
-        try {
-            taskService.complete(taskId, variables);
-        } catch (Exception ex) {
-            throw new IllegalStateException("驳回操作失败：" + safeMessage(ex), ex);
+        // 多实例场景：processInstance 已被删除，不需要再 complete task
+        if (!isMultiInstance) {
+            Map<String, Object> variables = new HashMap<>();
+            variables.put("rejected", true);
+            variables.put("rejectReason", rejectReason);
+            try {
+                taskService.complete(taskId, variables);
+            } catch (Exception ex) {
+                throw new IllegalStateException("驳回操作失败：" + safeMessage(ex), ex);
+            }
         }
 
         // 6. 回退 ProcessInstance 状态
