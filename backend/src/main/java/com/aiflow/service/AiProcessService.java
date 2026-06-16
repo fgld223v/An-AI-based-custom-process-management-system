@@ -33,7 +33,7 @@ public class AiProcessService {
           "bpmnXml": "<完整的 BPMN 2.0 XML>",
           "nodeConfig": [
             {"nodeKey": "StartEvent_1", "nodeName": "开始", "businessType": "start"},
-            {"nodeKey": "UserTask_1",   "nodeName": "节点名称", "businessType": "approval"},
+            {"nodeKey": "UserTask_1",   "nodeName": "节点名称", "businessType": "approval", "approvalMode": "SINGLE", "assignStrategy": "DIRECT_SUPERVISOR"},
             {"nodeKey": "EndEvent_1",   "nodeName": "结束", "businessType": "end"}
           ],
           "summary": "人类可读的流程摘要，一两句话"
@@ -42,11 +42,23 @@ public class AiProcessService {
         规则：
         1. BPMN XML 必须包含 <definitions> 和 <process> 标签
         2. <process> 标签必须有 isExecutable="true" 属性
-        3. 用户任务使用 <userTask> 标签，排他网关使用 <exclusiveGateway> 标签
-        4. 所有节点必须有 id 和 name 属性
+        3. 用户任务使用 <userTask> 标签，排他网关使用 <exclusiveGateway> 标签，抄送通知使用 <serviceTask> 标签
+        4. 所有节点必须有 id 和 name 属性，且 id 必须与 nodeConfig 中的 nodeKey 一一对应
         5. nodeConfig 中每个节点都必须有 nodeKey、nodeName、businessType
-        6. businessType 的取值：start（开始）、approval（审批）、condition（条件判断）、end（结束）
+        6. businessType 的取值：
+           - start（开始）
+           - approval（审批）→ 审批节点必须同时设置 approvalMode 和 assignStrategy
+           - condition（条件判断，排他网关）
+           - notify（抄送通知）→ 必须设置 notifyTarget
+           - end（结束）
         7. 如果用户提到了天数/金额等条件，使用排他网关（exclusiveGateway）实现分支
+        8. approvalMode 取值：SINGLE（单人审批）、ALL（会签，所有人都通过才继续）、ANY（或签，任一人通过即继续）
+        9. assignStrategy 取值：
+           - DEPARTMENT_MANAGER（部门经理）
+           - DIRECT_SUPERVISOR（直属上级）
+           - SPECIFIC_USERS（指定人员，需配合 assignValue 字段填用户ID列表）
+        10. 抄送节点（businessType="notify"）需额外设置：notifyTarget（取值：APPLICANT/APPROVER/USER）、notifyChannel（取值：in_app/email/both）
+        11. 如用户提到"多人审批""会签"等使用 approvalMode="ALL"，提到"或签""任意一人"等使用 approvalMode="ANY"
         """;
 
     public AiGenerateProcessResponse generateProcess(String description) {
