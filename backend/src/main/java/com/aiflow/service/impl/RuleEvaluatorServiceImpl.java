@@ -35,6 +35,7 @@ public class RuleEvaluatorServiceImpl implements RuleEvaluatorService {
     private final ProcessInstanceRepository processInstanceRepository;
     private final ProcessTemplateRepository processTemplateRepository;
     private final ObjectMapper objectMapper;
+    private final NodeConfigParser nodeConfigParser;
 
     @Override
     @Transactional
@@ -139,21 +140,8 @@ public class RuleEvaluatorServiceImpl implements RuleEvaluatorService {
         if (template == null || !hasText(template.getNodeConfig())) {
             return Map.of();
         }
-        try {
-            List<Map<String, Object>> nodes = objectMapper.readValue(
-                    template.getNodeConfig(),
-                    new TypeReference<List<Map<String, Object>>>() {}
-            );
-            for (Map<String, Object> node : nodes) {
-                if (nodeKey.equals(String.valueOf(node.get("nodeId")))
-                        || nodeKey.equals(String.valueOf(node.get("nodeKey")))) {
-                    return node;
-                }
-            }
-        } catch (Exception ex) {
-            log.warn("Failed to parse nodeConfig for template {}", templateId, ex);
-        }
-        return Map.of();
+        Map<String, Object> node = nodeConfigParser.findNode(template.getNodeConfig(), nodeKey);
+        return node != null ? node : Map.of();
     }
 
     private String resolveBusinessType(Long templateId, String nodeKey) {

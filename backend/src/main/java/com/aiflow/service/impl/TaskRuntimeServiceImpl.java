@@ -13,7 +13,6 @@ import com.aiflow.repository.ProcessTemplateRepository;
 import com.aiflow.service.ApproverResolverService;
 import com.aiflow.service.RuleEvaluatorService;
 import com.aiflow.service.TaskRuntimeService;
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -61,6 +60,7 @@ public class TaskRuntimeServiceImpl implements TaskRuntimeService {
     private final SysUserMapper sysUserMapper;
     private final RuleEvaluatorService ruleEvaluatorService;
     private final ObjectMapper objectMapper;
+    private final NodeConfigParser nodeConfigParser;
 
     @Override
     public TaskDTO completeTask(String taskId, TaskCompleteRequest request) {
@@ -248,32 +248,9 @@ public class TaskRuntimeServiceImpl implements TaskRuntimeService {
 
     /**
      * 从模板 nodeConfig 中解析 businessType。
-     * nodeConfig 格式：
-     * [{"nodeKey":"StartEvent_1","nodeName":"开始","businessType":"start"},
-     *  {"nodeKey":"UserTask_ManagerApprove","nodeName":"经理审批","businessType":"approval"}]
      */
     private String resolveBusinessType(Long templateId, String nodeKey) {
-        ProcessTemplate template = processTemplateRepository
-                .findByIdAndDeleted(templateId, 0)
-                .orElse(null);
-        if (template == null || !hasText(template.getNodeConfig())) {
-            return null;
-        }
-        try {
-            List<Map<String, Object>> nodes = objectMapper.readValue(
-                    template.getNodeConfig(),
-                    new TypeReference<List<Map<String, Object>>>() {}
-            );
-            for (Map<String, Object> node : nodes) {
-                if (nodeKey.equals(node.get("nodeKey"))) {
-                    Object bt = node.get("businessType");
-                    return bt != null ? bt.toString() : null;
-                }
-            }
-        } catch (Exception ignored) {
-            // ignore
-        }
-        return null;
+        return nodeConfigParser.getStringField(getNodeConfigJson(templateId), nodeKey, "businessType");
     }
 
     private String toJson(Object obj) {
@@ -291,32 +268,23 @@ public class TaskRuntimeServiceImpl implements TaskRuntimeService {
      * 从 nodeConfig 读取审批节点的 assignStrategy。
      */
     private String resolveAssignStrategy(Long templateId, String taskDefinitionKey) {
-        Object val = getNodeConfigField(templateId, taskDefinitionKey, "assignStrategy");
-        return val != null ? val.toString() : null;
+        return nodeConfigParser.getStringField(getNodeConfigJson(templateId), taskDefinitionKey, "assignStrategy");
     }
 
     /**
      * 从 nodeConfig 读取审批节点的 assignValue。
      */
     private String resolveAssignValue(Long templateId, String taskDefinitionKey) {
-        Object val = getNodeConfigField(templateId, taskDefinitionKey, "assignValue");
-        return val != null ? val.toString() : null;
+        return nodeConfigParser.getStringField(getNodeConfigJson(templateId), taskDefinitionKey, "assignValue");
     }
 
-    private Object getNodeConfigField(Long templateId, String taskDefinitionKey, String field) {
+    /**
+     * 从模板获取 nodeConfig JSON 字符串。
+     */
+    private String getNodeConfigJson(Long templateId) {
         ProcessTemplate template = processTemplateRepository
                 .findByIdAndDeleted(templateId, 0).orElse(null);
-        if (template == null || !hasText(template.getNodeConfig())) return null;
-        try {
-            List<Map<String, Object>> nodes = objectMapper.readValue(
-                    template.getNodeConfig(), new TypeReference<List<Map<String, Object>>>() {});
-            for (Map<String, Object> node : nodes) {
-                if (taskDefinitionKey.equals(node.get("nodeKey"))) {
-                    return node.get(field);
-                }
-            }
-        } catch (Exception ignored) { /* ignore */ }
-        return null;
+        return template != null && hasText(template.getNodeConfig()) ? template.getNodeConfig() : null;
     }
 
     private boolean hasText(String value) {
@@ -335,10 +303,8 @@ public class TaskRuntimeServiceImpl implements TaskRuntimeService {
      * 判断指定节点是否为多实例（会签/或签）。
      */
     private boolean isMultiInstanceNode(Long templateId, String nodeKey) {
-        Object mode = getNodeConfigField(templateId, nodeKey, "approvalMode");
-        if (mode == null) return false;
-        String modeStr = mode.toString().toUpperCase();
-        return "ALL".equals(modeStr) || "ANY".equals(modeStr);
+        String mode = nodeConfigParser.getStringField(getNodeConfigJson(templateId), nodeKey, "approvalMode");
+        return "ALL".equalsIgnoreCase(mode) || "ANY".equalsIgnoreCase(mode);
     }
 
     // ========================================================================
@@ -377,21 +343,8 @@ public class TaskRuntimeServiceImpl implements TaskRuntimeService {
 
         // 3. 确定退回目标节点（nodeConfig 中当前节点的上一个）
         String previousNodeKey = resolvePreviousNodeKey(instance.getTemplateId(), task.getTaskDefinitionKey());
-        String previousNodeName = null;
-        ProcessTemplate template = processTemplateRepository
-                .findByIdAndDeleted(instance.getTemplateId(), 0).orElse(null);
-        if (template != null && hasText(template.getNodeConfig())) {
-            try {
-                List<Map<String, Object>> nodes = objectMapper.readValue(
-                        template.getNodeConfig(), new TypeReference<List<Map<String, Object>>>() {});
-                for (Map<String, Object> node : nodes) {
-                    if (previousNodeKey.equals(node.get("nodeKey"))) {
-                        previousNodeName = node.get("nodeName") != null ? node.get("nodeName").toString() : null;
-                        break;
-                    }
-                }
-            } catch (Exception ignored) { /* ignore */ }
-        }
+        String previousNodeName = nodeConfigParser.getStringField(
+                getNodeConfigJson(instance.getTemplateId()), previousNodeKey, "nodeName");
 
         // 4. 保存驳回 FormSubmission（upsert by instanceId + nodeKey，永久保留）
         LocalDateTime now = LocalDateTime.now();
@@ -445,32 +398,29 @@ public class TaskRuntimeServiceImpl implements TaskRuntimeService {
      * 跳过网关等路由节点，回退到最近的 UserTask 或 StartEvent。
      */
     private String resolvePreviousNodeKey(Long templateId, String currentTaskKey) {
-        ProcessTemplate template = processTemplateRepository
-                .findByIdAndDeleted(templateId, 0).orElse(null);
-        if (template == null || !hasText(template.getNodeConfig())) {
-            return "StartEvent_1";
+        String nodeConfigJson = getNodeConfigJson(templateId);
+        if (nodeConfigJson == null) return "StartEvent_1";
+
+        List<Map<String, Object>> nodes = nodeConfigParser.asOrderedList(nodeConfigJson);
+        int currentIdx = -1;
+        for (int i = 0; i < nodes.size(); i++) {
+            String nk = stringValue(nodes.get(i).get("nodeKey"));
+            String nid = stringValue(nodes.get(i).get("nodeId"));
+            if (currentTaskKey.equals(nk) || currentTaskKey.equals(nid)) {
+                currentIdx = i;
+                break;
+            }
         }
-        try {
-            List<Map<String, Object>> nodes = objectMapper.readValue(
-                    template.getNodeConfig(), new TypeReference<List<Map<String, Object>>>() {});
-            int currentIdx = -1;
-            for (int i = 0; i < nodes.size(); i++) {
-                String nk = nodes.get(i).get("nodeKey") != null
-                        ? nodes.get(i).get("nodeKey").toString() : null;
-                if (currentTaskKey.equals(nk)) {
-                    currentIdx = i;
-                    break;
-                }
+        for (int i = currentIdx - 1; i >= 0; i--) {
+            String nk = stringValue(nodes.get(i).get("nodeKey"));
+            if (nk != null && !nk.toLowerCase().contains("gateway")) {
+                return nk;
             }
-            // 向前查找最近的非网关节点
-            for (int i = currentIdx - 1; i >= 0; i--) {
-                String nk = nodes.get(i).get("nodeKey") != null
-                        ? nodes.get(i).get("nodeKey").toString() : null;
-                if (nk != null && !nk.toLowerCase().contains("gateway")) {
-                    return nk;
-                }
-            }
-        } catch (Exception ignored) { /* ignore */ }
+        }
         return "StartEvent_1";
+    }
+
+    private String stringValue(Object value) {
+        return value == null ? null : value.toString().trim();
     }
 }
