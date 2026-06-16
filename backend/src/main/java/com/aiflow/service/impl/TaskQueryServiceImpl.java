@@ -10,6 +10,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.flowable.engine.HistoryService;
+import org.flowable.engine.RuntimeService;
 import org.flowable.engine.TaskService;
 import org.flowable.task.api.Task;
 import org.flowable.task.api.history.HistoricTaskInstance;
@@ -19,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * 任务查询服务实现 — 双数据源。
@@ -38,6 +40,7 @@ public class TaskQueryServiceImpl implements TaskQueryService {
 
     private final TaskService taskService;
     private final HistoryService historyService;
+    private final RuntimeService runtimeService;
     private final ProcessInstanceRepository processInstanceRepository;
     private final ProcessTemplateRepository processTemplateRepository;
     private final ObjectMapper objectMapper;
@@ -127,11 +130,11 @@ public class TaskQueryServiceImpl implements TaskQueryService {
     // ========================================================================
 
     /**
-     * 从 ACT_RU_TASK 映射 TaskDTO。
+     * 从 ACT_RU_TASK 映射 TaskDTO，含多实例信息。
      */
     private TaskDTO toTaskDTO(Task task, ProcessInstance instance) {
         Long formId = resolveFormId(instance.getTemplateId(), task.getTaskDefinitionKey());
-        return TaskDTO.builder()
+        TaskDTO dto = TaskDTO.builder()
                 .taskId(task.getId())
                 .taskName(task.getName())
                 .taskDefinitionKey(task.getTaskDefinitionKey())
@@ -154,6 +157,10 @@ public class TaskQueryServiceImpl implements TaskQueryService {
                 .status(STATUS_ACTIVE)
                 .formId(formId)
                 .build();
+
+        // 填充多实例（会签/或签）相关信息
+        enrichMultiInstanceInfo(dto, task, instance.getTemplateId());
+        return dto;
     }
 
     /**
@@ -188,6 +195,93 @@ public class TaskQueryServiceImpl implements TaskQueryService {
                 .status(STATUS_COMPLETED)
                 .formId(formId)
                 .build();
+    }
+
+    // ================================================================
+    // 多实例信息增强
+    // ================================================================
+
+    /**
+     * 为 TaskDTO 填充多实例相关信息（approvalMode、进度、所有审批人）。
+     */
+    private void enrichMultiInstanceInfo(TaskDTO dto, Task task, Long templateId) {
+        // 1. 从模板 nodeConfig 获取 approvalMode
+        String approvalMode = resolveApprovalMode(templateId, task.getTaskDefinitionKey());
+        dto.setApprovalMode(approvalMode);
+
+        // 2. 如果是多实例任务，尝试获取进度信息
+        if ("ALL".equals(approvalMode) || "ANY".equals(approvalMode)) {
+            try {
+                // 多实例的 nrOf* 变量存在于父执行中
+                String executionId = task.getExecutionId();
+                if (executionId != null) {
+                    // 从当前执行获取多实例变量（Flowable 会在子执行上暴露这些变量）
+                    Object nrOfInstances = runtimeService.getVariable(executionId, "nrOfInstances");
+                    Object nrOfCompleted = runtimeService.getVariable(executionId, "nrOfCompletedInstances");
+                    Object nrOfActive = runtimeService.getVariable(executionId, "nrOfActiveInstances");
+
+                    if (nrOfInstances instanceof Number) {
+                        dto.setNrOfInstances(((Number) nrOfInstances).intValue());
+                    }
+                    if (nrOfCompleted instanceof Number) {
+                        dto.setNrOfCompletedInstances(((Number) nrOfCompleted).intValue());
+                    }
+                    if (nrOfActive instanceof Number) {
+                        dto.setNrOfActiveInstances(((Number) nrOfActive).intValue());
+                    }
+                }
+
+                // 3. 获取所有审批人列表
+                String collectionVar = "assigneeList_" + task.getTaskDefinitionKey();
+                Object collectionObj = runtimeService.getVariable(
+                        task.getProcessInstanceId(), collectionVar);
+                if (collectionObj instanceof List<?> list) {
+                    dto.setAllAssignees(list.stream()
+                            .map(String::valueOf)
+                            .collect(Collectors.joining(",")));
+                }
+            } catch (Exception ignored) {
+                // 多实例变量获取失败不阻塞任务列表
+            }
+        }
+    }
+
+    /**
+     * 从模板 nodeConfig 解析指定节点的 approvalMode。
+     */
+    private String resolveApprovalMode(Long templateId, String nodeKey) {
+        ProcessTemplate template = processTemplateRepository
+                .findByIdAndDeleted(templateId, 0)
+                .orElse(null);
+        if (template == null || !hasText(template.getNodeConfig())) {
+            return "SINGLE";
+        }
+        try {
+            Map<String, Map<String, Object>> map = objectMapper.readValue(
+                    template.getNodeConfig(),
+                    new TypeReference<Map<String, Map<String, Object>>>() {});
+            Map<String, Object> config = map.get(nodeKey);
+            if (config != null) {
+                Object mode = config.get("approvalMode");
+                return mode != null ? mode.toString() : "SINGLE";
+            }
+            // 遍历查找匹配的 nodeKey / nodeId
+            for (Map<String, Object> cfg : map.values()) {
+                Object nk = cfg.get("nodeKey");
+                Object nid = cfg.get("nodeId");
+                if (nodeKey.equals(stringValue(nk)) || nodeKey.equals(stringValue(nid))) {
+                    Object mode = cfg.get("approvalMode");
+                    return mode != null ? mode.toString() : "SINGLE";
+                }
+            }
+        } catch (Exception ignored) {
+            // ignore
+        }
+        return "SINGLE";
+    }
+
+    private String stringValue(Object value) {
+        return value == null ? null : value.toString().trim();
     }
 
     // ========================================================================

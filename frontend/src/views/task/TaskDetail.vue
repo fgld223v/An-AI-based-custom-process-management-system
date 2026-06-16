@@ -30,6 +30,14 @@
           <strong>{{ task?.assignee || '未分配' }}</strong>
         </div>
         <div class="info-card">
+          <span>审批方式</span>
+          <strong>
+            <el-tag v-if="task?.approvalMode === 'ALL'" type="primary" size="small" effect="plain">会签（全部通过）</el-tag>
+            <el-tag v-else-if="task?.approvalMode === 'ANY'" type="success" size="small" effect="plain">或签（任一通过）</el-tag>
+            <span v-else>单人审批</span>
+          </strong>
+        </div>
+        <div class="info-card">
           <span>创建时间</span>
           <strong>{{ task?.createTime || '-' }}</strong>
         </div>
@@ -53,6 +61,38 @@
           <span>关联表单</span>
           <strong>{{ task?.formId || '-' }}</strong>
         </div>
+        <div v-if="task?.allAssignees" class="info-card">
+          <span>所有审批人</span>
+          <strong>{{ task.allAssignees }}</strong>
+        </div>
+      </div>
+    </section>
+
+    <!-- 多实例审批进度（会签/或签） -->
+    <section v-if="task?.approvalMode === 'ALL' || task?.approvalMode === 'ANY'" class="progress-panel">
+      <div class="progress-header">
+        <h2>{{ task?.approvalMode === 'ALL' ? '会签进度' : '或签进度' }}</h2>
+        <span class="progress-subtitle">
+          {{ task?.approvalMode === 'ALL' ? '所有审批人通过后流程继续' : '任一审批人通过后流程继续' }}
+        </span>
+      </div>
+      <div class="progress-content">
+        <div class="progress-numbers">
+          <div class="progress-stat">
+            <span class="stat-value">{{ task?.nrOfCompletedInstances ?? 0 }} / {{ task?.nrOfInstances ?? '?' }}</span>
+            <span class="stat-label">已完成 / 总数</span>
+          </div>
+          <div class="progress-stat">
+            <span class="stat-value">{{ task?.nrOfActiveInstances ?? 0 }}</span>
+            <span class="stat-label">进行中</span>
+          </div>
+        </div>
+        <el-progress
+          v-if="task?.nrOfInstances && task.nrOfInstances > 0"
+          :percentage="Math.round(((task.nrOfCompletedInstances ?? 0) / task.nrOfInstances) * 100)"
+          :stroke-width="16"
+          :color="task.approvalMode === 'ALL' ? '#409EFF' : '#67C23A'"
+        />
       </div>
     </section>
 
@@ -234,6 +274,21 @@ function normalizeError(error: unknown, fallback: string) {
 .info-card strong { display: block; overflow-wrap: anywhere; }
 .section-title { justify-content: space-between; margin-bottom: 14px; }
 .section-title h2 { margin: 0; font-size: 18px; }
+.progress-panel {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255,255,255,0.94);
+  box-shadow: var(--shadow);
+  padding: 24px;
+}
+.progress-header { margin-bottom: 18px; }
+.progress-header h2 { margin: 0 0 6px; font-size: 18px; }
+.progress-subtitle { color: var(--muted); font-size: 14px; }
+.progress-content { display: flex; flex-direction: column; gap: 16px; }
+.progress-numbers { display: flex; gap: 32px; }
+.progress-stat { display: flex; flex-direction: column; gap: 4px; }
+.stat-value { font-size: 24px; font-weight: 700; color: var(--el-text-color-primary); }
+.stat-label { font-size: 13px; color: var(--muted); }
 
 @media (max-width: 900px) { .info-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 720px) { .info-grid { grid-template-columns: 1fr; } }

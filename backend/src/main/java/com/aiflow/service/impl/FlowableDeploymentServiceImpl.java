@@ -20,6 +20,7 @@ public class FlowableDeploymentServiceImpl implements FlowableDeploymentService 
     private static final Pattern EXECUTABLE_ATTRIBUTE_PATTERN = Pattern.compile("isExecutable\\s*=\\s*(['\"])(.*?)\\1", Pattern.CASE_INSENSITIVE);
 
     private final RepositoryService repositoryService;
+    private final BpmnXmlEnhancer bpmnXmlEnhancer;
 
     @Override
     public ProcessTemplate deployProcessTemplate(ProcessTemplate template) {
@@ -30,6 +31,12 @@ public class FlowableDeploymentServiceImpl implements FlowableDeploymentService 
         String bpmnXml = normalizeText(template.getBpmnXml());
         validateBpmnXml(bpmnXml);
         bpmnXml = ensureExecutableProcess(bpmnXml);
+
+        // 注入多实例（会签/或签）和抄送扩展元素
+        String nodeConfigJson = normalizeText(template.getNodeConfig());
+        if (hasText(nodeConfigJson)) {
+            bpmnXml = bpmnXmlEnhancer.enhance(bpmnXml, nodeConfigJson);
+        }
         template.setBpmnXml(bpmnXml);
 
         String deploymentName = buildDeploymentName(template);
