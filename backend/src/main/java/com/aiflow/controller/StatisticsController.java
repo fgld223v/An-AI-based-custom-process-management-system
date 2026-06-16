@@ -1,6 +1,7 @@
 package com.aiflow.controller;
 
 import com.aiflow.common.ApiResponse;
+import com.aiflow.dto.NodeEfficiencyDTO;
 import com.aiflow.dto.StatisticsOverviewDTO;
 import com.aiflow.dto.StatisticsTrendDTO;
 import com.aiflow.service.StatisticsService;
@@ -44,5 +45,13 @@ public class StatisticsController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate end,
             @RequestParam(defaultValue = "day") String granularity) {
         return ApiResponse.success(statisticsService.getTrend(start, end, granularity));
+    }
+
+    /**
+     * 节点效率排名：每个节点的平均停留时长 / 超时率
+     */
+    @GetMapping("/node-efficiency")
+    public ApiResponse<NodeEfficiencyDTO> getNodeEfficiency() {
+        return ApiResponse.success(statisticsService.getNodeEfficiency());
     }
 }
