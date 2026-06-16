@@ -1,0 +1,50 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><title>管理驾驶舱</title>
+<style>
+:root{--f:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;--fm:'Consolas',monospace;--r:9px;--paper:#f9f7f5;--surf:#fefdfc;--surf2:#f5f3f0;--surf3:#edebe8;--ink:#3d3a36;--ik2:#6e6a64;--ik3:#96928c;--ik4:#bab6b0;--hl:#3d3a3618;--hls:#3d3a3628;--ac:#3a8f7d;--apv:#4a9e6b;--apvs:#4a9e6b18;--pend:#c4953a;--pends:#c4953a20;--rej:#c4503a;--rejs:#c4503a18}
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:var(--f);font-size:13px;line-height:1.5;background:var(--paper);color:var(--ink);padding:28px 32px;max-width:1160px;margin:0 auto}
+.mono{font-family:var(--fm)}.mute{color:var(--ik3)}
+.page-head{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;margin-bottom:22px}.page-head h1{font-size:25px;font-weight:600;letter-spacing:-.01em;margin-bottom:5px}.eyebrow{font-family:var(--fm);font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--ik3);font-weight:500}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:7px;font-size:12.5px;font-weight:500;text-decoration:none;white-space:nowrap;border:1px solid var(--hls);background:var(--surf);color:var(--ink);cursor:pointer}.btn:hover{background:var(--surf2)}
+.card{background:var(--surf);border:1px solid var(--hl);border-radius:var(--r);padding:18px}
+.tbl{width:100%;border-collapse:collapse;font-size:12.5px}.tbl th{text-align:left;padding:9px 12px;font-size:10.5px;font-weight:600;color:var(--ik3);border-bottom:1px solid var(--hls);text-transform:uppercase;letter-spacing:.05em;background:var(--surf2)}.tbl td{padding:9px 12px;border-bottom:1px solid var(--hl)}.tbl tr:hover td{background:var(--surf2)}.tbl .r{text-align:right}
+.mrow{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:20px}.mcard{background:var(--surf);border:1px solid var(--hl);border-radius:var(--r);padding:18px;text-align:center}.mcard .v{font-family:var(--fm);font-size:32px;font-weight:600;color:var(--ac)}.mcard .l{font-size:12px;color:var(--ik3);margin-top:4px}.mcard .c{font-size:11px;margin-top:6px}
+.g{color:var(--apv)}.b{color:var(--rej)}
+.anom{display:flex;gap:10px;padding:10px 12px;border-radius:6px;background:var(--surf2);margin-bottom:8px;align-items:flex-start}.anom-sev{font-size:10px;font-weight:600;padding:2px 8px;border-radius:4px;white-space:nowrap;flex-shrink:0}.anom-sev.hi{background:var(--rejs);color:var(--rej)}.anom-sev.md{background:var(--pends);color:#9e7530}.anom-sev.lo{background:#3a7dc418;color:#3a7dc4}.anom-rec{color:var(--ac);font-size:11px;margin-top:2px}
+.otr{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--hl)}.ot{font-size:10px;padding:2px 8px;border-radius:4px;font-weight:600;white-space:nowrap}.ot.adt{background:var(--apvs);color:var(--apv)}.ot.pdt{background:var(--pends);color:#9e7530}.ot.ign{background:var(--surf3);color:var(--ik3)}
+.sts{display:inline-flex;align-items:center;gap:5px;font-size:11px;padding:3px 9px;border-radius:5px;font-weight:500}.sts .dot{width:6px;height:6px;border-radius:50%}.sts.apv{background:var(--apvs);color:var(--apv)}.sts.apv .dot{background:var(--apv)}.sts.pen{background:var(--pends);color:#9e7530}.sts.pen .dot{background:var(--pend)}.sts.rej{background:var(--rejs);color:var(--rej)}.sts.rej .dot{background:var(--rej)}
+</style></head><body>
+
+<div class="page-head"><div><div class="eyebrow">管理驾驶舱</div><h1>全部门流程效能总览</h1></div><a href="#" class="btn">导出报表</a></div>
+
+<div class="mrow">
+<div class="mcard"><div class="v">1,842</div><div class="l">本月流程总量</div><div class="c g">&#9650; 12.4% vs 上月</div></div>
+<div class="mcard"><div class="v">96.8%</div><div class="l">办结率</div><div class="c g">&#9650; 0.6pt</div></div>
+<div class="mcard"><div class="v">37</div><div class="l">SLA 超时实例</div><div class="c b">&#9650; 9 项</div></div>
+</div>
+
+<div style="display:grid;grid-template-columns:2fr 1fr;gap:16px;margin-bottom:20px">
+<div class="card" style="padding:0;overflow:hidden"><div style="padding:14px 18px;font-weight:600;font-size:14px;border-bottom:1px solid var(--hl)">各部门流程效能概况 <span class="mute" style="font-weight:400;font-size:11px">本月</span></div>
+<table class="tbl"><thead><tr><th>部门</th><th class="r">发起量</th><th class="r">办结率</th><th class="r">平均耗时</th><th class="r">驳回率</th><th class="r">超时率</th></tr></thead><tbody>
+<tr><td>IT 部</td><td class="r mono">430</td><td class="r mono">99.0%</td><td class="r mono">1.2h</td><td class="r mono" style="color:var(--apv)">1.1%</td><td class="r mono">0.8%</td></tr>
+<tr><td>财务部</td><td class="r mono">3,920</td><td class="r mono">99.1%</td><td class="r mono">3.4h</td><td class="r mono" style="color:var(--apv)">1.6%</td><td class="r mono">1.1%</td></tr>
+<tr><td>人事部</td><td class="r mono">2,140</td><td class="r mono">99.8%</td><td class="r mono">0.6h</td><td class="r mono" style="color:var(--apv)">0.5%</td><td class="r mono">0.3%</td></tr>
+<tr style="background:var(--pends)"><td>法务部</td><td class="r mono">642</td><td class="r mono">96.2%</td><td class="r mono">1.8d</td><td class="r mono" style="color:var(--rej)">14.0%</td><td class="r mono" style="color:var(--rej)">8.2%</td></tr>
+<tr><td>采购 &middot; 供应链</td><td class="r mono">1,372</td><td class="r mono">98.4%</td><td class="r mono">4.2h</td><td class="r mono">3.2%</td><td class="r mono">2.1%</td></tr>
+</tbody></table></div>
+
+<div class="card"><div style="font-weight:600;font-size:14px;margin-bottom:12px">异常流程分析</div>
+<div class="anom"><span class="anom-sev hi">高</span><div><strong>供应商准入审核</strong> &middot; 多部门会审<br><span style="color:var(--ik2)">平均停留 3.8 天，12 项实例超时</span><div class="anom-rec">建议拆分为并行会审，预计可缩短 2.1 天</div></div></div>
+<div class="anom"><span class="anom-sev md">中</span><div><strong>合同会签审批</strong> &middot; 法务复核<br><span style="color:var(--ik2)">驳回率升至 14%（+6pt），8 项驳回 &ge;2 次</span><div class="anom-rec">建议前置 AI 合同条款体检节点</div></div></div>
+<div class="anom"><span class="anom-sev hi">高</span><div><strong>用印申请</strong> &middot; 行政审批<br><span style="color:var(--ik2)">批量 18 份劳动合同用印已逾期 2h</span><div class="anom-rec">建议超时自动升级至上级管理员</div></div></div>
+<div class="anom"><span class="anom-sev md">中</span><div><strong>对外付款审批</strong> &middot; 财务复核<br><span style="color:var(--ik2)">3 项实例在财务复核节点超时</span><div class="anom-rec">建议增加财务复核人员池</div></div></div>
+<div class="anom"><span class="anom-sev lo">低</span><div><strong>IT 资产领用</strong> &middot; 直属主管审批<br><span style="color:var(--ik2)">2 项实例驳回后重新提交</span><div class="anom-rec">建议优化申请表单字段说明</div></div></div>
+</div></div>
+
+<div class="card"><div style="font-weight:600;font-size:14px;margin-bottom:12px">AI 优化建议跟踪 <span class="mute" style="font-weight:400;font-size:11px">本季度采纳率 62%</span></div>
+<div class="otr"><span class="ot adt">已采纳</span><span style="flex:1;font-size:13px">合并冗余审批节点「部门经理审批」（通过率 99.3%）</span><span class="mute" style="font-size:11px">采购申请审批</span><span style="font-family:var(--fm);font-size:11px;color:var(--apv);margin-left:16px">&darr; 1.5h / 单</span></div>
+<div class="otr"><span class="ot adt">已采纳</span><span style="flex:1;font-size:13px">将「财务复核 + CFO 会签」从串行改为并行模式</span><span class="mute" style="font-size:11px">对外付款审批</span><span style="font-family:var(--fm);font-size:11px;color:var(--apv);margin-left:16px">&darr; 2.1d</span></div>
+<div class="otr"><span class="ot pdt">待采纳</span><span style="flex:1;font-size:13px">前置「AI 合同条款体检」节点，提前暴露条款问题</span><span class="mute" style="font-size:11px">合同会签审批</span><span style="font-family:var(--fm);font-size:11px;color:var(--ik3);margin-left:16px">-</span></div>
+<div class="otr"><span class="ot ign">已忽略</span><span style="flex:1;font-size:13px">取消「部门抄送」通知节点（业务需要保留）</span><span class="mute" style="font-size:11px">费用报销审批</span><span style="font-family:var(--fm);font-size:11px;color:var(--ik3);margin-left:16px">-</span></div>
+</div>
+
+</body></html>
