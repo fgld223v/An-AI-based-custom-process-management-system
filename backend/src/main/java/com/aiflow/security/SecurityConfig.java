@@ -79,6 +79,7 @@ public class SecurityConfig {
                                 "/api/template-market/**",
                                 "/api/process-instances/**",
                                 "/api/tasks/**",
+                                "/api/statistics/**",
                                 "/api/templates/**"
                         ).permitAll()
                         .requestMatchers("/ws/notifications").permitAll()

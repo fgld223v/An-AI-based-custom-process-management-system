@@ -1,13 +1,21 @@
 package com.aiflow.service.impl;
 
 import com.aiflow.dto.StatisticsOverviewDTO;
+import com.aiflow.dto.StatisticsTrendDTO;
 import com.aiflow.service.StatisticsService;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.WeekFields;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * 统计看板服务实现 — 使用原生 SQL 聚合查询，不依赖额外实体类
@@ -16,6 +24,8 @@ import java.math.BigDecimal;
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class StatisticsServiceImpl implements StatisticsService {
+
+    private static final DateTimeFormatter DAY_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     private final EntityManager entityManager;
 
@@ -81,4 +91,124 @@ public class StatisticsServiceImpl implements StatisticsService {
                 .anomalyCount(anomalyCount != null ? anomalyCount.longValue() : 0L)
                 .build();
     }
+
+    @Override
+    public StatisticsTrendDTO getTrend(LocalDate start, LocalDate end, String granularity) {
+        boolean byWeek = "week".equalsIgnoreCase(granularity);
+
+        // 1. 生成时间轴标签列表
+        List<String> labels = generateLabels(start, end, byWeek);
+
+        // 2. 查询原始聚合数据
+        String sql = buildTrendQuery(byWeek);
+        @SuppressWarnings("unchecked")
+        List<Object[]> rows = entityManager
+                .createNativeQuery(sql)
+                .setParameter("start", start.atStartOfDay())
+                .setParameter("end", end.plusDays(1).atStartOfDay())
+                .getResultList();
+
+        // row: [period(String), bizTypeId(Long), typeName(String), cnt(Long)]
+        // 转换 bizTypeId 为 Long（MySQL 返回 BigInteger 等）
+        List<TrendRow> trendRows = rows.stream().map(r -> new TrendRow(
+                (String) r[0],
+                ((Number) r[1]).longValue(),
+                (String) r[2],
+                ((Number) r[3]).longValue()
+        )).collect(Collectors.toList());
+
+        // 3. 按 bizTypeId 分组，填充与 labels 等长的 values 数组
+        Map<Long, String> bizTypeMap = new LinkedHashMap<>(); // id -> name
+        Map<Long, Map<String, Long>> bizPeriodCount = new LinkedHashMap<>(); // bizTypeId -> (period -> count)
+
+        for (TrendRow row : trendRows) {
+            bizTypeMap.putIfAbsent(row.bizTypeId, row.typeName);
+            bizPeriodCount
+                    .computeIfAbsent(row.bizTypeId, k -> new LinkedHashMap<>())
+                    .put(row.period, row.cnt);
+        }
+
+        List<StatisticsTrendDTO.TrendSeries> series = new ArrayList<>();
+        for (Map.Entry<Long, String> entry : bizTypeMap.entrySet()) {
+            Long bizTypeId = entry.getKey();
+            String bizTypeName = entry.getValue();
+            Map<String, Long> periodMap = bizPeriodCount.getOrDefault(bizTypeId, Map.of());
+
+            List<Long> values = new ArrayList<>();
+            for (String label : labels) {
+                values.add(periodMap.getOrDefault(label, 0L));
+            }
+
+            series.add(StatisticsTrendDTO.TrendSeries.builder()
+                    .bizTypeId(bizTypeId)
+                    .bizTypeName(bizTypeName)
+                    .values(values)
+                    .build());
+        }
+
+        return StatisticsTrendDTO.builder()
+                .labels(labels)
+                .series(series)
+                .build();
+    }
+
+    // --- helper ---
+
+    private List<String> generateLabels(LocalDate start, LocalDate end, boolean byWeek) {
+        List<String> labels = new ArrayList<>();
+        if (byWeek) {
+            WeekFields wf = WeekFields.ISO;
+            LocalDate cursor = start;
+            while (!cursor.isAfter(end)) {
+                int week = cursor.get(wf.weekOfYear());
+                int year = cursor.get(wf.weekBasedYear());
+                // 处理跨年周：如果年的第一天周编号属于上一年，年份用 weekBasedYear
+                String label = year + "-W" + String.format("%02d", week);
+                if (labels.isEmpty() || !labels.get(labels.size() - 1).equals(label)) {
+                    labels.add(label);
+                }
+                cursor = cursor.plusDays(1);
+            }
+        } else {
+            LocalDate cursor = start;
+            while (!cursor.isAfter(end)) {
+                labels.add(cursor.format(DAY_FMT));
+                cursor = cursor.plusDays(1);
+            }
+        }
+        return labels;
+    }
+
+    private String buildTrendQuery(boolean byWeek) {
+        if (byWeek) {
+            return """
+                    SELECT CONCAT(YEAR(MIN(pi.created_at)), '-W', LPAD(WEEK(MIN(pi.created_at), 1), 2, '0')) AS period,
+                           COALESCE(pi.biz_type_id, 0) AS biz_type_id,
+                           COALESCE(btd.type_name, '未分类') AS type_name,
+                           COUNT(*) AS cnt
+                    FROM process_instance pi
+                    LEFT JOIN biz_type_dict btd ON pi.biz_type_id = btd.id
+                    WHERE pi.deleted = 0
+                      AND pi.created_at >= :start
+                      AND pi.created_at < :end
+                    GROUP BY YEAR(pi.created_at), WEEK(pi.created_at, 1), pi.biz_type_id, btd.type_name
+                    ORDER BY period, biz_type_id
+                    """;
+        }
+        return """
+                SELECT DATE(pi.created_at) AS period,
+                       COALESCE(pi.biz_type_id, 0) AS biz_type_id,
+                       COALESCE(btd.type_name, '未分类') AS type_name,
+                       COUNT(*) AS cnt
+                FROM process_instance pi
+                LEFT JOIN biz_type_dict btd ON pi.biz_type_id = btd.id
+                WHERE pi.deleted = 0
+                  AND pi.created_at >= :start
+                  AND pi.created_at < :end
+                GROUP BY DATE(pi.created_at), pi.biz_type_id, btd.type_name
+                ORDER BY period, biz_type_id
+                """;
+    }
+
+    private record TrendRow(String period, Long bizTypeId, String typeName, Long cnt) {}
 }
