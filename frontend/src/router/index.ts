@@ -20,6 +20,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '工作台', group: '流程' }
       },
       {
+        path: 'dashboard',
+        name: 'Dashboard',
+        component: () => import('@/views/dashboard/Dashboard.vue'),
+        meta: { title: '仪表盘', group: '流程' }
+      },
+      {
         path: 'form-designer',
         name: 'FormDesigner',
         component: () => import('@/views/form-designer/FormDesigner.vue'),

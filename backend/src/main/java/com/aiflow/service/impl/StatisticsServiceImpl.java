@@ -85,11 +85,50 @@ public class StatisticsServiceImpl implements StatisticsService {
                         """)
                 .getSingleResult();
 
+        // 5. 各状态分布（draft / submitted / running / completed）
+        @SuppressWarnings("unchecked")
+        List<Object[]> statusRows = entityManager
+                .createNativeQuery("""
+                        SELECT pi.status, COUNT(*)
+                        FROM process_instance pi
+                        WHERE pi.deleted = 0
+                        GROUP BY pi.status
+                        """)
+                .getResultList();
+        Map<String, Long> statusDistribution = new LinkedHashMap<>();
+        for (Object[] row : statusRows) {
+            statusDistribution.put((String) row[0], ((Number) row[1]).longValue());
+        }
+
+        // 6. 各业务类型分布
+        @SuppressWarnings("unchecked")
+        List<Object[]> bizTypeRows = entityManager
+                .createNativeQuery("""
+                        SELECT COALESCE(pi.biz_type_id, 0),
+                               COALESCE(btd.type_name, '未分类'),
+                               COUNT(*)
+                        FROM process_instance pi
+                        LEFT JOIN biz_type_dict btd ON pi.biz_type_id = btd.id
+                        WHERE pi.deleted = 0
+                        GROUP BY pi.biz_type_id, btd.type_name
+                        ORDER BY COUNT(*) DESC
+                        """)
+                .getResultList();
+        List<StatisticsOverviewDTO.BizTypeCount> bizTypeDistribution = bizTypeRows.stream()
+                .map(r -> StatisticsOverviewDTO.BizTypeCount.builder()
+                        .bizTypeId(((Number) r[0]).longValue())
+                        .bizTypeName((String) r[1])
+                        .count(((Number) r[2]).longValue())
+                        .build())
+                .toList();
+
         return StatisticsOverviewDTO.builder()
                 .totalInstances(totalInstances)
                 .completionRate(completionRate)
                 .avgDurationHours(avgDurationHours)
                 .anomalyCount(anomalyCount != null ? anomalyCount.longValue() : 0L)
+                .statusDistribution(statusDistribution)
+                .bizTypeDistribution(bizTypeDistribution)
                 .build();
     }
 
@@ -197,7 +236,7 @@ public class StatisticsServiceImpl implements StatisticsService {
                     """;
         }
         return """
-                SELECT DATE(pi.created_at) AS period,
+                SELECT MIN(DATE_FORMAT(pi.created_at, '%Y-%m-%d')) AS period,
                        COALESCE(pi.biz_type_id, 0) AS biz_type_id,
                        COALESCE(btd.type_name, '未分类') AS type_name,
                        COUNT(*) AS cnt
