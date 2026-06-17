@@ -24,3 +24,7 @@ export async function updateForm(id: number, data: FormDefinitionPayload) {
 export async function publishForm(id: number) {
   return await request.post<FormDefinition>(`/api/forms/${id}/publish`)
 }
+
+export async function disableForm(id: number) {
+  return await request.post<void>(`/api/forms/${id}/disable`)
+}
