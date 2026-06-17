@@ -96,12 +96,12 @@ const allMenuGroups = [
   {
     title: '运行',
     items: [
+      { label: '运行监控', path: '/dashboard', icon: Monitor, available: true },
       { label: '流程发起', path: '/process/start-preview', icon: CirclePlus, available: true },
       { label: '流程实例', path: '/process/instances', icon: Tickets, available: true },
       { label: '待办任务', path: '/tasks/todo', icon: Tickets, available: true, badge: '' },
       { label: '已办任务', path: '/tasks/done', icon: Tickets, available: true },
       { label: '通知中心', path: '/notifications', icon: Bell, available: true },
-      { label: '运行监控', path: '/placeholder/monitor', icon: Monitor },
       { label: '执行追踪', path: '/placeholder/tracing', icon: TrendCharts }
     ]
   },
