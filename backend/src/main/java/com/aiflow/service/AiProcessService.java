@@ -25,28 +25,77 @@ public class AiProcessService {
     private final ObjectMapper objectMapper;
 
     private static final String SYSTEM_PROMPT = """
-        你是一个 BPMN 2.0 工作流生成专家。用户会用自然语言描述业务流程，你需要将其转换为标准的 BPMN 2.0 XML 和节点配置 JSON。
+        你是一个 BPMN 2.0 工作流生成专家。用户用自然语言描述流程，你需要生成标准 BPMN 2.0 XML 和节点配置 JSON。
 
-        输出必须是合法的 JSON 对象，不要包裹在 Markdown 代码块中。格式固定为：
+        输出必须是合法的 JSON 对象，不要包裹在 Markdown 代码块中：
 
         {
-          "bpmnXml": "<完整的 BPMN 2.0 XML>",
+          "bpmnXml": "<BPMN XML 字符串>",
           "nodeConfig": [
             {"nodeKey": "StartEvent_1", "nodeName": "开始", "businessType": "start"},
-            {"nodeKey": "UserTask_1",   "nodeName": "节点名称", "businessType": "approval"},
+            {"nodeKey": "UserTask_1",   "nodeName": "经理审批", "businessType": "approval", "approvalMode": "SINGLE", "assignStrategy": "DIRECT_SUPERVISOR"},
             {"nodeKey": "EndEvent_1",   "nodeName": "结束", "businessType": "end"}
           ],
-          "summary": "人类可读的流程摘要，一两句话"
+          "summary": "流程简短摘要"
         }
 
-        规则：
-        1. BPMN XML 必须包含 <definitions> 和 <process> 标签
-        2. <process> 标签必须有 isExecutable="true" 属性
-        3. 用户任务使用 <userTask> 标签，排他网关使用 <exclusiveGateway> 标签
-        4. 所有节点必须有 id 和 name 属性
-        5. nodeConfig 中每个节点都必须有 nodeKey、nodeName、businessType
-        6. businessType 的取值：start（开始）、approval（审批）、condition（条件判断）、end（结束）
-        7. 如果用户提到了天数/金额等条件，使用排他网关（exclusiveGateway）实现分支
+        BPMN XML 必须遵循以下格式（参照示例，使用 bpmn: 命名空间前缀）：
+
+        <?xml version="1.0" encoding="UTF-8"?>
+        <bpmn:definitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+          xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+          xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+          xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+          targetNamespace="http://ai-flow/process">
+          <bpmn:process id="Process_Main" name="流程名称" isExecutable="true">
+            <bpmn:startEvent id="StartEvent_1" name="开始">
+              <bpmn:outgoing>Flow_1</bpmn:outgoing>
+            </bpmn:startEvent>
+            <bpmn:userTask id="UserTask_1" name="审批节点">
+              <bpmn:incoming>Flow_1</bpmn:incoming>
+              <bpmn:outgoing>Flow_2</bpmn:outgoing>
+            </bpmn:userTask>
+            <bpmn:endEvent id="EndEvent_1" name="结束">
+              <bpmn:incoming>Flow_2</bpmn:incoming>
+            </bpmn:endEvent>
+            <bpmn:sequenceFlow id="Flow_1" sourceRef="StartEvent_1" targetRef="UserTask_1" />
+            <bpmn:sequenceFlow id="Flow_2" sourceRef="UserTask_1" targetRef="EndEvent_1" />
+          </bpmn:process>
+          <bpmndi:BPMNDiagram>
+            <bpmndi:BPMNPlane bpmnElement="Process_Main">
+              <bpmndi:BPMNShape bpmnElement="StartEvent_1">
+                <dc:Bounds x="180" y="160" width="36" height="36" />
+              </bpmndi:BPMNShape>
+              <bpmndi:BPMNShape bpmnElement="UserTask_1">
+                <dc:Bounds x="280" y="138" width="120" height="80" />
+              </bpmndi:BPMNShape>
+              <bpmndi:BPMNShape bpmnElement="EndEvent_1">
+                <dc:Bounds x="470" y="160" width="36" height="36" />
+              </bpmndi:BPMNShape>
+              <bpmndi:BPMNEdge bpmnElement="Flow_1">
+                <di:waypoint x="216" y="178" />
+                <di:waypoint x="280" y="178" />
+              </bpmndi:BPMNEdge>
+              <bpmndi:BPMNEdge bpmnElement="Flow_2">
+                <di:waypoint x="400" y="178" />
+                <di:waypoint x="470" y="178" />
+              </bpmndi:BPMNEdge>
+            </bpmndi:BPMNPlane>
+          </bpmndi:BPMNDiagram>
+        </bpmn:definitions>
+
+        必须遵守：
+        1. 所有元素使用 bpmn: 前缀（如 bpmn:userTask、bpmn:startEvent、bpmn:exclusiveGateway、bpmn:serviceTask）
+        2. 每个流元素必须有 <bpmn:incoming> 和 <bpmn:outgoing> 子元素
+        3. 排他网关必须包含条件表达式，如 <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[${days <= 3}]]></bpmn:conditionExpression>
+        4. sequenceFlow 按从左到右编号：Flow_1、Flow_2...
+        5. DI 布局：节点从左到右排列，垂直间隔约 100px。开始和结束 y=160，用户任务 y=138
+        6. nodeConfig 的 nodeKey 必须与 BPMN 元素的 id 完全一致
+        7. 审批节点必须设置 approvalMode（SINGLE/ALL/ANY）+ assignStrategy（DEPARTMENT_MANAGER/DIRECT_SUPERVISOR/SPECIFIC_USERS）
+        8. 抄送节点使用 bpmn:serviceTask，businessType="notify"，设置 notifyTarget（APPLICANT/APPROVER/USER）、notifyChannel（in_app/email/both）
+        9. 排他网关 businessType="condition"
+        10. 流程保持简洁，不超过 8 个节点
         """;
 
     public AiGenerateProcessResponse generateProcess(String description) {
@@ -124,12 +173,16 @@ public class AiProcessService {
 
         // 6. 校验 BPMN XML 合法性
         String bpmnXml = result.getBpmnXml();
-        if (bpmnXml == null || !bpmnXml.contains("<definitions") || !bpmnXml.contains("<process")) {
+        // 兼容 bpmn:definitions 和 definitions 两种写法
+        boolean hasDefinitions = bpmnXml.contains("<definitions") || bpmnXml.contains("<bpmn:definitions");
+        boolean hasProcess = bpmnXml.contains("<process") || bpmnXml.contains("<bpmn:process");
+        if (bpmnXml == null || !hasDefinitions || !hasProcess) {
             log.error("AI 生成的 BPMN XML 不合法：{}", bpmnXml);
             throw new BusinessException("AI 生成的 BPMN XML 不合法，缺少 definitions 或 process 标签，请重试");
         }
         if (!bpmnXml.contains("isExecutable=\"true\"")) {
             log.warn("BPMN XML 缺少 isExecutable=true，尝试修复");
+            bpmnXml = bpmnXml.replaceFirst("<bpmn:process\\s", "<bpmn:process isExecutable=\"true\" ");
             bpmnXml = bpmnXml.replaceFirst("<process\\s", "<process isExecutable=\"true\" ");
             result.setBpmnXml(bpmnXml);
         }

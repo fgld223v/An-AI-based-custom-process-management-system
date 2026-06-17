@@ -1,5 +1,6 @@
 package com.aiflow.service;
 
+import com.aiflow.dto.NodeEfficiencyDTO;
 import com.aiflow.dto.StatisticsOverviewDTO;
 import com.aiflow.dto.StatisticsTrendDTO;
 
@@ -23,4 +24,9 @@ public interface StatisticsService {
      * @param granularity day | week
      */
     StatisticsTrendDTO getTrend(LocalDate start, LocalDate end, String granularity);
+
+    /**
+     * 节点效率排名：每个节点的平均停留时长 / 超时率
+     */
+    NodeEfficiencyDTO getNodeEfficiency();
 }

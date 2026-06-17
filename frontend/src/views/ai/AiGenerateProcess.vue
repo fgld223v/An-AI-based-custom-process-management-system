@@ -46,70 +46,83 @@
 
     <!-- 生成结果 -->
     <div v-if="!generating && result" class="result-section">
-      <!-- 流程摘要 -->
-      <div class="result-card summary-card">
-        <div class="card-title">📋 流程摘要</div>
-        <p>{{ result.summary }}</p>
-      </div>
+      <!-- 左右分栏 -->
+      <div class="result-grid">
+        <!-- 左：BPMN 流程图 -->
+        <div class="result-card viewer-card">
+          <div class="card-title">流程图预览</div>
+          <BpmnViewerPanel :bpmn-xml="result.bpmnXml" />
+        </div>
 
-      <!-- 节点配置列表 -->
-      <div class="result-card">
-        <div class="card-title">🔧 节点配置（{{ result.nodeConfig?.length || 0 }} 个节点）</div>
-        <el-table :data="result.nodeConfig" stripe size="default">
-          <el-table-column prop="nodeKey" label="节点 Key" width="200" />
-          <el-table-column prop="nodeName" label="节点名称" width="160" />
-          <el-table-column prop="businessType" label="业务类型" width="120">
-            <template #default="{ row }">
-              <el-tag
-                :type="businessTypeTag(row.businessType)"
-                effect="plain"
-                size="small"
-              >
-                {{ row.businessType }}
-              </el-tag>
-            </template>
-          </el-table-column>
-        </el-table>
-      </div>
-
-      <!-- BPMN XML 折叠 -->
-      <el-collapse class="result-card">
-        <el-collapse-item title="📄 BPMN XML 源码" name="xml">
-          <div class="xml-box">
-            <pre>{{ result.bpmnXml }}</pre>
+        <!-- 右：摘要 + 节点配置 -->
+        <div class="result-right">
+          <!-- 摘要 -->
+          <div class="result-card summary-card">
+            <div class="card-title">流程摘要</div>
+            <p>{{ result.summary }}</p>
           </div>
-        </el-collapse-item>
-      </el-collapse>
+
+          <!-- 节点配置 -->
+          <div class="result-card">
+            <div class="card-title">节点配置（{{ result.nodeConfig?.length || 0 }} 个节点）</div>
+            <el-table :data="result.nodeConfig" stripe size="default">
+              <el-table-column prop="nodeKey" label="节点 Key" width="180" />
+              <el-table-column prop="nodeName" label="节点名称" width="140" />
+              <el-table-column prop="businessType" label="业务类型" width="100">
+                <template #default="{ row }">
+                  <el-tag :type="businessTypeTag(row.businessType)" effect="plain" size="small">
+                    {{ row.businessType }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
+
+          <!-- BPMN XML 折叠 -->
+          <el-collapse>
+            <el-collapse-item title="BPMN XML 源码" name="xml">
+              <div class="xml-box">
+                <pre>{{ result.bpmnXml }}</pre>
+              </div>
+            </el-collapse-item>
+          </el-collapse>
+        </div>
+      </div>
 
       <!-- 操作按钮 -->
       <div class="result-actions">
-        <el-button
-          type="success"
-          :icon="Edit"
-          size="large"
-          round
-          @click="handleOpenInDesigner"
-        >
+        <el-button type="success" :icon="Edit" size="large" round @click="handleOpenInDesigner">
           在流程编辑器中打开
         </el-button>
-        <el-button
-          type="primary"
-          :icon="Check"
-          size="large"
-          round
-          @click="handleCreateTemplate"
-        >
+        <el-button type="primary" size="large" round @click="handleCreateTemplate">
           确认创建模板
         </el-button>
-        <el-button
-          size="large"
-          round
-          @click="handleRegenerate"
-        >
+        <el-button size="large" round @click="handleRegenerate">
           重新生成
         </el-button>
       </div>
     </div>
+
+    <!-- 创建模板弹窗 -->
+    <el-dialog v-model="createDialogVisible" title="确认创建模板" width="480px" :close-on-click-modal="false">
+      <el-form :model="createForm" label-position="top">
+        <el-form-item label="模板名称">
+          <el-input v-model="createForm.templateName" placeholder="输入模板名称" maxlength="64" />
+        </el-form-item>
+        <el-form-item label="模板编号">
+          <el-input v-model="createForm.templateCode" placeholder="自动生成或手动输入" maxlength="64" />
+        </el-form-item>
+        <el-form-item label="业务类型">
+          <el-select v-model="createForm.bizTypeId" placeholder="选择业务类型" style="width: 100%">
+            <el-option v-for="bt in bizTypeList" :key="bt.id" :label="bt.typeName" :value="bt.id" />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="createDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="creating" @click="submitCreateTemplate">确认创建</el-button>
+      </template>
+    </el-dialog>
 
     <!-- 错误提示 -->
     <el-alert
@@ -127,7 +140,10 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { MagicStick, Edit, Check } from '@element-plus/icons-vue'
+import { MagicStick, Edit } from '@element-plus/icons-vue'
+import BpmnViewerPanel from '@/components/ai/BpmnViewerPanel.vue'
+import { createProcessTemplate } from '@/api/processTemplate'
+import { getBizTypes } from '@/api/bizType'
 import { ElMessage } from 'element-plus'
 
 const STORAGE_KEY = 'ai-generate-process-state'
@@ -145,10 +161,24 @@ interface GenerateResult {
   summary: string
 }
 
+interface BizType {
+  id: number
+  typeName: string
+  typeCode: string
+}
+
 const description = ref('')
 const generating = ref(false)
 const result = ref<GenerateResult | null>(null)
 const errorMessage = ref('')
+const createDialogVisible = ref(false)
+const creating = ref(false)
+const bizTypeList = ref<BizType[]>([])
+const createForm = ref({
+  templateName: '',
+  templateCode: '',
+  bizTypeId: null as number | null
+})
 
 // 页面离开时保存状态
 function saveState() {
@@ -220,8 +250,42 @@ function handleOpenInDesigner() {
   router.push('/process-designer?from=ai')
 }
 
-function handleCreateTemplate() {
-  ElMessage.info('创建模板功能将在 D3 实现')
+async function handleCreateTemplate() {
+  if (!result.value) return
+  // 预填模板名（从摘要取前 20 字）
+  createForm.value = {
+    templateName: result.value.summary?.slice(0, 20) || 'AI生成流程',
+    templateCode: 'ai-' + Date.now(),
+    bizTypeId: null
+  }
+  // 加载业务类型列表
+  try {
+    bizTypeList.value = await getBizTypes() || []
+  } catch { /* 列表加载失败不阻塞弹窗 */ }
+  createDialogVisible.value = true
+}
+
+async function submitCreateTemplate() {
+  if (!result.value) return
+  creating.value = true
+  try {
+    const created = await createProcessTemplate({
+      templateName: createForm.value.templateName,
+      templateCode: createForm.value.templateCode,
+      bizTypeId: createForm.value.bizTypeId ?? undefined,
+      sourceType: 'ai_generated',
+      bpmnXml: result.value.bpmnXml,
+      nodeConfig: JSON.stringify(result.value.nodeConfig)
+    } as any)
+    createDialogVisible.value = false
+    ElMessage.success('模板创建成功')
+    router.push(`/templates`)
+  } catch (e: any) {
+    const msg = e?.response?.data?.message || e?.message || '创建失败'
+    ElMessage.error(msg)
+  } finally {
+    creating.value = false
+  }
 }
 
 function handleRegenerate() {
@@ -239,7 +303,7 @@ function handleClear() {
 
 <style scoped>
 .ai-generate-page {
-  max-width: 900px;
+  max-width: 1100px;
   margin: 0 auto;
 }
 
@@ -301,12 +365,33 @@ function handleClear() {
   gap: 16px;
 }
 
+.result-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.result-right {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
 .result-card {
   padding: 24px;
   border: 1px solid var(--line);
   border-radius: 22px;
   background: var(--panel);
   box-shadow: var(--shadow);
+}
+
+.viewer-card {
+  padding: 16px;
+}
+
+.result-card :deep(.el-collapse) {
+  border: none;
 }
 
 .card-title {
@@ -346,6 +431,12 @@ function handleClear() {
   justify-content: center;
   flex-wrap: wrap;
   padding-top: 8px;
+}
+
+@media (max-width: 900px) {
+  .result-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .error-alert {

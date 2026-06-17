@@ -1,5 +1,6 @@
 package com.aiflow.service.impl;
 
+import com.aiflow.dto.NodeEfficiencyDTO;
 import com.aiflow.dto.StatisticsOverviewDTO;
 import com.aiflow.dto.StatisticsTrendDTO;
 import com.aiflow.service.StatisticsService;
@@ -84,11 +85,50 @@ public class StatisticsServiceImpl implements StatisticsService {
                         """)
                 .getSingleResult();
 
+        // 5. 各状态分布（draft / submitted / running / completed）
+        @SuppressWarnings("unchecked")
+        List<Object[]> statusRows = entityManager
+                .createNativeQuery("""
+                        SELECT pi.status, COUNT(*)
+                        FROM process_instance pi
+                        WHERE pi.deleted = 0
+                        GROUP BY pi.status
+                        """)
+                .getResultList();
+        Map<String, Long> statusDistribution = new LinkedHashMap<>();
+        for (Object[] row : statusRows) {
+            statusDistribution.put((String) row[0], ((Number) row[1]).longValue());
+        }
+
+        // 6. 各业务类型分布
+        @SuppressWarnings("unchecked")
+        List<Object[]> bizTypeRows = entityManager
+                .createNativeQuery("""
+                        SELECT COALESCE(pi.biz_type_id, 0),
+                               COALESCE(btd.type_name, '未分类'),
+                               COUNT(*)
+                        FROM process_instance pi
+                        LEFT JOIN biz_type_dict btd ON pi.biz_type_id = btd.id
+                        WHERE pi.deleted = 0
+                        GROUP BY pi.biz_type_id, btd.type_name
+                        ORDER BY COUNT(*) DESC
+                        """)
+                .getResultList();
+        List<StatisticsOverviewDTO.BizTypeCount> bizTypeDistribution = bizTypeRows.stream()
+                .map(r -> StatisticsOverviewDTO.BizTypeCount.builder()
+                        .bizTypeId(((Number) r[0]).longValue())
+                        .bizTypeName((String) r[1])
+                        .count(((Number) r[2]).longValue())
+                        .build())
+                .toList();
+
         return StatisticsOverviewDTO.builder()
                 .totalInstances(totalInstances)
                 .completionRate(completionRate)
                 .avgDurationHours(avgDurationHours)
                 .anomalyCount(anomalyCount != null ? anomalyCount.longValue() : 0L)
+                .statusDistribution(statusDistribution)
+                .bizTypeDistribution(bizTypeDistribution)
                 .build();
     }
 
@@ -196,7 +236,7 @@ public class StatisticsServiceImpl implements StatisticsService {
                     """;
         }
         return """
-                SELECT DATE(pi.created_at) AS period,
+                SELECT MIN(DATE_FORMAT(pi.created_at, '%Y-%m-%d')) AS period,
                        COALESCE(pi.biz_type_id, 0) AS biz_type_id,
                        COALESCE(btd.type_name, '未分类') AS type_name,
                        COUNT(*) AS cnt
@@ -211,4 +251,48 @@ public class StatisticsServiceImpl implements StatisticsService {
     }
 
     private record TrendRow(String period, Long bizTypeId, String typeName, Long cnt) {}
+
+    @Override
+    public NodeEfficiencyDTO getNodeEfficiency() {
+        @SuppressWarnings("unchecked")
+        List<Object[]> rows = entityManager
+                .createNativeQuery("""
+                        SELECT t.node_key,
+                               t.node_name,
+                               COUNT(*) AS total_count,
+                               COALESCE(SUM(CASE WHEN t.status = 'timeout' THEN 1 ELSE 0 END), 0) AS timeout_count,
+                               COALESCE(AVG(CASE WHEN t.completed_at IS NOT NULL
+                                   THEN TIMESTAMPDIFF(SECOND, t.created_at, t.completed_at) END), 0) AS avg_dwell_seconds
+                        FROM task t
+                        WHERE t.deleted = 0
+                        GROUP BY t.node_key, t.node_name
+                        ORDER BY avg_dwell_seconds DESC
+                        """)
+                .getResultList();
+
+        List<NodeEfficiencyDTO.NodeRanking> rankings = rows.stream()
+                .map(r -> {
+                    long total = ((Number) r[2]).longValue();
+                    long timeout = ((Number) r[3]).longValue();
+                    double avgDwellSeconds = ((Number) r[4]).doubleValue();
+                    double timeoutRate = total > 0
+                            ? Math.round(timeout * 10000.0 / total) / 100.0
+                            : 0.0;
+                    double avgDwellHours = avgDwellSeconds > 0
+                            ? Math.round(avgDwellSeconds / 36.0) / 100.0
+                            : 0.0;
+
+                    return NodeEfficiencyDTO.NodeRanking.builder()
+                            .nodeKey((String) r[0])
+                            .nodeName((String) r[1])
+                            .totalCount(total)
+                            .timeoutCount(timeout)
+                            .avgDwellHours(avgDwellHours)
+                            .timeoutRate(timeoutRate)
+                            .build();
+                })
+                .toList();
+
+        return NodeEfficiencyDTO.builder().rankings(rankings).build();
+    }
 }
