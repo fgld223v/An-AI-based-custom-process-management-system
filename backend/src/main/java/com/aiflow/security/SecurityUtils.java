@@ -20,4 +20,13 @@ public final class SecurityUtils {
         CurrentUser currentUser = currentUser();
         return currentUser == null ? null : currentUser.getId();
     }
+
+    public static String currentUserSystemRole() {
+        CurrentUser currentUser = currentUser();
+        return currentUser == null ? null : currentUser.getSystemRole();
+    }
+
+    public static boolean isSuperAdmin() {
+        return "super_admin".equals(currentUserSystemRole());
+    }
 }

@@ -5,6 +5,7 @@ import com.aiflow.model.ProcessInstance;
 import com.aiflow.model.ProcessTemplate;
 import com.aiflow.repository.ProcessInstanceRepository;
 import com.aiflow.repository.ProcessTemplateRepository;
+import com.aiflow.security.SecurityUtils;
 import com.aiflow.service.TaskQueryService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -51,7 +52,15 @@ public class TaskQueryServiceImpl implements TaskQueryService {
 
     @Override
     public List<TaskDTO> listMyTasks() {
+        // 按当前用户过滤：查询分配给当前用户或候选组的任务
+        Long currentUserId = SecurityUtils.currentUserId();
+        String userIdStr = currentUserId != null ? String.valueOf(currentUserId) : null;
+
         List<Task> tasks = taskService.createTaskQuery()
+                .or()
+                    .taskAssignee(userIdStr)
+                    .taskCandidateUser(userIdStr)
+                .endOr()
                 .orderByTaskCreateTime().desc()
                 .list();
 
@@ -74,8 +83,12 @@ public class TaskQueryServiceImpl implements TaskQueryService {
 
     @Override
     public List<TaskDTO> listDoneTasks() {
+        Long currentUserId = SecurityUtils.currentUserId();
+        String userIdStr = currentUserId != null ? String.valueOf(currentUserId) : null;
+
         List<HistoricTaskInstance> historicTasks = historyService
                 .createHistoricTaskInstanceQuery()
+                .taskAssignee(userIdStr)
                 .finished()
                 .orderByHistoricTaskInstanceEndTime().desc()
                 .list();

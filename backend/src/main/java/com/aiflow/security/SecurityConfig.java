@@ -5,14 +5,11 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.AuthenticationProvider;
-import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
@@ -29,50 +26,39 @@ import java.util.List;
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
-    private final UserDetailsService userDetailsService;
 
-    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter, UserDetailsService userDetailsService) {
+    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
-        this.userDetailsService = userDetailsService;
     }
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http, AuthenticationProvider authenticationProvider) throws Exception {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authenticationProvider(authenticationProvider)
                 .authorizeHttpRequests(auth -> auth
+                        // ============================================================
+                        // 1. 公开端点 — 无需认证
+                        // ============================================================
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
-                        .requestMatchers(HttpMethod.POST,
-                                "/api/forms",
-                                "/api/forms/*/publish",
-                                "/api/process-templates",
-                                "/api/process-templates/*/publish",
-                                "/api/process-templates/*/unpublish",
-                                "/api/process-fragments",
-                                "/api/process-fragments/*/publish",
-                                "/api/template-market/publish-template",
-                                "/api/template-market/*/copy",
-                                "/api/template-market/*/withdraw",
-                                "/api/process-instances/draft",
-                                "/api/process-instances/node-form",
-                                "/api/tasks/*/complete",
-                                "/api/tasks/*/reject",
-                                "/api/ai/**"
-                        ).permitAll()
-                        .requestMatchers(HttpMethod.PUT,
-                                "/api/forms/*",
-                                "/api/process-templates/*",
-                                "/api/process-fragments/*",
-                                "/api/process-instances/*/submit"
-                        ).permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/register").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/health").permitAll()
+                        .requestMatchers("/error").permitAll()
+                        .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
+                        .requestMatchers("/ws/notifications").permitAll()
+
+                        // ============================================================
+                        // 2. 超管专属 — 用户管理、部门管理
+                        // ============================================================
+                        .requestMatchers("/api/admin/**").hasRole("SUPER_ADMIN")
+
+                        // ============================================================
+                        // 3. 需认证的端点 — 所有角色（超管、业务管理员、普通用户）
+                        // ============================================================
                         .requestMatchers(HttpMethod.GET,
-                                "/api/health",
+                                "/api/user/me",
                                 "/api/biz-types",
-                                "/api/forms",
                                 "/api/forms/**",
                                 "/api/process-templates/**",
                                 "/api/process-fragments/**",
@@ -80,23 +66,38 @@ public class SecurityConfig {
                                 "/api/process-instances/**",
                                 "/api/tasks/**",
                                 "/api/statistics/**",
-                                "/api/templates/**"
-                        ).permitAll()
-                        .requestMatchers("/ws/notifications").permitAll()
-                        .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
-                        .requestMatchers("/error").permitAll()
+                                "/api/templates/**",
+                                "/api/notifications/**"
+                        ).authenticated()
+                        .requestMatchers(HttpMethod.POST,
+                                "/api/forms/**",
+                                "/api/process-templates/**",
+                                "/api/process-fragments/**",
+                                "/api/template-market/**",
+                                "/api/process-instances/**",
+                                "/api/tasks/**",
+                                "/api/ai/**",
+                                "/api/notifications/**"
+                        ).authenticated()
+                        .requestMatchers(HttpMethod.PUT,
+                                "/api/forms/**",
+                                "/api/process-templates/**",
+                                "/api/process-fragments/**",
+                                "/api/process-instances/**",
+                                "/api/notifications/**"
+                        ).authenticated()
+                        .requestMatchers(HttpMethod.DELETE,
+                                "/api/notifications/**",
+                                "/api/template-market/**"
+                        ).authenticated()
+
+                        // ============================================================
+                        // 4. 默认拒绝 — 所有其他请求
+                        // ============================================================
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
-    }
-
-    @Bean
-    public AuthenticationProvider authenticationProvider(PasswordEncoder passwordEncoder) {
-        DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
-        provider.setUserDetailsService(userDetailsService);
-        provider.setPasswordEncoder(passwordEncoder);
-        return provider;
     }
 
     @Bean

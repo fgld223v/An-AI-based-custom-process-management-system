@@ -10,6 +10,10 @@ public class UserMeResponse {
     private String username;
     private String nickname;
     private String role;
+    private String systemRole;
+    private Long departmentId;
+    private Long supervisorId;
+    private String managedBizTypeIds;
 
     public static UserMeResponse from(UserEntity user) {
         UserMeResponse response = new UserMeResponse();
@@ -17,6 +21,10 @@ public class UserMeResponse {
         response.setUsername(user.getUsername());
         response.setNickname(user.getNickname());
         response.setRole(user.getRole());
+        response.setSystemRole(user.getSystemRole());
+        response.setDepartmentId(user.getDepartmentId());
+        response.setSupervisorId(user.getSupervisorId());
+        response.setManagedBizTypeIds(user.getManagedBizTypeIds());
         return response;
     }
 }

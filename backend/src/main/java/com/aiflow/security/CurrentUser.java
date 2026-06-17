@@ -33,6 +33,22 @@ public class CurrentUser implements UserDetails {
         return user.getRole();
     }
 
+    public String getSystemRole() {
+        return user.getSystemRole();
+    }
+
+    public Long getDepartmentId() {
+        return user.getDepartmentId();
+    }
+
+    public Long getSupervisorId() {
+        return user.getSupervisorId();
+    }
+
+    public String getManagedBizTypeIds() {
+        return user.getManagedBizTypeIds();
+    }
+
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         return authorities;
