@@ -45,12 +45,6 @@ const routes: RouteRecordRaw[] = [
       },
       // ---- 流程设计（super_admin / biz_admin）----
       {
-        path: 'dashboard',
-        name: 'Dashboard',
-        component: () => import('@/views/dashboard/Dashboard.vue'),
-        meta: { title: '仪表盘', group: '流程' }
-      },
-      {
         path: 'form-designer',
         name: 'FormDesigner',
         component: () => import('@/views/form-designer/FormDesigner.vue'),
@@ -88,6 +82,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: 'AI智能生成表单', group: '流程', roles: ['super_admin', 'biz_admin'] }
       },
       // ---- 流程运行（所有角色）----
+      {
+        path: 'dashboard',
+        name: 'Dashboard',
+        component: () => import('@/views/dashboard/Dashboard.vue'),
+        meta: { title: '运行监控', group: '运行' }
+      },
       {
         path: 'process/start-preview',
         name: 'StartPreview',
