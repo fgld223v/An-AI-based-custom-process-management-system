@@ -108,6 +108,12 @@ const routes: RouteRecordRaw[] = [
         name: 'AiGenerateProcess',
         component: () => import('@/views/ai/AiGenerateProcess.vue'),
         meta: { title: 'AI智能生成流程', group: '流程' }
+      },
+      {
+        path: 'ai/generate-form',
+        name: 'AiGenerateForm',
+        component: () => import('@/views/ai/AiGenerateForm.vue'),
+        meta: { title: 'AI智能生成表单', group: '流程' }
       }
     ]
   }

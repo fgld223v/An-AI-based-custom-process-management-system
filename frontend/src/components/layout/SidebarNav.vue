@@ -68,7 +68,8 @@ const menuGroups = ref<Array<{ title: string; items: MenuItem[] }>>([
     items: [
       { label: '工作台', path: '/workbench', icon: DataAnalysis, available: true },
       { label: '流程编辑器', path: '/process-designer', icon: Share, available: true },
-      { label: 'AI生成流程', path: '/ai/generate-process', icon: MagicStick, available: true }
+      { label: 'AI生成流程', path: '/ai/generate-process', icon: MagicStick, available: true },
+      { label: 'AI生成表单', path: '/ai/generate-form', icon: MagicStick, available: true }
     ]
   },
   {
