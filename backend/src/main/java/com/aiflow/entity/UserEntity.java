@@ -26,8 +26,6 @@ public class UserEntity {
 
     private String role;
 
-    private Long departmentId;
-
     private Integer enabled;
 
     private Integer deleted;
