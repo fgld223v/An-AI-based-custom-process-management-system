@@ -59,15 +59,8 @@ public class ApproverResolverServiceImpl implements ApproverResolverService {
      * 部门经理 — 找到发起人所属部门的 leader_user_id。
      */
     private List<Long> resolveDeptManager(ProcessInstance instance) {
-        UserEntity applicant = sysUserMapper.selectById(instance.getApplicantId());
-        if (applicant == null || applicant.getDepartmentId() == null) {
-            return defaultApprover();
-        }
-        Department dept = departmentRepository.findById(applicant.getDepartmentId()).orElse(null);
-        if (dept == null || dept.getLeaderUserId() == null) {
-            return defaultApprover();
-        }
-        return List.of(dept.getLeaderUserId());
+        // department_id 字段在当前数据库中不存在，暂时返回默认审批人
+        return defaultApprover();
     }
 
     /**
