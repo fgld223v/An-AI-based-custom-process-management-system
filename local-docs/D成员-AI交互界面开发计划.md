@@ -3,8 +3,8 @@
 > **角色**：全栈（前端 + 后端）  
 > **周期**：10 天（跨第 1、2 周）  
 > **LLM**：DeepSeek Chat API（OpenAI 兼容格式）  
-> **修正日期**：2026-06-16  
-> **修正说明**：V2 — 合并 main 分支后基于组长的改动重新评审，A/B 接口已实现，无需 mock
+> **修正日期**：2026-06-17  
+> **修正说明**：V3 — 新增节点-表单绑定完整流程设计；D5 后端已实现；表单字段名标准化
 
 ---
 
@@ -702,3 +702,48 @@ AI 操作（`GENERATE_PROCESS`、`GENERATE_FORM` 等）不在列表中。
 | sidebarnav 用 placeholder 路由 | 改为真实路由 `/ai/generate-process` |
 | AiPlaceholderController 怎么处理 | 新建 AiController，确认无引用后删除占位 |
 | 部分文件名与项目风格不符 | 全部对齐 `@Data` + `@RequiredArgsConstructor` + `ApiResponse<T>` 模式 |
+
+---
+
+## 五、节点-表单绑定完整流程（2026-06-17 新增）
+
+### 用户期望的流程
+
+```
+流程设计器点节点
+  → [AI 生成此节点表单] 弹窗
+    → 用户点 [跳转到 AI 表单生成]（携带节点名+提示词）
+      → /ai/generate-form（提示词自动填入）
+        → 用户生成表单
+          → 确认创建 → 跳转 /form-designer（编辑查看）
+            → 回到流程设计器 → 表单自动绑定到节点 ✅
+              → 保存模板 → 绑定关系持久化 ✅
+```
+
+### 技术实现
+
+**跨页面状态传递（sessionStorage）：**
+
+```
+对话框点击"跳转AI表单生成"
+  → sessionStorage: { pendingBindNodeKey, pendingBindPrompt }
+  
+AiGenerateForm 创建表单后
+  → sessionStorage: { pendingBindNodeKey, pendingBindFormId, pendingBindFormName }
+  → 跳转 /form-designer?id=xxx
+  
+ProcessDesigner onMounted
+  → 检测 sessionStorage 有 pendingBindFormId
+    → 自动在 nodeConfigMap 中设置对应节点的 formId + formBindingMode
+    → syncNodeConfig()
+    → 提示"表单已绑定到节点 XX，请保存模板"
+    → 清除 sessionStorage 挂起状态
+```
+
+### 改动清单
+
+| 文件 | 改动 |
+|------|------|
+| ProcessDesigner.vue - jumpToAiGenerateForm() | 保存 nodeKey 到 sessionStorage |
+| AiGenerateForm.vue - submitCreateForm() | 创建后保存 formId 到 sessionStorage，跳转 /form-designer |
+| ProcessDesigner.vue - onMounted() | 检测挂起的绑定，自动绑定到节点 |

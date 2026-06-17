@@ -11,6 +11,8 @@ import com.aiflow.repository.FormDefinitionRepository;
 import com.aiflow.repository.ProcessTemplateRepository;
 import com.aiflow.service.FlowableDeploymentService;
 import com.aiflow.service.ProcessTemplateService;
+import com.aiflow.common.BusinessException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -19,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -48,6 +51,7 @@ public class ProcessTemplateServiceImpl implements ProcessTemplateService {
             throw new IllegalStateException("templateCode and version already exist");
         }
         validatePublishedForm(template.getFormId());
+        validateFormBindConfig(template.getFormBindConfig());
 
         LocalDateTime now = LocalDateTime.now();
         if (template.getStatus() == null) {
@@ -75,6 +79,7 @@ public class ProcessTemplateServiceImpl implements ProcessTemplateService {
         }
         requireText(template.getTemplateName(), "templateName must not be blank");
         validatePublishedForm(template.getFormId());
+        validateFormBindConfig(template.getFormBindConfig());
 
         existing.setTemplateName(template.getTemplateName().trim());
         existing.setBizTypeId(template.getBizTypeId());
@@ -96,6 +101,8 @@ public class ProcessTemplateServiceImpl implements ProcessTemplateService {
 
         validateBpmnXmlForPublish(existing.getBpmnXml());
         validateNodeConfigForPublish(existing.getNodeConfig());
+        validatePublishedForm(existing.getFormId());
+        validateFormBindConfig(existing.getFormBindConfig());
         flowableDeploymentService.deployProcessTemplate(existing);
 
         LocalDateTime now = LocalDateTime.now();
@@ -215,11 +222,32 @@ public class ProcessTemplateServiceImpl implements ProcessTemplateService {
         }
     }
 
+    private void validateFormBindConfig(String formBindConfigJson) {
+        if (formBindConfigJson == null || formBindConfigJson.isBlank()) return;
+        try {
+            Map<String, Map<String, Object>> map = objectMapper.readValue(
+                formBindConfigJson, new TypeReference<Map<String, Map<String, Object>>>() {});
+            for (Map.Entry<String, Map<String, Object>> entry : map.entrySet()) {
+                Object formIdObj = entry.getValue().get("formId");
+                if (formIdObj != null) {
+                    Long formId = formIdObj instanceof Integer
+                        ? ((Integer) formIdObj).longValue()
+                        : (Long) formIdObj;
+                    getPublishedForm(formId);
+                }
+            }
+        } catch (BusinessException | IllegalStateException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IllegalStateException("formBindConfig format error: " + e.getMessage());
+        }
+    }
+
     private FormDefinition getPublishedForm(Long formId) {
         FormDefinition form = formDefinitionRepository.findByIdAndDeleted(formId, 0)
-                .orElseThrow(() -> new IllegalStateException("bound form does not exist or has been deleted"));
+                .orElseThrow(() -> new IllegalStateException("bound form (id=" + formId + ") does not exist or has been deleted"));
         if (form.getStatus() != FormStatus.PUBLISHED) {
-            throw new IllegalStateException("bound form must be published");
+            throw new IllegalStateException("bound form (id=" + formId + ") must be published");
         }
         return form;
     }

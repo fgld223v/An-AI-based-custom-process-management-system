@@ -11,7 +11,11 @@
       "PowerShell($port = 8080; $proc = \\(Get-NetTCPConnection -LocalPort $port -ErrorAction SilentlyContinue\\).OwningProcess; if \\($proc\\) { Stop-Process -Id $proc -Force -ErrorAction SilentlyContinue }; Write-Host \"已清理\")",
       "PowerShell($p = \\(Get-NetTCPConnection -LocalPort 8080 -ErrorAction SilentlyContinue\\).OwningProcess; if \\($p\\) { Stop-Process -Id $p -Force }; Write-Host \"cleaned\")",
       "Bash(curl -s http://localhost:8080/api/health -o /dev/null -w \"%{http_code}\")",
-      "PowerShell(Get-NetTCPConnection -LocalPort 8080 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }; Write-Host \"done\")"
+      "PowerShell(Get-NetTCPConnection -LocalPort 8080 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }; Write-Host \"done\")",
+      "PowerShell(Get-NetTCPConnection -LocalPort 8080 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }; Write-Host \"ok\")",
+      "PowerShell(Get-Process -Name node -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue }; Write-Host \"cleaned\")",
+      "PowerShell(Get-Process -Name node -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue }; Write-Host \"killed\")",
+      "Bash(curl -s http://localhost:5174/ -o /dev/null -w \"%{http_code}\")"
     ]
   },
   "enabledPlugins": {

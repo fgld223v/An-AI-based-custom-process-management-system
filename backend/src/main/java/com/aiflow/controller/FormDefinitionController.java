@@ -66,4 +66,10 @@ public class FormDefinitionController {
                 .orElseThrow(() -> new IllegalArgumentException("form not found"));
         return ApiResponse.success(DtoMapper.toFormDefinitionDTO(form));
     }
+
+    @PostMapping("/{id}/disable")
+    public ApiResponse<Void> disableForm(@PathVariable Long id) {
+        formDefinitionService.disableForm(id);
+        return ApiResponse.success();
+    }
 }

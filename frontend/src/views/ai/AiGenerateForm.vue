@@ -46,11 +46,11 @@
         <div class="result-card">
           <div class="card-title">字段列表（{{ fieldList.length }} 个字段）</div>
           <el-table :data="fieldList" stripe size="default">
-            <el-table-column prop="fieldName" label="字段名" width="140" />
-            <el-table-column prop="fieldLabel" label="显示名" width="120" />
-            <el-table-column prop="fieldType" label="类型" width="100">
+            <el-table-column prop="field" label="字段名" width="140" />
+            <el-table-column prop="label" label="显示名" width="120" />
+            <el-table-column prop="type" label="类型" width="100">
               <template #default="{ row }">
-                <el-tag size="small" effect="plain">{{ row.fieldType }}</el-tag>
+                <el-tag size="small" effect="plain">{{ row.type }}</el-tag>
               </template>
             </el-table-column>
             <el-table-column prop="required" label="必填" width="70">
@@ -66,7 +66,11 @@
         <!-- 右：表单预览 -->
         <div class="result-card">
           <div class="card-title">表单预览</div>
-          <DynamicFormRenderer :field-list="result.fieldList" :readonly="true" />
+          <DynamicFormRenderer v-if="fieldList.length > 0" :field-list="fieldList" :readonly="true" />
+          <div v-else class="designer-empty-hint">
+            <p>暂无表单字段预览，AI 返回的原始数据：</p>
+            <el-input :model-value="result.fieldList" type="textarea" :rows="6" readonly />
+          </div>
         </div>
       </div>
 
@@ -85,13 +89,13 @@
     <el-dialog v-model="createDialogVisible" title="确认创建表单" width="480px" :close-on-click-modal="false">
       <el-form :model="createForm" label-position="top">
         <el-form-item label="表单名称">
-          <el-input v-model="createForm.formName" placeholder="输入表单名称" maxlength="64" />
+          <el-input v-model="createFormData.formName" placeholder="输入表单名称" maxlength="64" />
         </el-form-item>
         <el-form-item label="表单编号">
-          <el-input v-model="createForm.formCode" placeholder="自动生成或手动输入" maxlength="64" />
+          <el-input v-model="createFormData.formCode" placeholder="自动生成或手动输入" maxlength="64" />
         </el-form-item>
         <el-form-item label="业务类型">
-          <el-select v-model="createForm.bizTypeId" placeholder="选择业务类型" style="width: 100%">
+          <el-select v-model="createFormData.bizTypeId" placeholder="选择业务类型" style="width: 100%">
             <el-option v-for="bt in bizTypeList" :key="bt.id" :label="bt.typeName" :value="bt.id" />
           </el-select>
         </el-form-item>
@@ -112,7 +116,7 @@ import { ref, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { MagicStick } from '@element-plus/icons-vue'
 import DynamicFormRenderer from '@/components/form/DynamicFormRenderer.vue'
-import { createForm } from '@/api/formDefinition'
+import { createForm as createFormApi, publishForm } from '@/api/formDefinition'
 import { getBizTypes } from '@/api/bizType'
 import { ElMessage } from 'element-plus'
 
@@ -120,11 +124,11 @@ const STORAGE_KEY = 'ai-generate-form-state'
 const router = useRouter()
 
 interface FieldItem {
-  fieldName: string
-  fieldLabel: string
-  fieldType: string
+  field: string
+  label: string
+  type: string
   required: boolean
-  options?: string[]
+  options?: { label: string; value: string }[]
 }
 
 interface GenerateFormResult {
@@ -145,7 +149,7 @@ const errorMessage = ref('')
 const createDialogVisible = ref(false)
 const creating = ref(false)
 const bizTypeList = ref<BizType[]>([])
-const createForm = ref({
+const createFormData = ref({
   formName: '',
   formCode: '',
   bizTypeId: null as number | null
@@ -183,6 +187,12 @@ onMounted(() => {
       result.value = state.result || null
     } catch { /* ignore */ }
   }
+  // 从流程设计器跳转过来时，自动填入提示词
+  const incomingPrompt = sessionStorage.getItem('ai-form-prompt')
+  if (incomingPrompt) {
+    description.value = incomingPrompt
+    sessionStorage.removeItem('ai-form-prompt')
+  }
 })
 
 async function handleGenerate() {
@@ -205,7 +215,7 @@ async function handleGenerate() {
 
 async function handleCreateForm() {
   if (!result.value) return
-  createForm.value = { formName: 'AI生成表单', formCode: 'ai-' + Date.now(), bizTypeId: null }
+  createFormData.value = { formName: 'AI生成表单', formCode: 'ai-' + Date.now(), bizTypeId: null }
   try { bizTypeList.value = await getBizTypes() || [] } catch { /* ignore */ }
   createDialogVisible.value = true
 }
@@ -214,16 +224,31 @@ async function submitCreateForm() {
   if (!result.value) return
   creating.value = true
   try {
-    await createForm({
-      formName: createForm.value.formName,
-      formCode: createForm.value.formCode,
-      bizTypeId: createForm.value.bizTypeId ?? undefined,
+    const created = await createFormApi({
+      formName: createFormData.value.formName,
+      formCode: createFormData.value.formCode,
+      bizTypeId: createFormData.value.bizTypeId ?? undefined,
       fieldList: result.value.fieldList,
       formSchema: result.value.formSchema
     } as any)
     createDialogVisible.value = false
-    ElMessage.success('表单创建成功')
-    router.push('/form-designer')
+    ElMessage.success('表单已创建并发布')
+    // 如果是从流程设计器跳转过来的，直接回去完成绑定
+    const pendingBind = window.sessionStorage.getItem('pendingBind')
+    if (pendingBind) {
+      try {
+        const bindInfo = JSON.parse(pendingBind)
+        window.sessionStorage.setItem('pendingBindResult', JSON.stringify({
+          nodeKey: bindInfo.nodeKey,
+          nodeName: bindInfo.nodeName,
+          formId: created.id,
+          formName: createFormData.value.formName
+        }))
+      } catch { /* ignore */ }
+      router.push('/process-designer')
+    } else {
+      router.push('/form-designer?id=' + created.id)
+    }
   } catch (e: any) {
     ElMessage.error(e?.response?.data?.message || e?.message || '创建失败')
   } finally {
