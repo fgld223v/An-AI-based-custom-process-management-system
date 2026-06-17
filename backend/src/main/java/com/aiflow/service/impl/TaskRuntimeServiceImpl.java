@@ -13,6 +13,7 @@ import com.aiflow.repository.ProcessTemplateRepository;
 import com.aiflow.service.ApproverResolverService;
 import com.aiflow.service.RuleEvaluatorService;
 import com.aiflow.service.TaskRuntimeService;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

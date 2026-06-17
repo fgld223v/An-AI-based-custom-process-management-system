@@ -11,6 +11,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.Map;
+
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/ai")
@@ -23,5 +25,12 @@ public class AiController {
             @Valid @RequestBody AiGenerateRequest request) {
         return ApiResponse.success(
                 aiProcessService.generateProcess(request.getDescription()));
+    }
+
+    @PostMapping("/generate-form")
+    public ApiResponse<Map<String, Object>> generateForm(
+            @Valid @RequestBody AiGenerateRequest request) {
+        return ApiResponse.success(
+                aiProcessService.generateForm(request.getDescription()));
     }
 }

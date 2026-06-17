@@ -1,4 +1,5 @@
-export type UserRole = 'ADMIN' | 'MANAGER' | 'USER'
+/** 系统角色：super_admin / biz_admin / normal_user */
+export type SystemRole = 'super_admin' | 'biz_admin' | 'normal_user'
 
 export interface LoginRequest {
   username: string
@@ -11,14 +12,22 @@ export interface LoginResponse {
   userId: number
   username: string
   nickname: string
-  role: UserRole
+  role: string
+  systemRole: SystemRole
+  departmentId?: number | null
+  supervisorId?: number | null
+  managedBizTypeIds?: string | null
 }
 
 export interface UserInfo {
   id: number
   username: string
   nickname: string
-  role: UserRole
+  role: string
+  systemRole: SystemRole
+  departmentId?: number | null
+  supervisorId?: number | null
+  managedBizTypeIds?: string | null
 }
 
 export interface ApiResult<T> {
