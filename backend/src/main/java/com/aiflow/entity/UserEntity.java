@@ -26,6 +26,17 @@ public class UserEntity {
 
     private String role;
 
+    /** 系统角色：super_admin / biz_admin / normal_user */
+    private String systemRole;
+
+    private Long departmentId;
+
+    /** 直属上级用户ID */
+    private Long supervisorId;
+
+    /** 业务管理员管辖的业务类型ID列表（JSON数组，如 [1,2,3]） */
+    private String managedBizTypeIds;
+
     private Integer enabled;
 
     private Integer deleted;

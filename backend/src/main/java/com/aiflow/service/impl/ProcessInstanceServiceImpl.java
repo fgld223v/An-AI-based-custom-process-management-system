@@ -11,6 +11,7 @@ import com.aiflow.model.ProcessTemplate;
 import com.aiflow.repository.FormSubmissionRepository;
 import com.aiflow.repository.ProcessInstanceRepository;
 import com.aiflow.repository.ProcessTemplateRepository;
+import com.aiflow.security.SecurityUtils;
 import com.aiflow.service.FlowableRuntimeService;
 import com.aiflow.service.ProcessInstanceService;
 import com.aiflow.service.RuleEvaluatorService;
@@ -48,9 +49,18 @@ public class ProcessInstanceServiceImpl implements ProcessInstanceService {
     @Override
     @Transactional(readOnly = true)
     public List<ProcessInstanceDTO> listInstances(Long templateId, String status, String keyword) {
-        return processInstanceRepository.listInstances(templateId, normalize(status), normalize(keyword)).stream()
-                .map(this::toDto)
-                .toList();
+        List<ProcessInstance> instances = processInstanceRepository
+                .listInstances(templateId, normalize(status), normalize(keyword));
+
+        // 非超管只能看到自己发起的实例
+        if (!SecurityUtils.isSuperAdmin()) {
+            Long currentUserId = SecurityUtils.currentUserId();
+            instances = instances.stream()
+                    .filter(i -> i.getApplicantId() != null && i.getApplicantId().equals(currentUserId))
+                    .toList();
+        }
+
+        return instances.stream().map(this::toDto).toList();
     }
 
     @Override

@@ -29,6 +29,8 @@ public class JwtTokenProvider {
                 .subject(currentUser.getUsername())
                 .claim("userId", currentUser.getId())
                 .claim("role", currentUser.getRole())
+                .claim("systemRole", currentUser.getSystemRole())
+                .claim("departmentId", currentUser.getDepartmentId())
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(expiration))
                 .signWith(secretKey)

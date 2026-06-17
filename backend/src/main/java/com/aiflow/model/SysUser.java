@@ -38,6 +38,18 @@ public class SysUser {
     @Column(name = "role")
     private String role;
 
+    @Column(name = "system_role", columnDefinition = "ENUM('super_admin','biz_admin','normal_user')")
+    private String systemRole;
+
+    @Column(name = "department_id")
+    private Long departmentId;
+
+    @Column(name = "supervisor_id")
+    private Long supervisorId;
+
+    @Column(name = "managed_biz_type_ids", columnDefinition = "JSON")
+    private String managedBizTypeIds;
+
     @Column(name = "enabled", columnDefinition = "TINYINT")
     private Integer enabled;
 
@@ -46,4 +58,7 @@ public class SysUser {
 
     @Column(name = "updated_time")
     private LocalDateTime updatedTime;
+
+    @Column(name = "deleted", columnDefinition = "TINYINT")
+    private Integer deleted;
 }

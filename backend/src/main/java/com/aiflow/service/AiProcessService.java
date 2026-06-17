@@ -190,4 +190,96 @@ public class AiProcessService {
         log.info("流程生成成功，节点数：{}", result.getNodeConfig() != null ? result.getNodeConfig().size() : 0);
         return result;
     }
+
+    private static final String FORM_SYSTEM_PROMPT = """
+        你是一个智能表单设计专家。用户会用自然语言描述需要采集的数据，你需要将其转换为标准的表单字段配置 JSON。
+
+        输出必须是合法的 JSON 对象，不要包裹在 Markdown 代码块中。格式固定为：
+
+        {
+          "formName": "表单名称",
+          "formCode": "form_英文编码",
+          "fields": [
+            {
+              "field": "字段标识(英文驼峰)",
+              "label": "字段显示名称",
+              "type": "text|textarea|number|select|radio|checkbox|date|datetime|upload",
+              "required": true|false,
+              "placeholder": "占位提示文字",
+              "options": [{"label": "选项1", "value": "1"}]  仅 select/radio/checkbox 需要
+            }
+          ],
+          "summary": "表单用途的简要说明"
+        }
+
+        规则：
+        1. field 使用英文驼峰命名，如 leaveReason、startDate、leaveDays
+        2. type 取值严格限制：text(单行文本)、textarea(多行文本)、number(数字)、select(下拉单选)、radio(单选)、checkbox(多选)、date(日期)、datetime(日期时间)、upload(附件)
+        3. select/radio/checkbox 必须提供 options 数组
+        4. 合理的 required 判断：关键信息必填，备注类选填
+        5. 表单名称和编码要贴合业务场景
+        """;
+
+    public Map<String, Object> generateForm(String description) {
+        log.info("开始生成表单，用户输入长度：{}", description.length());
+
+        Map<String, Object> requestBody = Map.of(
+            "model", aiConfig.getModel(),
+            "messages", List.of(
+                Map.of("role", "system", "content", FORM_SYSTEM_PROMPT),
+                Map.of("role", "user", "content", description)
+            ),
+            "temperature", 0.3,
+            "max_tokens", 4096
+        );
+
+        String responseBody;
+        try {
+            responseBody = deepseekWebClient.post()
+                .uri("/chat/completions")
+                .bodyValue(requestBody)
+                .retrieve()
+                .onStatus(s -> s.is4xxClientError() || s.is5xxServerError(),
+                    r -> r.bodyToMono(String.class).map(b -> new RuntimeException("API调用失败：" + b)))
+                .bodyToMono(String.class)
+                .timeout(Duration.ofSeconds(aiConfig.getTimeoutSeconds()))
+                .block();
+        } catch (Exception e) {
+            log.error("DeepSeek API 调用异常", e);
+            throw new BusinessException("AI 服务调用失败：" + e.getMessage());
+        }
+
+        if (responseBody == null) throw new BusinessException("AI 服务返回为空");
+
+        String json;
+        try {
+            Map<String, Object> respMap = objectMapper.readValue(responseBody, new TypeReference<>() {});
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> choices = (List<Map<String, Object>>) respMap.get("choices");
+            if (choices == null || choices.isEmpty()) throw new BusinessException("AI 返回格式异常");
+            @SuppressWarnings("unchecked")
+            Map<String, Object> msg = (Map<String, Object>) choices.get(0).get("message");
+            json = (String) msg.get("content");
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("解析响应失败", e);
+            throw new BusinessException("AI 服务响应解析失败");
+        }
+
+        json = json.trim();
+        if (json.startsWith("```")) {
+            json = json.replaceFirst("```(?:json)?\\s*\\n?", "");
+            json = json.replaceFirst("\\n?```\\s*$", "");
+        }
+
+        try {
+            Map<String, Object> result = objectMapper.readValue(json, new TypeReference<>() {});
+            log.info("表单生成成功，字段数：{}", result.get("fields") instanceof List<?> l ? l.size() : 0);
+            return result;
+        } catch (Exception e) {
+            log.error("解析AI生成的表单JSON失败：{}", json);
+            throw new BusinessException("AI 生成的表单格式有误，请重试");
+        }
+    }
 }

@@ -29,7 +29,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   CirclePlus,
@@ -45,10 +45,14 @@ import {
   Tickets,
   Timer,
   Tools,
-  TrendCharts
+  TrendCharts,
+  UserFilled,
+  OfficeBuilding
 } from '@element-plus/icons-vue'
 import { showComingSoon } from '@/utils/feedback'
 import { getMyTasks } from '@/api/task'
+import { useAuthStore } from '@/stores/auth'
+import type { SystemRole } from '@/types/auth'
 
 interface MenuItem {
   label: string
@@ -56,60 +60,84 @@ interface MenuItem {
   icon: object
   available?: boolean
   badge?: string
+  roles?: SystemRole[]
 }
 
 const route = useRoute()
 const router = useRouter()
+const authStore = useAuthStore()
 const todoCount = ref<number | null>(null)
 
-const menuGroups = ref<Array<{ title: string; items: MenuItem[] }>>([
+/** 过滤菜单项：当前用户角色可见的项 */
+function filterByRole(items: MenuItem[]): MenuItem[] {
+  const userRole = authStore.user?.systemRole
+  return items.filter(item => {
+    if (!item.roles || item.roles.length === 0) return true
+    return userRole ? item.roles.includes(userRole) : false
+  })
+}
+
+const allMenuGroups = [
+  {
+    title: '概览',
+    items: [
+      { label: '工作台', path: '/workbench', icon: DataAnalysis, available: true }
+    ]
+  },
   {
     title: '流程',
     items: [
-      { label: '工作台', path: '/workbench', icon: DataAnalysis, available: true },
-      { label: '仪表盘', path: '/dashboard', icon: TrendCharts, available: true },
-      { label: '流程编辑器', path: '/process-designer', icon: Share, available: true },
-      { label: 'AI生成流程', path: '/ai/generate-process', icon: MagicStick, available: true },
-      { label: 'AI生成表单', path: '/ai/generate-form', icon: MagicStick, available: true }
+      { label: '流程编辑器', path: '/process-designer', icon: Share, available: true, roles: ['super_admin', 'biz_admin'] as SystemRole[] },
+      { label: '表单设计器', path: '/form-designer', icon: Tools, available: true, roles: ['super_admin', 'biz_admin'] as SystemRole[] },
+      { label: 'AI生成流程', path: '/ai/generate-process', icon: MagicStick, available: true, roles: ['super_admin', 'biz_admin'] as SystemRole[] },
+      { label: 'AI生成表单', path: '/ai/generate-form', icon: MagicStick, available: true, roles: ['super_admin', 'biz_admin'] as SystemRole[] }
     ]
   },
   {
     title: '运行',
     items: [
-      { label: '流程发起预览', path: '/process/start-preview', icon: CirclePlus, available: true },
+      { label: '流程发起', path: '/process/start-preview', icon: CirclePlus, available: true },
       { label: '流程实例', path: '/process/instances', icon: Tickets, available: true },
-      { label: '运行监控', path: '/placeholder/monitor', icon: Monitor },
-      { label: '执行追踪', path: '/placeholder/tracing', icon: TrendCharts },
       { label: '待办任务', path: '/tasks/todo', icon: Tickets, available: true, badge: '' },
       { label: '已办任务', path: '/tasks/done', icon: Tickets, available: true },
-      { label: '通知中心', path: '/notifications', icon: Bell, available: true }
+      { label: '通知中心', path: '/notifications', icon: Bell, available: true },
+      { label: '运行监控', path: '/placeholder/monitor', icon: Monitor },
+      { label: '执行追踪', path: '/placeholder/tracing', icon: TrendCharts }
     ]
   },
   {
     title: '资源',
     items: [
-      { label: '流程模板管理', path: '/templates', icon: Files, available: true },
-      { label: '模板市场', path: '/template-market', icon: Files, available: true },
+      { label: '流程模板管理', path: '/templates', icon: Files, available: true, roles: ['super_admin', 'biz_admin'] as SystemRole[] },
+      { label: '模板市场', path: '/template-market', icon: Files, available: true, roles: ['super_admin', 'biz_admin'] as SystemRole[] },
       { label: '节点/工具库', path: '/placeholder/tools', icon: Tools }
     ]
   },
   {
     title: '系统',
     items: [
-      { label: '设置/权限', path: '/settings', icon: Setting, available: true },
-      { label: '自动化策略', path: '/settings/automation', icon: Operation, available: true },
+      { label: '用户管理', path: '/admin/users', icon: UserFilled, available: true, roles: ['super_admin'] as SystemRole[] },
+      { label: '部门管理', path: '/admin/departments', icon: OfficeBuilding, available: true, roles: ['super_admin'] as SystemRole[] },
+      { label: '自动化策略', path: '/settings/automation', icon: Operation, available: true, roles: ['super_admin', 'biz_admin'] as SystemRole[] },
+      { label: '个人设置', path: '/settings', icon: Setting, available: true },
       { label: 'AI资源池', path: '/placeholder/ai-pool', icon: Cpu },
       { label: '定时任务', path: '/placeholder/schedule', icon: Timer }
     ]
   }
-])
+]
+
+/** 按角色过滤后的菜单组 */
+const menuGroups = computed(() =>
+  allMenuGroups
+    .map(group => ({ ...group, items: filterByRole(group.items) }))
+    .filter(group => group.items.length > 0)
+)
 
 onMounted(async () => {
   try {
     const tasks = await getMyTasks()
     todoCount.value = tasks.length
-    // 更新待办 badge
-    const runGroup = menuGroups.value.find(g => g.title === '运行')
+    const runGroup = allMenuGroups.find(g => g.title === '运行')
     if (runGroup) {
       const todoItem = runGroup.items.find(i => i.path === '/tasks/todo')
       if (todoItem && tasks.length > 0) {
