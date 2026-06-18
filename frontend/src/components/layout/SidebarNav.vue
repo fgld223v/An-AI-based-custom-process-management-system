@@ -96,7 +96,7 @@ const allMenuGroups = [
     items: [
       { label: 'AI生成流程', path: '/ai/generate-process', icon: MagicStick, available: true },
       { label: 'AI生成表单', path: '/ai/generate-form', icon: MagicStick, available: true },
-      { label: 'AI审批建议', path: '/placeholder/ai-approval', icon: MagicStick }
+      { label: 'AI审批建议', path: '/tasks/todo', icon: MagicStick }
     ]
   },
   {

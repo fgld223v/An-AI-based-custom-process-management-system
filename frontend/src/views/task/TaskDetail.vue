@@ -96,6 +96,15 @@
       </div>
     </section>
 
+    <!-- AI 审批建议（仅 active 状态） -->
+    <AiSuggestionPanel
+      v-if="task?.status === 'active'"
+      :instance-id="task.businessInstanceId"
+      :node-key="task.taskDefinitionKey"
+      :disabled="submitting"
+      @adopt="handleAdoptSuggestion"
+    />
+
     <!-- 审批表单（仅 active 状态） -->
     <section v-if="task?.status === 'active'" class="form-panel">
       <div class="section-title">
@@ -139,6 +148,7 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import AiSuggestionPanel from '@/components/ai/AiSuggestionPanel.vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { completeTask, getTask, rejectTask as rejectTaskApi } from '@/api/task'
 import type { TaskItem } from '@/types/workflow'
@@ -173,6 +183,17 @@ async function loadTask() {
   } finally {
     loading.value = false
   }
+}
+
+function handleAdoptSuggestion(s: { suggestion: string; reason: string }) {
+  if (s.suggestion === 'approve') {
+    form.approvalResult = 'agree'
+    form.approvalComment = s.reason
+  } else if (s.suggestion === 'reject') {
+    form.approvalResult = 'reject'
+    form.approvalComment = s.reason
+  }
+  // supplement 不自动填入审批结果
 }
 
 async function handleSubmit() {
