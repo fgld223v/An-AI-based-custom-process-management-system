@@ -161,7 +161,7 @@ const routes: RouteRecordRaw[] = [
         name: 'Placeholder',
         component: () => import('@/views/placeholder/Placeholder.vue'),
         meta: { title: '功能预告' }
-      }
+      },
     ]
   }
 ]
