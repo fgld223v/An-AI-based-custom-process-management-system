@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted } from 'vue'
-import { getStatisticsOverview, getStatisticsTrend } from '@/api/statistics'
+import { useRouter } from 'vue-router'
+import { getStatisticsOverview, getStatisticsTrend, getNodeEfficiency } from '@/api/statistics'
 
 declare const echarts: any
 
@@ -9,8 +10,10 @@ const barRef = ref<HTMLDivElement>()
 const pieRef = ref<HTMLDivElement>()
 const trendRef = ref<HTMLDivElement>()
 
+const router = useRouter()
 const loading = ref(false)
 const overview = ref<any>({})
+const nodeRankings = ref<any[]>([])
 const trendRange = ref<'7d' | '30d' | '90d' | 'custom'>('30d')
 const trendDateLabel = ref('')
 const customDates = ref<[Date, Date] | null>(null)
@@ -69,10 +72,23 @@ async function loadTrend() {
   } catch { /* empty */ }
 }
 
+// ----- 加载节点效率 -----
+async function loadNodeEfficiency() {
+  try {
+    const res: any = await getNodeEfficiency()
+    nodeRankings.value = res?.rankings ?? []
+  } catch { /* empty */ }
+}
+
+// ----- 点击节点行 → 跳转实例列表 -----
+function goToInstances(nodeKey: string) {
+  router.push({ path: '/process/instances', query: { nodeKey } })
+}
+
 async function loadData() {
   loading.value = true
   try {
-    await Promise.all([loadOverview(), loadTrend()])
+    await Promise.all([loadOverview(), loadTrend(), loadNodeEfficiency()])
   } finally {
     loading.value = false
   }
@@ -300,6 +316,37 @@ onUnmounted(() => {
       </template>
       <div ref="trendRef" class="trend-box"></div>
     </el-card>
+
+    <!-- 节点耗时排名表 -->
+    <el-card shadow="hover" class="node-table-card">
+      <template #header>
+        <span class="card-title">节点耗时分析</span>
+      </template>
+      <el-table
+        :data="nodeRankings"
+        stripe
+        highlight-current-row
+        @row-click="(row: any) => goToInstances(row.nodeKey)"
+        style="cursor: pointer; width: 100%"
+      >
+        <el-table-column type="index" label="排名" width="60" />
+        <el-table-column prop="nodeName" label="节点名称" min-width="150" />
+        <el-table-column prop="totalCount" label="总任务数" width="100" align="center" />
+        <el-table-column prop="timeoutCount" label="超时数" width="80" align="center" />
+        <el-table-column label="超时率" width="100" align="center">
+          <template #default="{ row }">
+            <span :class="{ 'text-danger': row.timeoutRate > 20 }">
+              {{ row.timeoutRate }}%
+            </span>
+          </template>
+        </el-table-column>
+        <el-table-column label="平均耗时" width="120" align="center">
+          <template #default="{ row }">
+            {{ row.avgDwellHours }}h
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-card>
   </div>
 </template>
 
@@ -318,4 +365,6 @@ onUnmounted(() => {
 .card-title { font-weight: 600; font-size: 15px; }
 .date-range { margin-left: 12px; font-size: 12px; color: #909399; font-weight: 400; }
 .trend-controls { display: flex; align-items: center; }
+.node-table-card { margin-top: 16px; }
+.text-danger { color: #e74c3c; font-weight: 700; }
 </style>
