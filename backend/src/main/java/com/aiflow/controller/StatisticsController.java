@@ -43,8 +43,9 @@ public class StatisticsController {
     public ApiResponse<StatisticsTrendDTO> getTrend(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate start,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate end,
-            @RequestParam(defaultValue = "day") String granularity) {
-        return ApiResponse.success(statisticsService.getTrend(start, end, granularity));
+            @RequestParam(defaultValue = "day") String granularity,
+            @RequestParam(required = false) String mode) {
+        return ApiResponse.success(statisticsService.getTrend(start, end, granularity, mode));
     }
 
     /**
