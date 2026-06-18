@@ -188,3 +188,71 @@ export interface SaveNodeFormPayload {
   formDataJson: string
   status?: 'draft' | 'submitted'
 }
+
+export interface RuntimeState {
+  businessInstanceId: number
+  flowableProcessInstanceId: string
+  currentTaskKey?: string
+  currentTaskName?: string
+  formId?: number | null
+  completed?: boolean
+}
+
+/** 任务项 — 来自 TaskDTO */
+export interface TaskItem {
+  taskId: string
+  taskName: string
+  taskDefinitionKey: string
+  processInstanceId: string
+  businessInstanceId: number
+  instanceCode: string
+  instanceTitle: string
+  assignee?: string | null
+  createTime?: string
+  dueDate?: string | null
+  endTime?: string | null
+  status: string
+  formId?: number | null
+  /** 审批方式：SINGLE（单人）、ALL（会签）、ANY（或签） */
+  approvalMode?: string | null
+  /** 多实例总数（会签/或签时有值） */
+  nrOfInstances?: number | null
+  /** 多实例已完成数 */
+  nrOfCompletedInstances?: number | null
+  /** 多实例进行中数 */
+  nrOfActiveInstances?: number | null
+  /** 所有审批人 ID（逗号分隔） */
+  allAssignees?: string | null
+  /** 审批进度描述 */
+  approvalProgress?: string | null
+}
+
+/** 完成任务请求 */
+export interface TaskCompletePayload {
+  instanceId: number
+  nodeKey: string
+  formId: number
+  formData: Record<string, unknown>
+}
+
+export interface NotificationItem {
+  id: number
+  receiverId: number
+  type: string
+  title: string
+  content?: string | null
+  targetType?: string | null
+  targetId?: number | null
+  targetUrl?: string | null
+  isRead: boolean
+  readAt?: string | null
+  createTime?: string
+  updateTime?: string
+}
+
+export interface NotificationQuery {
+  receiverId?: number
+  type?: string
+  isRead?: boolean
+  keyword?: string
+}

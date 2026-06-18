@@ -20,4 +20,6 @@ public interface FormDefinitionService {
     Optional<FormDefinition> findById(Long id);
 
     Optional<FormDefinition> findActiveById(Long id);
+
+    void disableForm(Long id);
 }

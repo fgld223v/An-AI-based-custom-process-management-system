@@ -4,10 +4,21 @@
       <div>
         <el-tag type="success" effect="plain">实例详情</el-tag>
         <h1>{{ instance?.instanceTitle || '流程实例详情' }}</h1>
-        <p>查看流程实例、Flowable 关联信息与节点表单提交记录。任务处理功能将在后续版本开发。</p>
+        <p>查看流程实例、Flowable 关联信息与节点表单提交记录。</p>
       </div>
       <div class="head-actions">
         <el-button round @click="router.back()">返回</el-button>
+        <el-button
+          v-if="canUrge"
+          round
+          type="warning"
+          :icon="Bell"
+          :loading="urgeLoading"
+          @click="urgeCurrentTask"
+        >
+          催办
+        </el-button>
+        <el-button v-if="instance?.templateId" round type="primary" @click="viewBpmn">查看流程图</el-button>
         <el-button v-if="instance?.status === 'draft'" round type="success" @click="continueEdit">继续编辑</el-button>
       </div>
     </section>
@@ -17,7 +28,14 @@
       type="success"
       show-icon
       :closable="false"
-      title="流程已启动，当前任务处理功能将在后续版本开发。"
+      title="流程运行中。可在「待办任务」页面处理当前审批节点。"
+    />
+    <el-alert
+      v-else-if="instance?.status === 'completed'"
+      type="info"
+      show-icon
+      :closable="false"
+      title="流程已结束。可在「已办任务」页面查看历史审批记录。"
     />
     <el-alert
       v-else-if="instance?.status === 'submitted'"
@@ -32,6 +50,13 @@
       show-icon
       :closable="false"
       title="当前实例为草稿，可返回发起预览页继续编辑。"
+    />
+    <el-alert
+      v-if="runtimeState?.completed"
+      type="info"
+      show-icon
+      :closable="false"
+      title="Flowable 流程已结束，无活跃任务。"
     />
     <el-alert v-if="message" type="warning" show-icon :closable="false" :title="message" />
 
@@ -54,12 +79,18 @@
           <strong>{{ instance?.templateId || '-' }}</strong>
         </div>
         <div class="info-card">
-          <span>当前节点ID</span>
-          <strong>{{ instance?.currentNodeKey || '-' }}</strong>
+          <span>当前节点ID
+            <el-tag v-if="runtimeState && !runtimeState.completed" type="success" size="small" effect="plain">实时</el-tag>
+            <el-tag v-else-if="runtimeState?.completed" type="info" size="small" effect="plain">已结束</el-tag>
+          </span>
+          <strong>{{ (runtimeState && !runtimeState.completed ? runtimeState.currentTaskKey : null) || instance?.currentNodeKey || '-' }}</strong>
         </div>
         <div class="info-card">
-          <span>当前节点名称</span>
-          <strong>{{ instance?.currentNodeName || '-' }}</strong>
+          <span>当前节点名称
+            <el-tag v-if="runtimeState && !runtimeState.completed" type="success" size="small" effect="plain">实时</el-tag>
+            <el-tag v-else-if="runtimeState?.completed" type="info" size="small" effect="plain">已结束</el-tag>
+          </span>
+          <strong>{{ (runtimeState && !runtimeState.completed ? runtimeState.currentTaskName : null) || instance?.currentNodeName || '-' }}</strong>
         </div>
         <div class="info-card">
           <span>当前业务类型</span>
@@ -121,10 +152,12 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { getProcessInstanceDetail, getProcessInstanceSubmissions } from '@/api/processInstance'
-import type { FormSubmission, ProcessInstance } from '@/types/workflow'
+import { Bell } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
+import { getProcessInstanceDetail, getProcessInstanceSubmissions, getRuntimeState, urgeProcessInstance } from '@/api/processInstance'
+import type { FormSubmission, ProcessInstance, RuntimeState } from '@/types/workflow'
 
 const route = useRoute()
 const router = useRouter()
@@ -133,9 +166,15 @@ const submissionsLoading = ref(false)
 const message = ref('')
 const instance = ref<ProcessInstance | null>(null)
 const submissions = ref<FormSubmission[]>([])
+const runtimeState = ref<RuntimeState | null>(null)
 const jsonVisible = ref(false)
 const selectedJson = ref('')
 const jsonParseError = ref(false)
+const urgeLoading = ref(false)
+
+const canUrge = computed(() => {
+  return instance.value?.status === 'running' && runtimeState.value?.completed !== true
+})
 
 onMounted(async () => {
   await Promise.all([loadInstance(), loadSubmissions()])
@@ -150,6 +189,15 @@ async function loadInstance() {
   loading.value = true
   try {
     instance.value = await getProcessInstanceDetail(id)
+    // 对 running 状态的实例，加载 Flowable 运行时状态
+    if (instance.value?.status === 'running') {
+      try {
+        runtimeState.value = await getRuntimeState(id)
+      } catch {
+        // 运行时状态加载失败不阻塞页面，仅清空
+        runtimeState.value = null
+      }
+    }
   } catch (error) {
     message.value = normalizeError(error, '流程实例详情加载失败。')
   } finally {
@@ -173,6 +221,24 @@ async function loadSubmissions() {
 function continueEdit() {
   if (!instance.value) return
   router.push(`/process/start-preview?instanceId=${instance.value.id}`)
+}
+
+function viewBpmn() {
+  if (!instance.value?.templateId) return
+  router.push(`/process-designer?templateId=${instance.value.templateId}`)
+}
+
+async function urgeCurrentTask() {
+  if (!instance.value) return
+  urgeLoading.value = true
+  try {
+    await urgeProcessInstance(instance.value.id)
+    ElMessage.success('已发送催办通知')
+  } catch (error) {
+    ElMessage.error(normalizeError(error, '催办失败，请稍后重试。'))
+  } finally {
+    urgeLoading.value = false
+  }
 }
 
 function showJson(row: FormSubmission) {

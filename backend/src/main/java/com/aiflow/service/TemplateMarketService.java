@@ -19,5 +19,10 @@ public interface TemplateMarketService {
 
     Optional<TemplateMarket> findById(Long id);
 
+    /**
+     * 从市场下架指定项。
+     */
+    void withdrawFromMarket(Long marketId);
+
     ProcessTemplate copyTemplateFromMarket(Long marketId, Long userId, String newTemplateName);
 }

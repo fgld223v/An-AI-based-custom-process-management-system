@@ -112,6 +112,14 @@ public class FormDefinitionServiceImpl implements FormDefinitionService {
                 .orElseThrow(() -> new IllegalArgumentException("form not found"));
     }
 
+    @Override
+    public void disableForm(Long id) {
+        requireId(id, "id must not be null");
+        FormDefinition form = getRequiredForm(id);
+        form.setDeleted(1);
+        formDefinitionRepository.save(form);
+    }
+
     private void requireId(Long id, String message) {
         if (id == null) {
             throw new IllegalArgumentException(message);

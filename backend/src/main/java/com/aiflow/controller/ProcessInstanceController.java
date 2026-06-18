@@ -2,10 +2,13 @@ package com.aiflow.controller;
 
 import com.aiflow.common.ApiResponse;
 import com.aiflow.dto.FormSubmissionDTO;
+import com.aiflow.dto.NotificationDTO;
 import com.aiflow.dto.ProcessInstanceDTO;
+import com.aiflow.dto.RuntimeStateDTO;
 import com.aiflow.dto.SaveNodeFormRequest;
 import com.aiflow.dto.StartProcessPreviewRequest;
 import com.aiflow.service.ProcessInstanceService;
+import com.aiflow.service.TaskUrgeService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -24,6 +27,7 @@ import java.util.List;
 public class ProcessInstanceController {
 
     private final ProcessInstanceService processInstanceService;
+    private final TaskUrgeService taskUrgeService;
 
     @GetMapping
     public ApiResponse<List<ProcessInstanceDTO>> listInstances(@RequestParam(required = false) Long templateId,
@@ -55,5 +59,15 @@ public class ProcessInstanceController {
     @PutMapping("/{id}/submit")
     public ApiResponse<ProcessInstanceDTO> submitInstance(@PathVariable Long id) {
         return ApiResponse.success(processInstanceService.submitInstance(id));
+    }
+
+    @GetMapping("/{id}/runtime-state")
+    public ApiResponse<RuntimeStateDTO> getRuntimeState(@PathVariable Long id) {
+        return ApiResponse.success(processInstanceService.getRuntimeState(id));
+    }
+
+    @PostMapping("/{id}/urge")
+    public ApiResponse<NotificationDTO> urgeCurrentTask(@PathVariable Long id) {
+        return ApiResponse.success(taskUrgeService.urgeCurrentTask(id));
     }
 }

@@ -10,12 +10,11 @@
       </div>
 
       <el-scrollbar class="form-list-scroll">
-        <button
+        <div
           v-for="item in forms"
           :key="item.id"
           class="form-list-item"
           :class="{ active: item.id === currentFormId }"
-          type="button"
           @click="loadForm(item)"
         >
           <strong>{{ item.formName }}</strong>
@@ -23,7 +22,14 @@
           <el-tag size="small" :type="item.status === 'published' ? 'success' : 'info'" effect="plain">
             {{ statusLabel(item.status) }}
           </el-tag>
-        </button>
+          <el-button
+            text
+            size="small"
+            type="danger"
+            :icon="Delete"
+            @click.stop="handleDeleteForm(item)"
+          />
+        </div>
         <el-empty v-if="forms.length === 0 && !listLoading" description="暂无表单，点击上方新增" />
       </el-scrollbar>
     </aside>
@@ -179,7 +185,8 @@
 
 <script setup lang="ts">
 import { computed, defineComponent, h, onMounted, reactive, ref, resolveComponent } from 'vue'
-import { ElMessage } from 'element-plus'
+import { useRoute } from 'vue-router'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Calendar,
   Check,
@@ -196,7 +203,7 @@ import {
 } from '@element-plus/icons-vue'
 import DynamicFormRenderer from '@/components/form/DynamicFormRenderer.vue'
 import { getBizTypes } from '@/api/bizType'
-import { createForm, getForms, publishForm, updateForm } from '@/api/formDefinition'
+import { createForm, disableForm, getFormDetail, getForms, publishForm, updateForm } from '@/api/formDefinition'
 import type { BizType, FormDefinition, FormDefinitionPayload } from '@/types/workflow'
 
 type FieldType = 'text' | 'textarea' | 'number' | 'select' | 'radio' | 'checkbox' | 'date' | 'datetime' | 'upload'
@@ -273,10 +280,33 @@ const formSchemaObject = computed(() => ({
   }
 }))
 const formattedSchema = computed(() => JSON.stringify(formSchemaObject.value, null, 2))
+const route = useRoute()
 
 onMounted(async () => {
   await Promise.all([loadForms(), loadBizTypes()])
+  // 从 AI 表单生成页跳转过来时，自动加载指定表单
+  const formId = route.query.id
+  if (formId && typeof formId === 'string') {
+    try {
+      const detail = await getFormDetail(Number(formId))
+      if (detail) loadForm(detail)
+    } catch { /* 表单不存在时不报错 */ }
+  }
 })
+
+async function handleDeleteForm(item: FormDefinition) {
+  try {
+    await ElMessageBox.confirm('确定删除表单"' + item.formName + '"吗？此操作不可恢复。', '删除确认', {
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+    await disableForm(item.id)
+    ElMessage.success('已删除')
+    if (currentFormId.value === item.id) newForm()
+    await loadForms()
+  } catch { /* 取消删除 */ }
+}
 
 async function loadForms() {
   listLoading.value = true

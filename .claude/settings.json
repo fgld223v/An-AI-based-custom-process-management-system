@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git --no-pager log --oneline -10)",
+      "Bash(git --no-pager show --stat 17f3b24)",
+      "Bash(git --no-pager show --stat 1df8934)",
+      "Bash(git --no-pager diff 17f3b24^..17f3b24 -- backend/pom.xml)",
+      "Bash(git --no-pager diff 1df8934^..1df8934)",
+      "Bash(git --no-pager show 17f3b24:backend/pom.xml)",
+      "Bash(git --no-pager show HEAD:backend/pom.xml)",
+      "PowerShell($port = 8080; $proc = \\(Get-NetTCPConnection -LocalPort $port -ErrorAction SilentlyContinue\\).OwningProcess; if \\($proc\\) { Stop-Process -Id $proc -Force -ErrorAction SilentlyContinue }; Write-Host \"已清理\")",
+      "PowerShell($p = \\(Get-NetTCPConnection -LocalPort 8080 -ErrorAction SilentlyContinue\\).OwningProcess; if \\($p\\) { Stop-Process -Id $p -Force }; Write-Host \"cleaned\")",
+      "Bash(curl -s http://localhost:8080/api/health -o /dev/null -w \"%{http_code}\")",
+      "PowerShell(Get-NetTCPConnection -LocalPort 8080 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }; Write-Host \"done\")",
+      "PowerShell(Get-NetTCPConnection -LocalPort 8080 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }; Write-Host \"ok\")",
+      "PowerShell(Get-Process -Name node -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue }; Write-Host \"cleaned\")",
+      "PowerShell(Get-Process -Name node -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue }; Write-Host \"killed\")",
+      "Bash(curl -s http://localhost:5174/ -o /dev/null -w \"%{http_code}\")"
+    ]
+  },
+  "enabledPlugins": {
+    "frontend-design@claude-plugins-official": true
+  }
+}

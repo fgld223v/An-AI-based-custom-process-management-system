@@ -20,7 +20,7 @@ let lastErrorTime = 0
 
 const request = axios.create({
   baseURL: '',
-  timeout: 15000
+  timeout: 60000  // AI 流程生成调用 DeepSeek API 可能耗时 15-30 秒
 }) as unknown as DataRequest
 
 request.interceptors.request.use((config) => {
@@ -47,8 +47,16 @@ request.interceptors.response.use(
   (error) => {
     const status = error.response?.status
     const responseMessage = error.response?.data?.message
+    const requestUrl = error.config?.url || ''
+
+    // 登录和注册接口不触发 401 跳转，直接返回服务端错误信息
+    const isAuthEndpoint = requestUrl.includes('/api/auth/login')
 
     if (status === 401) {
+      if (isAuthEndpoint) {
+        const message = responseMessage || '用户名或密码错误'
+        return Promise.reject(new Error(message))
+      }
       const authStore = useAuthStore()
       authStore.logout()
       router.replace('/login')

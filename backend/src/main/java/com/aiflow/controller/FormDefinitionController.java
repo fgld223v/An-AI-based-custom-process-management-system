@@ -7,6 +7,7 @@ import com.aiflow.dto.FormDefinitionDTO;
 import com.aiflow.dto.FormUpdateRequest;
 import com.aiflow.model.FormDefinition;
 import com.aiflow.service.FormDefinitionService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -42,13 +43,13 @@ public class FormDefinitionController {
     }
 
     @PostMapping
-    public ApiResponse<FormDefinitionDTO> createForm(@RequestBody FormCreateRequest request) {
+    public ApiResponse<FormDefinitionDTO> createForm(@Valid @RequestBody FormCreateRequest request) {
         FormDefinition saved = formDefinitionService.createForm(DtoMapper.toFormDefinition(request));
         return ApiResponse.success(DtoMapper.toFormDefinitionDTO(saved));
     }
 
     @PutMapping("/{id}")
-    public ApiResponse<FormDefinitionDTO> updateForm(@PathVariable Long id, @RequestBody FormUpdateRequest request) {
+    public ApiResponse<FormDefinitionDTO> updateForm(@PathVariable Long id, @Valid @RequestBody FormUpdateRequest request) {
         FormDefinition saved = formDefinitionService.updateForm(id, DtoMapper.toFormDefinition(request));
         return ApiResponse.success(DtoMapper.toFormDefinitionDTO(saved));
     }
@@ -64,5 +65,11 @@ public class FormDefinitionController {
         FormDefinition form = formDefinitionService.findActiveById(id)
                 .orElseThrow(() -> new IllegalArgumentException("form not found"));
         return ApiResponse.success(DtoMapper.toFormDefinitionDTO(form));
+    }
+
+    @PostMapping("/{id}/disable")
+    public ApiResponse<Void> disableForm(@PathVariable Long id) {
+        formDefinitionService.disableForm(id);
+        return ApiResponse.success();
     }
 }

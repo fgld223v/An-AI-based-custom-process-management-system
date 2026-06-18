@@ -2,6 +2,7 @@ package com.aiflow.service.impl;
 
 import com.aiflow.dto.FormSubmissionDTO;
 import com.aiflow.dto.ProcessInstanceDTO;
+import com.aiflow.dto.RuntimeStateDTO;
 import com.aiflow.dto.SaveNodeFormRequest;
 import com.aiflow.dto.StartProcessPreviewRequest;
 import com.aiflow.model.FormSubmission;
@@ -10,15 +11,22 @@ import com.aiflow.model.ProcessTemplate;
 import com.aiflow.repository.FormSubmissionRepository;
 import com.aiflow.repository.ProcessInstanceRepository;
 import com.aiflow.repository.ProcessTemplateRepository;
+import com.aiflow.security.SecurityUtils;
 import com.aiflow.service.FlowableRuntimeService;
 import com.aiflow.service.ProcessInstanceService;
+import com.aiflow.service.RuleEvaluatorService;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import org.flowable.engine.TaskService;
+import org.flowable.task.api.Task;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -34,13 +42,25 @@ public class ProcessInstanceServiceImpl implements ProcessInstanceService {
     private final FormSubmissionRepository formSubmissionRepository;
     private final ProcessTemplateRepository processTemplateRepository;
     private final FlowableRuntimeService flowableRuntimeService;
+    private final RuleEvaluatorService ruleEvaluatorService;
+    private final TaskService taskService;
+    private final ObjectMapper objectMapper;
 
     @Override
     @Transactional(readOnly = true)
     public List<ProcessInstanceDTO> listInstances(Long templateId, String status, String keyword) {
-        return processInstanceRepository.listInstances(templateId, normalize(status), normalize(keyword)).stream()
-                .map(this::toDto)
-                .toList();
+        List<ProcessInstance> instances = processInstanceRepository
+                .listInstances(templateId, normalize(status), normalize(keyword));
+
+        // 非超管只能看到自己发起的实例
+        if (!SecurityUtils.isSuperAdmin()) {
+            Long currentUserId = SecurityUtils.currentUserId();
+            instances = instances.stream()
+                    .filter(i -> i.getApplicantId() != null && i.getApplicantId().equals(currentUserId))
+                    .toList();
+        }
+
+        return instances.stream().map(this::toDto).toList();
     }
 
     @Override
@@ -136,22 +156,14 @@ public class ProcessInstanceServiceImpl implements ProcessInstanceService {
 
     @Override
     public ProcessInstanceDTO submitInstance(Long id) {
+        // 委托 FlowableRuntimeService 完成全部校验与启动
+        flowableRuntimeService.startProcess(id);
+
+        // 回写后重新查询，获取最新的 Flowable 关联信息
         ProcessInstance instance = getRequiredInstance(id);
-        if (STATUS_RUNNING.equals(instance.getStatus())) {
-            throw new IllegalStateException("当前实例已启动流程引擎，不能重复提交。");
-        }
-        if (hasText(instance.getFlowableProcessInstanceId())) {
-            throw new IllegalStateException("当前实例已关联 Flowable 流程实例，不能重复启动。");
-        }
-        if (!STATUS_DRAFT.equals(instance.getStatus()) && !STATUS_SUBMITTED.equals(instance.getStatus())) {
-            throw new IllegalStateException("当前实例状态不允许提交并启动流程。");
-        }
 
+        // 将所有 FormSubmission 状态更新为 submitted
         LocalDateTime now = LocalDateTime.now();
-        ProcessInstance started = flowableRuntimeService.startProcessInstance(instance);
-        started.setUpdatedAt(now);
-        ProcessInstance saved = processInstanceRepository.save(started);
-
         List<FormSubmission> submissions = formSubmissionRepository
                 .findByProcessInstanceIdAndDeletedOrderByUpdatedAtDescCreatedAtDesc(id, 0);
         for (FormSubmission submission : submissions) {
@@ -160,7 +172,95 @@ public class ProcessInstanceServiceImpl implements ProcessInstanceService {
         }
         formSubmissionRepository.saveAll(submissions);
 
-        return toDto(saved);
+        // 检查 Flowable 流程是否已立即结束（如排他网关条件直接路由到 EndEvent）
+        if (hasText(instance.getFlowableProcessInstanceId())) {
+            Task activeTask = taskService.createTaskQuery()
+                    .processInstanceId(instance.getFlowableProcessInstanceId())
+                    .singleResult();
+            if (activeTask == null) {
+                instance.setStatus("completed");
+                instance.setEndedAt(now);
+                instance.setCurrentNodeKey(null);
+                instance.setCurrentNodeName(null);
+                instance.setCurrentBusinessType(null);
+                instance.setUpdatedAt(now);
+                processInstanceRepository.save(instance);
+            } else {
+                ruleEvaluatorService.evaluateAndAutoComplete(instance);
+            }
+        }
+
+        instance = getRequiredInstance(id);
+        return toDto(instance);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public RuntimeStateDTO getRuntimeState(Long processInstanceId) {
+        // 1. 查询业务 ProcessInstance
+        ProcessInstance instance = getRequiredInstance(processInstanceId);
+
+        String flowableProcessInstanceId = instance.getFlowableProcessInstanceId();
+        if (!hasText(flowableProcessInstanceId)) {
+            throw new IllegalStateException("流程实例尚未启动，无法获取运行时状态。");
+        }
+
+        // 2. 使用 Flowable TaskQuery 查询当前任务
+        Task task = taskService.createTaskQuery()
+                .processInstanceId(flowableProcessInstanceId)
+                .singleResult();
+
+        if (task == null) {
+            // 流程已结束 — 返回 completed=true 而非抛异常
+            return RuntimeStateDTO.builder()
+                    .businessInstanceId(instance.getId())
+                    .flowableProcessInstanceId(flowableProcessInstanceId)
+                    .completed(true)
+                    .build();
+        }
+
+        // 3. 查询 ProcessTemplate，解析 formBindConfig 获取当前节点的 formId
+        ProcessTemplate template = processTemplateRepository
+                .findByIdAndDeleted(instance.getTemplateId(), 0)
+                .orElseThrow(() -> new IllegalArgumentException("流程模板不存在。"));
+
+        Long formId = resolveFormId(template.getFormBindConfig(), task.getTaskDefinitionKey());
+
+        return RuntimeStateDTO.builder()
+                .businessInstanceId(instance.getId())
+                .flowableProcessInstanceId(flowableProcessInstanceId)
+                .currentTaskKey(task.getTaskDefinitionKey())
+                .currentTaskName(task.getName())
+                .formId(formId)
+                .completed(false)
+                .build();
+    }
+
+    /**
+     * 从 formBindConfig 中根据 taskDefinitionKey 解析 formId。
+     * formBindConfig 格式：{"StartEvent_1":{"formId":1},"UserTask_ManagerApprove":{"formId":2}}
+     */
+    private Long resolveFormId(String formBindConfigJson, String taskDefinitionKey) {
+        if (!hasText(formBindConfigJson)) {
+            return null;
+        }
+        try {
+            Map<String, Map<String, Object>> bindConfig = objectMapper.readValue(
+                    formBindConfigJson,
+                    new TypeReference<Map<String, Map<String, Object>>>() {}
+            );
+            Map<String, Object> nodeBinding = bindConfig.get(taskDefinitionKey);
+            if (nodeBinding != null && nodeBinding.get("formId") != null) {
+                Object formIdObj = nodeBinding.get("formId");
+                if (formIdObj instanceof Number) {
+                    return ((Number) formIdObj).longValue();
+                }
+            }
+            return null;
+        } catch (Exception ex) {
+            throw new IllegalStateException(
+                    "解析 formBindConfig 失败，taskDefinitionKey: " + taskDefinitionKey, ex);
+        }
     }
 
     private FormSubmission saveSubmission(ProcessInstance instance,
