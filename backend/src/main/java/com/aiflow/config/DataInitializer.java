@@ -36,36 +36,42 @@ public class DataInitializer implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
-        Department deptTech = initDepartment(null, "tech", "技术部", "技术研发与运维", 10, null);
-        Department deptFinance = initDepartment(null, "finance_dept", "财务部", "财务管理与会计核算", 20, null);
-        Department deptHR = initDepartment(null, "hr", "人事行政部", "人力资源与行政管理", 30, null);
-        Department deptMarket = initDepartment(null, "market", "市场部", "市场营销与业务拓展", 40, null);
+        Department deptTech = initDepartment(null, "tech", "技术部", 10, null);
+        Department deptFinance = initDepartment(null, "finance_dept", "财务部", 20, null);
+        Department deptHR = initDepartment(null, "hr", "人事行政部", 30, null);
+        Department deptMarket = initDepartment(null, "market", "市场部", 40, null);
 
-        // 设置部门负责人
-        ensureDefaultAdmin(deptTech.getId());
-        ensureBizAdmin(deptFinance.getId());
-        ensureNormalUser(deptHR.getId(), deptTech.getId());
-        ensureNormalUser2(deptMarket.getId(), deptFinance.getId());
+        SysUser admin = ensureDefaultAdmin(deptTech.getId());
+        SysUser bizAdmin = ensureBizAdmin(deptFinance.getId());
+        ensureNormalUser("user1", "普通员工 张三", deptHR.getId(), admin.getId());
+        ensureNormalUser("user2", "普通员工 李四", deptMarket.getId(), bizAdmin.getId());
 
         initBizTypes();
     }
 
-    private Department initDepartment(Long parentId, String code, String name, String desc, int sort, Long leaderId) {
-        Department existing = departmentRepository.findFirstByDeptCode(code);
-        if (existing != null) return existing;
+    private Department initDepartment(Long parentId, String code, String name, int sort, Long leaderId) {
+        Department dept = departmentRepository.findFirstByDeptCode(code);
         LocalDateTime now = LocalDateTime.now();
-        Department dept = Department.builder()
-                .parentId(parentId).deptCode(code).deptName(name)
-                .sortOrder(sort).leaderUserId(leaderId).status(1)
-                .createdAt(now).updatedAt(now).deleted(0)
-                .build();
+        if (dept == null) {
+            dept = Department.builder()
+                    .parentId(parentId)
+                    .deptCode(code)
+                    .createdAt(now)
+                    .deleted(0)
+                    .build();
+        }
+        dept.setDeptName(name);
+        dept.setSortOrder(sort);
+        dept.setLeaderUserId(leaderId);
+        dept.setStatus(1);
+        dept.setUpdatedAt(now);
         Department saved = departmentRepository.save(dept);
-        log.info("创建部门: {} (id={})", name, saved.getId());
+        log.info("部门已就绪: {} (id={})", name, saved.getId());
         return saved;
     }
 
-    /** 超管 — admin/admin123，归属技术部 */
-    private void ensureDefaultAdmin(Long deptId) {
+    /** 超级管理员：admin/admin123 */
+    private SysUser ensureDefaultAdmin(Long deptId) {
         SysUser user = sysUserRepository.findByUsername("admin").orElse(null);
         if (user == null) {
             user = SysUser.builder().username("admin").createdTime(LocalDateTime.now()).build();
@@ -75,15 +81,18 @@ public class DataInitializer implements CommandLineRunner {
         user.setRole("ADMIN");
         user.setSystemRole("super_admin");
         user.setDepartmentId(deptId);
+        user.setSupervisorId(null);
+        user.setManagedBizTypeIds(null);
         user.setEnabled(1);
         user.setDeleted(0);
         user.setUpdatedTime(LocalDateTime.now());
-        sysUserRepository.save(user);
-        log.info("超管 admin 已就绪 (dept=技术部, id={})", user.getId());
+        SysUser saved = sysUserRepository.save(user);
+        log.info("超级管理员 admin 已就绪 (dept=技术部, id={})", saved.getId());
+        return saved;
     }
 
-    /** 业务管理员 — bizadmin/bizadmin123，归属财务部，管辖财务类和后勤类业务 */
-    private void ensureBizAdmin(Long deptId) {
+    /** 业务管理员：bizadmin/bizadmin123 */
+    private SysUser ensureBizAdmin(Long deptId) {
         SysUser user = sysUserRepository.findByUsername("bizadmin").orElse(null);
         if (user == null) {
             user = SysUser.builder().username("bizadmin").createdTime(LocalDateTime.now()).build();
@@ -93,50 +102,35 @@ public class DataInitializer implements CommandLineRunner {
         user.setRole("MANAGER");
         user.setSystemRole("biz_admin");
         user.setDepartmentId(deptId);
-        user.setManagedBizTypeIds("[2,3]"); // 财务类(id=2) + 后勤类(id=3)
+        user.setSupervisorId(null);
+        user.setManagedBizTypeIds("[2,3]");
         user.setEnabled(1);
         user.setDeleted(0);
         user.setUpdatedTime(LocalDateTime.now());
-        sysUserRepository.save(user);
-        log.info("业务管理员 bizadmin 已就绪 (dept=财务部, managedBizTypeIds=[2,3], id={})", user.getId());
+        SysUser saved = sysUserRepository.save(user);
+        log.info("业务管理员 bizadmin 已就绪 (dept=财务部, managedBizTypeIds=[2,3], id={})", saved.getId());
+        return saved;
     }
 
-    /** 普通用户1 — user1/user123，归属人事行政部，上级是超管 */
-    private void ensureNormalUser(Long deptId, Long supervisorId) {
-        SysUser user = sysUserRepository.findByUsername("user1").orElse(null);
+    /** 普通用户：user1/user123、user2/user123 */
+    private SysUser ensureNormalUser(String username, String nickname, Long deptId, Long supervisorId) {
+        SysUser user = sysUserRepository.findByUsername(username).orElse(null);
         if (user == null) {
-            user = SysUser.builder().username("user1").createdTime(LocalDateTime.now()).build();
+            user = SysUser.builder().username(username).createdTime(LocalDateTime.now()).build();
         }
         user.setPassword(passwordEncoder.encode("user123"));
-        user.setNickname("普通员工-张三");
+        user.setNickname(nickname);
         user.setRole("USER");
         user.setSystemRole("normal_user");
         user.setDepartmentId(deptId);
         user.setSupervisorId(supervisorId);
+        user.setManagedBizTypeIds(null);
         user.setEnabled(1);
         user.setDeleted(0);
         user.setUpdatedTime(LocalDateTime.now());
-        sysUserRepository.save(user);
-        log.info("普通用户 user1 已就绪 (dept=人事行政部, supervisor=admin, id={})", user.getId());
-    }
-
-    /** 普通用户2 — user2/user123，归属市场部，上级是业务管理员 */
-    private void ensureNormalUser2(Long deptId, Long supervisorId) {
-        SysUser user = sysUserRepository.findByUsername("user2").orElse(null);
-        if (user == null) {
-            user = SysUser.builder().username("user2").createdTime(LocalDateTime.now()).build();
-        }
-        user.setPassword(passwordEncoder.encode("user123"));
-        user.setNickname("普通员工-李四");
-        user.setRole("USER");
-        user.setSystemRole("normal_user");
-        user.setDepartmentId(deptId);
-        user.setSupervisorId(supervisorId);
-        user.setEnabled(1);
-        user.setDeleted(0);
-        user.setUpdatedTime(LocalDateTime.now());
-        sysUserRepository.save(user);
-        log.info("普通用户 user2 已就绪 (dept=市场部, supervisor=bizadmin, id={})", user.getId());
+        SysUser saved = sysUserRepository.save(user);
+        log.info("普通用户 {} 已就绪 (deptId={}, supervisorId={}, id={})", username, deptId, supervisorId, saved.getId());
+        return saved;
     }
 
     private void initBizTypes() {
@@ -153,21 +147,21 @@ public class DataInitializer implements CommandLineRunner {
     }
 
     private BizTypeDict initBizType(Long parentId, String typeCode, String typeName, String description, Integer sortOrder) {
-        return bizTypeDictRepository.findByTypeCode(typeCode)
-                .orElseGet(() -> {
-                    LocalDateTime now = LocalDateTime.now();
-                    BizTypeDict item = BizTypeDict.builder()
-                            .parentId(parentId)
-                            .typeCode(typeCode)
-                            .typeName(typeName)
-                            .description(description)
-                            .sortOrder(sortOrder)
-                            .enabled(1)
-                            .createdAt(now)
-                            .updatedAt(now)
-                            .deleted(0)
-                            .build();
-                    return bizTypeDictRepository.save(item);
-                });
+        BizTypeDict item = bizTypeDictRepository.findByTypeCode(typeCode).orElse(null);
+        LocalDateTime now = LocalDateTime.now();
+        if (item == null) {
+            item = BizTypeDict.builder()
+                    .typeCode(typeCode)
+                    .createdAt(now)
+                    .deleted(0)
+                    .build();
+        }
+        item.setParentId(parentId);
+        item.setTypeName(typeName);
+        item.setDescription(description);
+        item.setSortOrder(sortOrder);
+        item.setEnabled(1);
+        item.setUpdatedAt(now);
+        return bizTypeDictRepository.save(item);
     }
 }

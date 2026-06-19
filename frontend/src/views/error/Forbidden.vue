@@ -1,12 +1,12 @@
 <template>
   <div class="forbidden-page">
     <div class="forbidden-card">
-      <div class="forbidden-icon">🔒</div>
+      <el-icon class="forbidden-icon"><Lock /></el-icon>
       <h1>403</h1>
       <h2>访问被拒绝</h2>
-      <p>您没有权限访问此页面，请联系管理员开通权限。</p>
+      <p>当前账号没有访问此页面的权限，请联系管理员开通权限。</p>
       <div class="forbidden-actions">
-        <el-button type="primary" round @click="router.push('/workbench')">返回工作台</el-button>
+        <el-button type="primary" round @click="goHome">返回首页</el-button>
         <el-button round @click="router.back()">返回上一页</el-button>
       </div>
     </div>
@@ -33,6 +33,7 @@ function goHome() {
   justify-content: center;
   min-height: 60vh;
 }
+
 .forbidden-card {
   text-align: center;
   padding: 48px;

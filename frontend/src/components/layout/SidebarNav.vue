@@ -85,11 +85,17 @@ interface MenuGroup {
 >>>>>>> origin/main
 }
 
+interface MenuGroup {
+  title: string
+  items: MenuItem[]
+}
+
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 const todoCount = ref<number | null>(null)
 
+<<<<<<< Updated upstream
 <<<<<<< HEAD
 const adminRoles: SystemRole[] = ['super_admin', 'biz_admin']
 const superAdminOnly: SystemRole[] = ['super_admin']
@@ -108,29 +114,43 @@ function filterByRole(items: MenuItem[]): MenuItem[] {
     return userRole ? item.roles.includes(userRole) : false
   })
 }
+=======
+const adminRoles: SystemRole[] = ['super_admin', 'biz_admin']
+const superAdminOnly: SystemRole[] = ['super_admin']
+>>>>>>> Stashed changes
 
-const allMenuGroups = [
+const allMenuGroups: MenuGroup[] = [
   {
     title: '概览',
     items: [
+<<<<<<< Updated upstream
       { label: '工作台', path: '/workbench', icon: DataAnalysis, available: true }
 >>>>>>> origin/main
+=======
+      { label: '工作台', path: '/workbench', icon: DataAnalysis, available: true, roles: adminRoles }
+>>>>>>> Stashed changes
     ]
   },
   {
     title: '流程',
     items: [
+<<<<<<< Updated upstream
 <<<<<<< HEAD
       { label: '表单设计器', path: '/form-designer', icon: Files, available: true, roles: adminRoles },
       { label: '流程编辑器', path: '/process-designer', icon: Share, available: true, roles: adminRoles }
 =======
       { label: '流程编辑器', path: '/process-designer', icon: Share, available: true }
 >>>>>>> origin/main
+=======
+      { label: '表单设计器', path: '/form-designer', icon: Files, available: true, roles: adminRoles },
+      { label: '流程编辑器', path: '/process-designer', icon: Share, available: true, roles: adminRoles }
+>>>>>>> Stashed changes
     ]
   },
   {
     title: 'AI',
     items: [
+<<<<<<< Updated upstream
 <<<<<<< HEAD
       { label: 'AI 生成流程', path: '/ai/generate-process', icon: MagicStick, available: true, roles: adminRoles },
       { label: 'AI 生成表单', path: '/ai/generate-form', icon: MagicStick, available: true, roles: adminRoles },
@@ -140,11 +160,17 @@ const allMenuGroups = [
       { label: 'AI生成表单', path: '/ai/generate-form', icon: MagicStick, available: true },
       { label: 'AI审批建议', path: '/tasks/todo', icon: MagicStick }
 >>>>>>> origin/main
+=======
+      { label: 'AI 生成流程', path: '/ai/generate-process', icon: MagicStick, available: true, roles: adminRoles },
+      { label: 'AI 生成表单', path: '/ai/generate-form', icon: MagicStick, available: true, roles: adminRoles },
+      { label: 'AI 审批建议', path: '/placeholder/ai-approval', icon: MagicStick, roles: adminRoles }
+>>>>>>> Stashed changes
     ]
   },
   {
     title: '运行',
     items: [
+<<<<<<< Updated upstream
 <<<<<<< HEAD
       { label: '运行监控', path: '/dashboard', icon: Monitor, available: true, roles: adminRoles },
       { label: '流程发起', path: '/process/start-preview', icon: CirclePlus, available: true },
@@ -155,18 +181,26 @@ const allMenuGroups = [
       { label: '执行追踪', path: '/placeholder/tracing', icon: TrendCharts, roles: adminRoles }
 =======
       { label: '运行监控', path: '/dashboard', icon: Monitor, available: true },
+=======
+      { label: '运行监控', path: '/dashboard', icon: Monitor, available: true, roles: adminRoles },
+>>>>>>> Stashed changes
       { label: '流程发起', path: '/process/start-preview', icon: CirclePlus, available: true },
-      { label: '流程实例', path: '/process/instances', icon: Tickets, available: true },
+      { label: '流程实例', path: '/process/instances', icon: Tickets, available: true, roles: adminRoles },
       { label: '待办任务', path: '/tasks/todo', icon: Tickets, available: true, badge: '' },
       { label: '已办任务', path: '/tasks/done', icon: Tickets, available: true },
       { label: '通知中心', path: '/notifications', icon: Bell, available: true },
+<<<<<<< Updated upstream
       { label: '执行追踪', path: '/placeholder/tracing', icon: TrendCharts }
 >>>>>>> origin/main
+=======
+      { label: '执行追踪', path: '/placeholder/tracing', icon: TrendCharts, roles: adminRoles }
+>>>>>>> Stashed changes
     ]
   },
   {
     title: '资源',
     items: [
+<<<<<<< Updated upstream
 <<<<<<< HEAD
       { label: '流程模板管理', path: '/templates', icon: Files, available: true, roles: adminRoles },
       { label: '模板市场', path: '/template-market', icon: Files, available: true, roles: adminRoles },
@@ -176,11 +210,17 @@ const allMenuGroups = [
       { label: '模板市场', path: '/template-market', icon: Files, available: true, roles: ['super_admin', 'biz_admin'] as SystemRole[] },
       { label: '节点/工具库', path: '/placeholder/tools', icon: Tools }
 >>>>>>> origin/main
+=======
+      { label: '流程模板管理', path: '/templates', icon: Files, available: true, roles: adminRoles },
+      { label: '模板市场', path: '/template-market', icon: Files, available: true, roles: adminRoles },
+      { label: '节点/工具库', path: '/placeholder/tools', icon: Tools, roles: adminRoles }
+>>>>>>> Stashed changes
     ]
   },
   {
     title: '系统',
     items: [
+<<<<<<< Updated upstream
 <<<<<<< HEAD
       { label: '用户管理', path: '/admin/users', icon: UserFilled, available: true, roles: superAdminOnly },
       { label: '部门管理', path: '/admin/departments', icon: OfficeBuilding, available: true, roles: superAdminOnly },
@@ -196,17 +236,29 @@ const allMenuGroups = [
       { label: 'AI资源池', path: '/placeholder/ai-pool', icon: Cpu },
       { label: '定时任务', path: '/placeholder/schedule', icon: Timer }
 >>>>>>> origin/main
+=======
+      { label: '用户管理', path: '/admin/users', icon: UserFilled, available: true, roles: superAdminOnly },
+      { label: '部门管理', path: '/admin/departments', icon: OfficeBuilding, available: true, roles: superAdminOnly },
+      { label: '自动化策略', path: '/settings/automation', icon: Operation, available: true, roles: adminRoles },
+      { label: '个人设置', path: '/settings', icon: Setting, available: true },
+      { label: 'AI 资源池', path: '/placeholder/ai-pool', icon: Cpu, roles: adminRoles },
+      { label: '定时任务', path: '/placeholder/schedule', icon: Timer, roles: adminRoles }
+>>>>>>> Stashed changes
     ]
   }
 ]
 
+<<<<<<< Updated upstream
 <<<<<<< HEAD
+=======
+>>>>>>> Stashed changes
 function canSee(item: MenuItem) {
   if (!item.roles || item.roles.length === 0) return true
   const role = authStore.user?.systemRole
   return Boolean(role && item.roles.includes(role))
 }
 
+<<<<<<< Updated upstream
 const menuGroups = computed(() =>
   allMenuGroups
     .map(group => ({ ...group, items: group.items.filter(canSee) }))
@@ -216,6 +268,11 @@ const menuGroups = computed(() =>
   allMenuGroups
     .map(group => ({ ...group, items: filterByRole(group.items) }))
 >>>>>>> origin/main
+=======
+const menuGroups = computed(() =>
+  allMenuGroups
+    .map(group => ({ ...group, items: group.items.filter(canSee) }))
+>>>>>>> Stashed changes
     .filter(group => group.items.length > 0)
 )
 

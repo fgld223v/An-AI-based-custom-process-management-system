@@ -3,7 +3,7 @@
     <section class="login-hero">
       <div class="hero-pill">AI Workflow Builder</div>
       <h1>AI Flow</h1>
-      <p>面向流程自动化、表单采集与低代码编排的现代流程操作系统。</p>
+      <p>面向流程自动化、表单采集与低代码编排的现代流程管理系统。</p>
       <div class="hero-grid">
         <div v-for="item in heroItems" :key="item.title" class="hero-card">
           <span>{{ item.value }}</span>
@@ -32,10 +32,6 @@
           登录工作台
         </el-button>
       </el-form>
-
-      <div class="login-footer">
-        <span class="footer-link" @click="router.push('/register')">还没有账号？立即注册</span>
-      </div>
     </section>
   </div>
 </template>
@@ -73,7 +69,6 @@ async function submit() {
   await formRef.value?.validate()
   loading.value = true
   try {
-    // 登录前清除旧 token，避免 JWT 过滤器干扰
     authStore.logout()
     await authStore.login(form)
     ElMessage.success('登录成功')
@@ -97,7 +92,11 @@ async function submit() {
   padding: 40px;
   flex-wrap: wrap;
 }
-.login-hero { max-width: 380px; }
+
+.login-hero {
+  max-width: 380px;
+}
+
 .hero-pill {
   display: inline-block;
   padding: 4px 14px;
@@ -108,9 +107,24 @@ async function submit() {
   font-weight: 700;
   margin-bottom: 16px;
 }
-.login-hero h1 { font-size: 42px; margin: 0 0 12px; font-weight: 800; }
-.login-hero p { color: var(--muted); line-height: 1.7; margin-bottom: 28px; }
-.hero-grid { display: flex; gap: 16px; }
+
+.login-hero h1 {
+  font-size: 42px;
+  margin: 0 0 12px;
+  font-weight: 800;
+}
+
+.login-hero p {
+  color: var(--muted);
+  line-height: 1.7;
+  margin-bottom: 28px;
+}
+
+.hero-grid {
+  display: flex;
+  gap: 16px;
+}
+
 .hero-card {
   padding: 16px 20px;
   border-radius: 14px;
@@ -118,8 +132,17 @@ async function submit() {
   background: var(--panel);
   text-align: center;
 }
-.hero-card span { display: block; font-size: 22px; font-weight: 700; }
-.hero-card small { color: var(--muted); font-size: 12px; }
+
+.hero-card span {
+  display: block;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.hero-card small {
+  color: var(--muted);
+  font-size: 12px;
+}
 
 .login-panel {
   width: 380px;
@@ -129,26 +152,61 @@ async function submit() {
   background: var(--panel);
   box-shadow: var(--shadow);
 }
-.panel-heading { display: flex; align-items: center; gap: 14px; margin-bottom: 28px; }
+
+.panel-heading {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 28px;
+}
+
 .brand-mark {
-  width: 44px; height: 44px;
+  width: 44px;
+  height: 44px;
   border-radius: 12px;
   background: var(--el-color-success);
   color: #fff;
-  display: flex; align-items: center; justify-content: center;
-  font-weight: 800; font-size: 17px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 17px;
 }
-.brand-mark.large { width: 52px; height: 52px; font-size: 20px; }
-.panel-heading h2 { margin: 0; font-size: 22px; }
-.panel-heading p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
-.login-button { width: 100%; margin-top: 8px; }
-.login-footer { margin-top: 18px; text-align: center; }
-.footer-link { color: var(--el-color-primary); cursor: pointer; font-size: 13px; }
-.footer-link:hover { text-decoration: underline; }
+
+.brand-mark.large {
+  width: 52px;
+  height: 52px;
+  font-size: 20px;
+}
+
+.panel-heading h2 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.panel-heading p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.login-button {
+  width: 100%;
+  margin-top: 8px;
+}
 
 @media (max-width: 860px) {
-  .login-page { flex-direction: column; gap: 32px; }
-  .login-hero { text-align: center; }
-  .hero-grid { justify-content: center; }
+  .login-page {
+    flex-direction: column;
+    gap: 32px;
+  }
+
+  .login-hero {
+    text-align: center;
+  }
+
+  .hero-grid {
+    justify-content: center;
+  }
 }
 </style>
