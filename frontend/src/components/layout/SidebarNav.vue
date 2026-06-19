@@ -63,20 +63,26 @@ interface MenuItem {
   roles?: SystemRole[]
 }
 
+interface MenuGroup {
+  title: string
+  items: MenuItem[]
+}
+
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 const todoCount = ref<number | null>(null)
 
-function filterByRole(items: MenuItem[]): MenuItem[] {
-  const userRole = authStore.user?.systemRole
-  return items.filter(item => {
-    if (!item.roles || item.roles.length === 0) return true
-    return userRole ? item.roles.includes(userRole) : false
-  })
-}
+const adminRoles: SystemRole[] = ['super_admin', 'biz_admin']
+const superAdminOnly: SystemRole[] = ['super_admin']
 
-const allMenuGroups = [
+const allMenuGroups: MenuGroup[] = [
+  {
+    title: '概览',
+    items: [
+      { label: '工作台', path: '/workbench', icon: DataAnalysis, available: true, roles: adminRoles }
+
+const allMenuGroups: MenuGroup[] = [
   {
     title: '概览',
     items: [
@@ -86,55 +92,65 @@ const allMenuGroups = [
   {
     title: '流程',
     items: [
-      { label: '表单设计器', path: '/form-designer', icon: Files, available: true, roles: ['super_admin', 'biz_admin'] as SystemRole[] },
-      { label: '流程编辑器', path: '/process-designer', icon: Share, available: true, roles: ['super_admin', 'biz_admin'] as SystemRole[] }
+      { label: '表单设计器', path: '/form-designer', icon: Files, available: true, roles: adminRoles },
+      { label: '流程编辑器', path: '/process-designer', icon: Share, available: true, roles: adminRoles }
     ]
   },
   {
     title: 'AI',
     items: [
-      { label: 'AI 生成流程', path: '/ai/generate-process', icon: MagicStick, available: true, roles: ['super_admin', 'biz_admin'] as SystemRole[] },
-      { label: 'AI 生成表单', path: '/ai/generate-form', icon: MagicStick, available: true, roles: ['super_admin', 'biz_admin'] as SystemRole[] },
-      { label: 'AI 审批建议', path: '/placeholder/ai-approval', icon: MagicStick, roles: ['super_admin', 'biz_admin'] as SystemRole[] },
-      { label: 'AI 流程优化', path: '/ai/optimize', icon: TrendCharts, available: true, roles: ['super_admin', 'biz_admin'] as SystemRole[] }
+      { label: 'AI 生成流程', path: '/ai/generate-process', icon: MagicStick, available: true, roles: adminRoles },
+      { label: 'AI 生成表单', path: '/ai/generate-form', icon: MagicStick, available: true, roles: adminRoles },
+      { label: 'AI 审批建议', path: '/placeholder/ai-approval', icon: MagicStick, roles: adminRoles }
     ]
   },
   {
     title: '运行',
     items: [
-      { label: '运行监控', path: '/dashboard', icon: Monitor, available: true },
+      { label: '运行监控', path: '/dashboard', icon: Monitor, available: true, roles: adminRoles },
       { label: '流程发起', path: '/process/start-preview', icon: CirclePlus, available: true },
-      { label: '流程实例', path: '/process/instances', icon: Tickets, available: true },
+      { label: '流程实例', path: '/process/instances', icon: Tickets, available: true, roles: adminRoles },
       { label: '待办任务', path: '/tasks/todo', icon: Tickets, available: true, badge: '' },
       { label: '已办任务', path: '/tasks/done', icon: Tickets, available: true },
       { label: '通知中心', path: '/notifications', icon: Bell, available: true },
-      { label: '执行追踪', path: '/placeholder/tracing', icon: TrendCharts }
+      { label: '执行追踪', path: '/placeholder/tracing', icon: TrendCharts, roles: adminRoles }
     ]
   },
   {
     title: '资源',
     items: [
-      { label: '流程模板管理', path: '/templates', icon: Files, available: true, roles: ['super_admin', 'biz_admin'] as SystemRole[] },
-      { label: '模板市场', path: '/template-market', icon: Files, available: true, roles: ['super_admin', 'biz_admin'] as SystemRole[] },
-      { label: '节点/工具库', path: '/placeholder/tools', icon: Tools }
+      { label: '流程模板管理', path: '/templates', icon: Files, available: true, roles: adminRoles },
+      { label: '模板市场', path: '/template-market', icon: Files, available: true, roles: adminRoles },
+      { label: '节点/工具库', path: '/placeholder/tools', icon: Tools, roles: adminRoles }
     ]
   },
   {
     title: '系统',
     items: [
-      { label: '用户管理', path: '/admin/users', icon: UserFilled, available: true, roles: ['super_admin'] as SystemRole[] },
-      { label: '部门管理', path: '/admin/departments', icon: OfficeBuilding, available: true, roles: ['super_admin'] as SystemRole[] },
-      { label: '自动化策略', path: '/settings/automation', icon: Operation, available: true, roles: ['super_admin', 'biz_admin'] as SystemRole[] },
+      { label: '用户管理', path: '/admin/users', icon: UserFilled, available: true, roles: superAdminOnly },
+      { label: '部门管理', path: '/admin/departments', icon: OfficeBuilding, available: true, roles: superAdminOnly },
+      { label: '自动化策略', path: '/settings/automation', icon: Operation, available: true, roles: adminRoles },
       { label: '个人设置', path: '/settings', icon: Setting, available: true },
-      { label: 'AI 资源池', path: '/placeholder/ai-pool', icon: Cpu },
-      { label: '定时任务', path: '/placeholder/schedule', icon: Timer }
+      { label: 'AI 资源池', path: '/placeholder/ai-pool', icon: Cpu, roles: adminRoles },
+      { label: '定时任务', path: '/placeholder/schedule', icon: Timer, roles: adminRoles }
+      
     ]
   }
 ]
 
+function canSee(item: MenuItem) {
+  if (!item.roles || item.roles.length === 0) return true
+  const role = authStore.user?.systemRole
+  return Boolean(role && item.roles.includes(role))
+}
+
 const menuGroups = computed(() =>
   allMenuGroups
-    .map(group => ({ ...group, items: filterByRole(group.items) }))
+    .map(group => ({ ...group, items: group.items.filter(canSee) }))
+
+    ]
+  }
+]
     .filter(group => group.items.length > 0)
 )
 

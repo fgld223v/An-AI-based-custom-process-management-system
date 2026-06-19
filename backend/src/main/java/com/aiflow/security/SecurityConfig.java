@@ -38,24 +38,13 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        // ============================================================
-                        // 1. 公开端点 — 无需认证
-                        // ============================================================
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/register").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/health").permitAll()
                         .requestMatchers("/error").permitAll()
-                        .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
-                        .requestMatchers("/ws/notifications").permitAll()
 
-                        // ============================================================
-                        // 2. 超管专属 — 用户管理、部门管理
-                        // ============================================================
                         .requestMatchers("/api/admin/**").hasRole("SUPER_ADMIN")
 
-                        // ============================================================
-                        // 3. 需认证的端点 — 所有角色（超管、业务管理员、普通用户）
-                        // ============================================================
                         .requestMatchers(HttpMethod.GET,
                                 "/api/user/me",
                                 "/api/biz-types",
@@ -91,9 +80,6 @@ public class SecurityConfig {
                                 "/api/template-market/**"
                         ).authenticated()
 
-                        // ============================================================
-                        // 4. 默认拒绝 — 所有其他请求
-                        // ============================================================
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

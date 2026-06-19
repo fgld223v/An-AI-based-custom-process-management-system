@@ -79,7 +79,9 @@
           <div v-for="inst in recentInstances" :key="inst.id" class="todo-item clickable" @click="router.push(`/process/instances/${inst.id}`)">
             <span :class="`status-dot ${inst.status}`"></span>
             {{ inst.instanceTitle }}
-            <el-tag size="small" effect="plain" :type="inst.status === 'running' ? 'success' : inst.status === 'draft' ? 'info' : 'warning'">{{ inst.status }}</el-tag>
+            <el-tag size="small" effect="plain" :type="inst.status === 'running' ? 'success' : inst.status === 'draft' ? 'info' : 'warning'">
+              {{ inst.status }}
+            </el-tag>
           </div>
         </div>
         <el-empty v-else description="暂无实例" :image-size="48" />
@@ -133,7 +135,9 @@ onMounted(async () => {
       instanceTitle: i.instanceTitle,
       status: i.status
     }))
-  } catch { /* 静默处理 */ }
+  } catch {
+    // 工作台统计加载失败时保持默认值。
+  }
   loading.value = false
 })
 </script>
