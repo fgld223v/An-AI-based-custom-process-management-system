@@ -24,3 +24,8 @@ export async function generateProcess(description: string) {
 export async function generateForm(description: string) {
   return await request.post<AiGenerateFormResult>('/api/ai/generate-form', { description })
 }
+
+/** AI 审批建议 — 功能暂未启用 */
+export async function suggestApproval(instanceId: number, nodeKey: string) {
+  return await request.post('/api/ai/suggest-approval', { instanceId, nodeKey })
+}

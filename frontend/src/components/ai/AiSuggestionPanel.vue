@@ -86,9 +86,9 @@ async function fetchSuggestion() {
   } catch (e: any) {
     const code = e?.response?.status
     if (code === 501) {
-      errorMessage = 'AI 审批建议功能暂未启用'
+      errorMessage.value = 'AI 审批建议功能暂未启用'
     } else {
-      errorMessage = e?.response?.data?.message || 'AI 建议获取失败'
+      errorMessage.value = e?.response?.data?.message || 'AI 建议获取失败'
     }
   } finally {
     loading.value = false
