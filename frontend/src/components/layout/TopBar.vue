@@ -13,7 +13,7 @@
     </div>
 
     <div class="topbar-actions">
-      <el-button round :icon="MagicStick" @click="showComingSoon">AI助手</el-button>
+      <el-button round :icon="MagicStick" @click="showComingSoon">AI 助手</el-button>
       <el-popover
         placement="bottom-end"
         trigger="click"
