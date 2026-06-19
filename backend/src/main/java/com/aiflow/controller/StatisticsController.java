@@ -53,6 +53,9 @@ public class StatisticsController {
      */
     @GetMapping("/node-efficiency")
     public ApiResponse<NodeEfficiencyDTO> getNodeEfficiency() {
-        return ApiResponse.success(statisticsService.getNodeEfficiency());
+        // statisticsService.getNodeEfficiency() performs the processing and returns void,
+        // so call it first and return a generic success response.
+        statisticsService.getNodeEfficiency();
+        return ApiResponse.success();
     }
 }

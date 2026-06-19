@@ -98,39 +98,71 @@ function nextTick(): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, 0))
 }
 
-// ==================== 仪表盘 ====================
+// ==================== 仪表盘（办结率） ====================
 function renderGauge() {
   if (!gaugeRef.value) return
-  if (!gaugeChart) gaugeChart = echarts.init(gaugeRef.value)
+  if (!gaugeChart) {
+    gaugeChart = echarts.init(gaugeRef.value)
+  }
   const rate = overview.value.completionRate ?? 0
   gaugeChart.setOption({
     series: [{
-      type: 'gauge', startAngle: 210, endAngle: -30, min: 0, max: 100, splitNumber: 10,
-      axisLine: { lineStyle: { width: 18, color: [[0.3, '#e74c3c'], [0.6, '#f39c12'], [1, '#27ae60']] } },
+      type: 'gauge',
+      startAngle: 210,
+      endAngle: -30,
+      min: 0,
+      max: 100,
+      splitNumber: 10,
+      axisLine: {
+        lineStyle: {
+          width: 18,
+          color: [
+            [0.3, '#e74c3c'],
+            [0.6, '#f39c12'],
+            [1, '#27ae60']
+          ]
+        }
+      },
       pointer: { icon: 'path://M12.8,0.7l12,40.1H0.7L12.8,0.7z', length: '75%', width: 8 },
       axisTick: { distance: -18, length: 6 },
       splitLine: { distance: -22, length: 14 },
       axisLabel: { distance: 30, fontSize: 10 },
-      detail: { valueAnimation: true, formatter: '{value}%', fontSize: 24, offsetCenter: [0, '70%'] },
+      detail: {
+        valueAnimation: true,
+        formatter: '{value}%',
+        fontSize: 24,
+        offsetCenter: [0, '70%']
+      },
       title: { offsetCenter: [0, '92%'], fontSize: 13 },
       data: [{ value: Math.round(rate * 100) / 100, name: '办结率' }]
     }]
   })
 }
 
-// ==================== 柱状图 ====================
+// ==================== 柱状图（各状态数量） ====================
 function renderBar() {
   if (!barRef.value) return
-  if (!barChart) barChart = echarts.init(barRef.value)
+  if (!barChart) {
+    barChart = echarts.init(barRef.value)
+  }
   const dist = overview.value.statusDistribution ?? {}
-  const statusMap: Record<string, string> = { draft: '草稿', submitted: '已提交', running: '运行中', completed: '已完成' }
+  const statusMap: Record<string, string> = {
+    draft: '草稿',
+    submitted: '已提交',
+    running: '运行中',
+    completed: '已完成'
+  }
   const keys = Object.keys(statusMap)
+  const labels = keys.map(k => statusMap[k])
+  const values = keys.map(k => dist[k] ?? 0)
+
   barChart.setOption({
     tooltip: { trigger: 'axis' },
-    xAxis: { type: 'category', data: keys.map(k => statusMap[k]) },
+    xAxis: { type: 'category', data: labels },
     yAxis: { type: 'value', minInterval: 1 },
     series: [{
-      type: 'bar', data: keys.map(k => dist[k] ?? 0),
+      type: 'bar',
+      data: values,
       itemStyle: {
         color: (p: any) => ['#909399', '#409eff', '#e6a23c', '#67c23a'][p.dataIndex] ?? '#409eff',
         borderRadius: [4, 4, 0, 0]
@@ -140,15 +172,24 @@ function renderBar() {
   })
 }
 
-// ==================== 饼图 ====================
+// ==================== 饼图（业务类型分布） ====================
 function renderPie() {
   if (!pieRef.value) return
-  if (!pieChart) pieChart = echarts.init(pieRef.value)
+  if (!pieChart) {
+    pieChart = echarts.init(pieRef.value)
+  }
   const bizList = overview.value.bizTypeDistribution ?? []
+  const data = bizList.map((item: any) => ({
+    name: item.bizTypeName,
+    value: item.count
+  }))
+
   pieChart.setOption({
     tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
     series: [{
-      type: 'pie', radius: ['40%', '70%'], center: ['50%', '55%'],
+      type: 'pie',
+      radius: ['40%', '70%'],
+      center: ['50%', '55%'],
       avoidLabelOverlap: false,
       itemStyle: { borderRadius: 4, borderColor: '#fff', borderWidth: 2 },
       label: { show: false },

@@ -1,32 +1,39 @@
 <template>
   <div class="page-shell user-admin-page">
     <div class="page-head">
-      <div><h1>用户管理</h1><p>管理系统用户、角色分配及管辖业务类型</p></div>
+      <div>
+        <h1>用户管理</h1>
+        <p>管理系统用户、角色分配、所属部门和业务管辖范围。</p>
+      </div>
       <el-button type="primary" round :icon="Plus" @click="openCreate">新增用户</el-button>
     </div>
 
-    <el-alert v-if="msg" :title="msg" :type="msgType" show-icon closable @close="msg=''" />
+    <el-alert v-if="msg" :title="msg" :type="msgType" show-icon closable @close="msg = ''" />
 
     <section class="table-panel" v-loading="loading">
       <el-table :data="users" border stripe>
-        <el-table-column prop="id" label="ID" width="60" />
-        <el-table-column prop="username" label="用户名" min-width="110" />
-        <el-table-column prop="nickname" label="昵称" min-width="100" />
-        <el-table-column label="系统角色" width="120">
+        <el-table-column prop="id" label="ID" width="70" />
+        <el-table-column prop="username" label="用户名" min-width="120" />
+        <el-table-column prop="nickname" label="昵称" min-width="120" />
+        <el-table-column label="系统角色" width="130">
           <template #default="{ row }">
-            <el-tag :type="roleTag(row.systemRole)" size="small" effect="plain">{{ roleLabel(row.systemRole) }}</el-tag>
+            <el-tag :type="roleTag(row.systemRole)" size="small" effect="plain">
+              {{ roleLabel(row.systemRole) }}
+            </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="所属部门" min-width="120">
+        <el-table-column label="所属部门" min-width="130">
           <template #default="{ row }">{{ deptName(row.departmentId) }}</template>
         </el-table-column>
-        <el-table-column label="管辖业务" min-width="150">
+        <el-table-column label="管辖业务" min-width="170">
           <template #default="{ row }">
-            <span v-if="row.managedBizTypeIds" style="font-size:12px">{{ bizTypeNames(row.managedBizTypeIds) || row.managedBizTypeIds }}</span>
-            <span v-else style="color:var(--muted)">—</span>
+            <span v-if="row.managedBizTypeIds" class="small-text">
+              {{ bizTypeNames(row.managedBizTypeIds) || row.managedBizTypeIds }}
+            </span>
+            <span v-else class="muted-text">-</span>
           </template>
         </el-table-column>
-        <el-table-column label="状态" width="70">
+        <el-table-column label="状态" width="90">
           <template #default="{ row }">
             <el-tag :type="row.enabled === 1 ? 'success' : 'danger'" size="small" effect="plain">
               {{ row.enabled === 1 ? '启用' : '禁用' }}
@@ -48,15 +55,15 @@
           <el-input v-model="form.username" :disabled="isEdit" placeholder="登录用户名" />
         </el-form-item>
         <el-form-item :label="isEdit ? '新密码（留空不修改）' : '密码'" :required="!isEdit">
-          <el-input v-model="form.password" type="password" show-password placeholder="密码" />
+          <el-input v-model="form.password" type="password" show-password placeholder="请输入密码" />
         </el-form-item>
         <el-form-item label="昵称">
-          <el-input v-model="form.nickname" placeholder="显示名称" />
+          <el-input v-model="form.nickname" placeholder="页面展示名称" />
         </el-form-item>
         <el-row :gutter="16">
           <el-col :span="12">
             <el-form-item label="系统角色">
-              <el-select v-model="form.systemRole" style="width:100%">
+              <el-select v-model="form.systemRole" style="width: 100%">
                 <el-option label="超级管理员" value="super_admin" />
                 <el-option label="业务管理员" value="biz_admin" />
                 <el-option label="普通用户" value="normal_user" />
@@ -65,25 +72,31 @@
           </el-col>
           <el-col :span="12">
             <el-form-item label="所属部门">
-              <el-select v-model="form.departmentId" clearable filterable placeholder="选择部门" style="width:100%">
+              <el-select v-model="form.departmentId" clearable filterable placeholder="选择部门" style="width: 100%">
                 <el-option v-for="d in deptOptions" :key="d.value" :label="d.label" :value="d.value" />
               </el-select>
             </el-form-item>
           </el-col>
         </el-row>
         <el-form-item label="直属上级">
-          <el-select v-model="form.supervisorId" clearable filterable placeholder="选择上级用户" style="width:100%">
+          <el-select v-model="form.supervisorId" clearable filterable placeholder="选择上级用户" style="width: 100%">
             <el-option v-for="u in userOptions" :key="u.value" :label="u.label" :value="u.value" />
           </el-select>
         </el-form-item>
         <el-form-item v-if="form.systemRole === 'biz_admin'" label="管辖业务类型">
-          <el-select v-model="form.bizTypeList" multiple filterable placeholder="选择管辖的业务类型" style="width:100%">
+          <el-select v-model="form.bizTypeList" multiple filterable placeholder="选择可管理的业务类型" style="width: 100%">
             <el-option v-for="b in bizTypeOptions" :key="b.value" :label="b.label" :value="b.value" />
           </el-select>
-          <div class="hint">业务管理员只能看到管辖范围内的流程数据</div>
+          <div class="hint">业务管理员只能查看和管理管辖范围内的流程数据。</div>
         </el-form-item>
         <el-form-item label="状态">
-          <el-switch v-model="form.enabledBool" active-text="启用" inactive-text="禁用" :active-value="true" :inactive-value="false" />
+          <el-switch
+            v-model="form.enabledBool"
+            active-text="启用"
+            inactive-text="禁用"
+            :active-value="true"
+            :inactive-value="false"
+          />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -102,47 +115,70 @@ import { getUsers, createUser, updateUser, deleteUser } from '@/api/admin'
 import type { AdminUser, CreateUserPayload, UpdateUserPayload } from '@/api/admin'
 import request from '@/api/request'
 
-interface Option { value: number; label: string }
+type TagType = 'success' | 'warning' | 'info' | 'primary' | 'danger'
 
-const loading = ref(false); const saving = ref(false)
+interface Option {
+  value: number
+  label: string
+}
+
+const loading = ref(false)
+const saving = ref(false)
 const users = ref<AdminUser[]>([])
-const dialogVisible = ref(false); const isEdit = ref(false); const editId = ref<number | null>(null)
-const msg = ref(''); const msgType = ref<'success' | 'error'>('success')
+const dialogVisible = ref(false)
+const isEdit = ref(false)
+const editId = ref<number | null>(null)
+const msg = ref('')
+const msgType = ref<'success' | 'error'>('success')
 
 const deptOptions = ref<Option[]>([])
 const userOptions = ref<Option[]>([])
 const bizTypeOptions = ref<Option[]>([])
 
 const form = reactive({
-  username: '', password: '', nickname: '', systemRole: 'normal_user',
-  departmentId: null as number | null, supervisorId: null as number | null,
-  bizTypeList: [] as number[], enabledBool: true
+  username: '',
+  password: '',
+  nickname: '',
+  systemRole: 'normal_user',
+  departmentId: null as number | null,
+  supervisorId: null as number | null,
+  bizTypeList: [] as number[],
+  enabledBool: true
 })
 
-onMounted(async () => { await Promise.all([loadUsers(), loadOptions()]) })
+onMounted(async () => {
+  await Promise.all([loadUsers(), loadOptions()])
+})
 
 async function loadUsers() {
   loading.value = true
-  try { users.value = await getUsers() }
-  catch (e: any) { msg.value = e?.message || '加载失败'; msgType.value = 'error' }
-  finally { loading.value = false }
+  try {
+    users.value = await getUsers()
+  } catch (e: any) {
+    msg.value = e?.message || '加载用户失败'
+    msgType.value = 'error'
+  } finally {
+    loading.value = false
+  }
 }
 
 async function loadOptions() {
   try {
     const [depts, usersOpts, bizTypes] = await Promise.all([
-      request.get('/api/admin/departments/options'),
-      request.get('/api/admin/users/options'),
-      request.get('/api/admin/biz-types/options')
+      request.get<Option[]>('/api/admin/departments/options'),
+      request.get<Option[]>('/api/admin/users/options'),
+      request.get<Option[]>('/api/admin/biz-types/options')
     ])
-    deptOptions.value = depts as Option[]
-    userOptions.value = usersOpts as Option[]
-    bizTypeOptions.value = bizTypes as Option[]
-  } catch { /* ignore */ }
+    deptOptions.value = depts
+    userOptions.value = usersOpts
+    bizTypeOptions.value = bizTypes
+  } catch {
+    // 下拉选项加载失败时，主列表仍可使用。
+  }
 }
 
 function deptName(id: number | null | undefined) {
-  if (id == null) return '—'
+  if (id == null) return '-'
   return deptOptions.value.find(d => d.value === id)?.label || String(id)
 }
 
@@ -151,28 +187,49 @@ function bizTypeNames(ids: string | null | undefined) {
   try {
     const arr = JSON.parse(ids) as number[]
     return arr.map(id => bizTypeOptions.value.find(b => b.value === id)?.label || id).join(', ')
-  } catch { return ids }
+  } catch {
+    return ids
+  }
 }
 
-function roleTag(role: string) {
-  const m: Record<string, string> = { super_admin: 'danger', biz_admin: 'warning', normal_user: 'info' }
-  return m[role] || 'info'
+function roleTag(role: string): TagType {
+  const map: Record<string, TagType> = {
+    super_admin: 'danger',
+    biz_admin: 'warning',
+    normal_user: 'info'
+  }
+  return map[role] || 'info'
 }
+
 function roleLabel(role: string) {
-  const m: Record<string, string> = { super_admin: '超管', biz_admin: '业务管理员', normal_user: '普通用户' }
-  return m[role] || role
+  const map: Record<string, string> = {
+    super_admin: '超级管理员',
+    biz_admin: '业务管理员',
+    normal_user: '普通用户'
+  }
+  return map[role] || role
 }
 
 function openCreate() {
-  isEdit.value = false; editId.value = null
-  form.username = ''; form.password = ''; form.nickname = ''; form.systemRole = 'normal_user'
-  form.departmentId = null; form.supervisorId = null; form.bizTypeList = []; form.enabledBool = true
+  isEdit.value = false
+  editId.value = null
+  form.username = ''
+  form.password = ''
+  form.nickname = ''
+  form.systemRole = 'normal_user'
+  form.departmentId = null
+  form.supervisorId = null
+  form.bizTypeList = []
+  form.enabledBool = true
   dialogVisible.value = true
 }
 
 function openEdit(row: AdminUser) {
-  isEdit.value = true; editId.value = row.id
-  form.username = row.username; form.password = ''; form.nickname = row.nickname || ''
+  isEdit.value = true
+  editId.value = row.id
+  form.username = row.username
+  form.password = ''
+  form.nickname = row.nickname || ''
   form.systemRole = row.systemRole || 'normal_user'
   form.departmentId = row.departmentId ?? null
   form.supervisorId = row.supervisorId ?? null
@@ -183,50 +240,120 @@ function openEdit(row: AdminUser) {
 
 function parseBizIds(ids: string | null | undefined): number[] {
   if (!ids) return []
-  try { return JSON.parse(ids) as number[] } catch { return [] }
+  try {
+    return JSON.parse(ids) as number[]
+  } catch {
+    return []
+  }
 }
 
 async function handleSave() {
-  if (!form.username.trim()) { ElMessage.warning('请输入用户名'); return }
-  if (!isEdit.value && !form.password) { ElMessage.warning('请输入密码'); return }
+  if (!form.username.trim()) {
+    ElMessage.warning('请输入用户名')
+    return
+  }
+  if (!isEdit.value && !form.password) {
+    ElMessage.warning('请输入密码')
+    return
+  }
+
   saving.value = true
   try {
-    const managedBizTypeIds = form.bizTypeList.length > 0 ? JSON.stringify(form.bizTypeList) : null
+    const managedBizTypeIds =
+      form.systemRole === 'biz_admin' && form.bizTypeList.length > 0
+        ? JSON.stringify(form.bizTypeList)
+        : null
+
     if (isEdit.value && editId.value) {
       const payload: UpdateUserPayload = {
-        nickname: form.nickname, systemRole: form.systemRole,
-        password: form.password || undefined, departmentId: form.departmentId,
-        supervisorId: form.supervisorId, managedBizTypeIds, enabled: form.enabledBool ? 1 : 0
+        nickname: form.nickname,
+        systemRole: form.systemRole,
+        password: form.password || undefined,
+        departmentId: form.departmentId,
+        supervisorId: form.supervisorId,
+        managedBizTypeIds,
+        enabled: form.enabledBool ? 1 : 0
       }
       await updateUser(editId.value, payload)
       ElMessage.success('用户已更新')
     } else {
       const payload: CreateUserPayload = {
-        username: form.username.trim(), password: form.password, nickname: form.nickname,
-        systemRole: form.systemRole, departmentId: form.departmentId,
-        supervisorId: form.supervisorId, managedBizTypeIds, enabled: form.enabledBool ? 1 : 0
+        username: form.username.trim(),
+        password: form.password,
+        nickname: form.nickname,
+        systemRole: form.systemRole,
+        departmentId: form.departmentId,
+        supervisorId: form.supervisorId,
+        managedBizTypeIds,
+        enabled: form.enabledBool ? 1 : 0
       }
       await createUser(payload)
       ElMessage.success('用户已创建')
     }
-    dialogVisible.value = false; await loadUsers()
-  } catch (e: any) { ElMessage.error(e?.message || '操作失败') }
-  finally { saving.value = false }
+    dialogVisible.value = false
+    await loadUsers()
+  } catch (e: any) {
+    ElMessage.error(e?.message || '操作失败')
+  } finally {
+    saving.value = false
+  }
 }
 
 async function handleDelete(row: AdminUser) {
   try {
     await ElMessageBox.confirm(`确定删除用户「${row.nickname || row.username}」吗？`, '确认删除', { type: 'warning' })
-    await deleteUser(row.id); ElMessage.success('已删除'); await loadUsers()
-  } catch { /* cancel */ }
+    await deleteUser(row.id)
+    ElMessage.success('已删除')
+    await loadUsers()
+  } catch {
+    // 用户取消删除。
+  }
 }
 </script>
 
 <style scoped>
-.user-admin-page { max-width: 1100px; margin: 0 auto; }
-.page-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
-.page-head h1 { margin: 0 0 4px; font-size: 24px; }
-.page-head p { margin: 0; color: var(--muted); font-size: 13px; }
-.table-panel { border: 1px solid var(--line); border-radius: 18px; padding: 16px; background: rgba(255,255,255,0.94); box-shadow: var(--shadow); }
-.hint { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.user-admin-page {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.page-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.page-head h1 {
+  margin: 0 0 4px;
+  font-size: 24px;
+}
+
+.page-head p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.table-panel {
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: var(--shadow);
+}
+
+.small-text {
+  font-size: 12px;
+}
+
+.muted-text,
+.hint {
+  color: var(--muted);
+}
+
+.hint {
+  margin-top: 4px;
+  font-size: 12px;
+}
 </style>

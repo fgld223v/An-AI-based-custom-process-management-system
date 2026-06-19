@@ -16,14 +16,26 @@ public final class SecurityUtils {
         return currentUser;
     }
 
+    public static CurrentUser getCurrentUser() {
+        return currentUser();
+    }
+
     public static Long currentUserId() {
         CurrentUser currentUser = currentUser();
         return currentUser == null ? null : currentUser.getId();
     }
 
+    public static Long getCurrentUserId() {
+        return currentUserId();
+    }
+
     public static String currentUserSystemRole() {
         CurrentUser currentUser = currentUser();
         return currentUser == null ? null : currentUser.getSystemRole();
+    }
+
+    public static String getCurrentUserSystemRole() {
+        return currentUserSystemRole();
     }
 
     public static boolean isSuperAdmin() {
