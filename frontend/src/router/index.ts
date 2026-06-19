@@ -76,10 +76,16 @@ const routes: RouteRecordRaw[] = [
         meta: { title: 'AI 生成表单', group: 'AI', roles: ADMIN_ROLES }
       },
       {
+        path: 'ai/optimize',
+        name: 'AiOptimize',
+        component: () => import('@/views/ai/AiOptimize.vue'),
+        meta: { title: 'AI 流程优化', group: 'AI', roles: ADMIN_ROLES }
+      },
+      {
         path: 'dashboard',
         name: 'Dashboard',
         component: () => import('@/views/dashboard/Dashboard.vue'),
-        meta: { title: '运行监控', group: '运行', roles: ADMIN_ROLES }
+        meta: { title: '运行监控', group: '运行' }
       },
       {
         path: 'process/start-preview',
@@ -91,7 +97,7 @@ const routes: RouteRecordRaw[] = [
         path: 'process/instances',
         name: 'ProcessInstanceList',
         component: () => import('@/views/process/InstanceList.vue'),
-        meta: { title: '流程实例', group: '运行', roles: ADMIN_ROLES }
+        meta: { title: '流程实例', group: '运行' }
       },
       {
         path: 'process/instances/:id',
@@ -147,7 +153,6 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/settings/AutomationSettings.vue'),
         meta: { title: '自动化策略', group: '系统', roles: ADMIN_ROLES }
       },
-<<<<<<< Updated upstream
       {
         path: 'settings/automation',
         name: 'AutomationSettings',
@@ -155,13 +160,11 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '自动化策略', group: '系统', roles: ['super_admin', 'biz_admin'] }
       },
       // ---- 占位页面 ----
-=======
->>>>>>> Stashed changes
       {
         path: 'placeholder/:feature',
         name: 'Placeholder',
         component: () => import('@/views/placeholder/Placeholder.vue'),
-        meta: { title: '功能预告', roles: ADMIN_ROLES }
+        meta: { title: '功能预告' }
       }
     ]
   }
