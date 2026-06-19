@@ -63,6 +63,11 @@ interface MenuItem {
   roles?: SystemRole[]
 }
 
+interface MenuGroup {
+  title: string
+  items: MenuItem[]
+}
+
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
@@ -77,7 +82,7 @@ function filterByRole(items: MenuItem[]): MenuItem[] {
   })
 }
 
-const allMenuGroups = [
+const allMenuGroups: MenuGroup[] = [
   {
     title: '概览',
     items: [

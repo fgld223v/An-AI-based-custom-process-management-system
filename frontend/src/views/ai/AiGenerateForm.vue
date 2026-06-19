@@ -117,6 +117,7 @@ import { onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { MagicStick } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
+import type { AiGenerateFormResult } from '@/api/ai'
 import DynamicFormRenderer from '@/components/form/DynamicFormRenderer.vue'
 import { getBizTypes } from '@/api/bizType'
 import { createForm as createFormApi, publishForm } from '@/api/formDefinition'
@@ -136,11 +137,6 @@ interface FieldItem {
   options?: { label: string; value: string }[]
 }
 
-interface GenerateFormResult {
-  fieldList: string
-  formSchema: string
-}
-
 interface BizType {
   id: number
   typeName: string
@@ -156,7 +152,7 @@ interface PendingBindInfo {
 
 const description = ref('')
 const generating = ref(false)
-const result = ref<GenerateFormResult | null>(null)
+const result = ref<AiGenerateFormResult | null>(null)
 const errorMessage = ref('')
 const createDialogVisible = ref(false)
 const creating = ref(false)

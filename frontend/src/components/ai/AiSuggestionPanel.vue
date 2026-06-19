@@ -34,6 +34,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
+import type { AiApprovalSuggestion } from '@/api/ai'
 
 const props = defineProps<{
   instanceId: number
@@ -42,18 +43,11 @@ const props = defineProps<{
 }>()
 
 defineEmits<{
-  adopt: [suggestion: Suggestion]
+  adopt: [suggestion: AiApprovalSuggestion]
 }>()
 
-interface Suggestion {
-  suggestion: string   // approve / reject / supplement
-  reason: string
-  confidence: number
-  riskPoints?: string[]
-}
-
 const loading = ref(false)
-const suggestion = ref<Suggestion | null>(null)
+const suggestion = ref<AiApprovalSuggestion | null>(null)
 const errorMessage = ref('')
 
 const tagType = computed(() => {
@@ -86,9 +80,9 @@ async function fetchSuggestion() {
   } catch (e: any) {
     const code = e?.response?.status
     if (code === 501) {
-      errorMessage = 'AI 审批建议功能暂未启用'
+      errorMessage.value = 'AI 审批建议功能暂未启用'
     } else {
-      errorMessage = e?.response?.data?.message || 'AI 建议获取失败'
+      errorMessage.value = e?.response?.data?.message || 'AI 建议获取失败'
     }
   } finally {
     loading.value = false

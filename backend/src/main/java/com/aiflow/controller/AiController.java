@@ -1,9 +1,12 @@
 package com.aiflow.controller;
 
 import com.aiflow.common.ApiResponse;
+import com.aiflow.dto.AiApprovalRequest;
+import com.aiflow.dto.AiApprovalResponse;
 import com.aiflow.dto.AiGenerateFormResponse;
 import com.aiflow.dto.AiGenerateProcessResponse;
 import com.aiflow.dto.AiGenerateRequest;
+import com.aiflow.service.AiApprovalService;
 import com.aiflow.service.AiFormService;
 import com.aiflow.service.AiProcessService;
 import jakarta.validation.Valid;
@@ -13,8 +16,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.Map;
-
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/ai")
@@ -22,6 +23,7 @@ public class AiController {
 
     private final AiProcessService aiProcessService;
     private final AiFormService aiFormService;
+    private final AiApprovalService aiApprovalService;
 
     @PostMapping("/generate-process")
     public ApiResponse<AiGenerateProcessResponse> generateProcess(
@@ -35,5 +37,11 @@ public class AiController {
             @Valid @RequestBody AiGenerateRequest request) {
         return ApiResponse.success(
                 aiFormService.generateForm(request.getDescription()));
+    }
+
+    @PostMapping("/suggest-approval")
+    public ApiResponse<AiApprovalResponse> suggestApproval(
+            @Valid @RequestBody AiApprovalRequest request) {
+        return ApiResponse.success(aiApprovalService.suggest(request));
     }
 }
