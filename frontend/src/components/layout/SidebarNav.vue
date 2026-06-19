@@ -87,10 +87,24 @@ const allMenuGroups = [
   {
     title: '流程',
     items: [
+<<<<<<< Updated upstream
       { label: '流程编辑器', path: '/process-designer', icon: Share, available: true, roles: ['super_admin', 'biz_admin'] as SystemRole[] },
       { label: '表单设计器', path: '/form-designer', icon: Tools, available: true, roles: ['super_admin', 'biz_admin'] as SystemRole[] },
       { label: 'AI生成流程', path: '/ai/generate-process', icon: MagicStick, available: true, roles: ['super_admin', 'biz_admin'] as SystemRole[] },
       { label: 'AI生成表单', path: '/ai/generate-form', icon: MagicStick, available: true, roles: ['super_admin', 'biz_admin'] as SystemRole[] }
+=======
+      { label: '表单设计器', path: '/form-designer', icon: Files, available: true, roles: ['super_admin', 'biz_admin'] as SystemRole[] },
+      { label: '流程编辑器', path: '/process-designer', icon: Share, available: true, roles: ['super_admin', 'biz_admin'] as SystemRole[] }
+    ]
+  },
+  {
+    title: 'AI',
+    items: [
+      { label: 'AI 生成流程', path: '/ai/generate-process', icon: MagicStick, available: true, roles: ['super_admin', 'biz_admin'] as SystemRole[] },
+      { label: 'AI 生成表单', path: '/ai/generate-form', icon: MagicStick, available: true, roles: ['super_admin', 'biz_admin'] as SystemRole[] },
+      { label: 'AI 审批建议', path: '/placeholder/ai-approval', icon: MagicStick, roles: ['super_admin', 'biz_admin'] as SystemRole[] },
+      { label: 'AI 流程优化', path: '/ai/optimize', icon: TrendCharts, available: true, roles: ['super_admin', 'biz_admin'] as SystemRole[] }
+>>>>>>> Stashed changes
     ]
   },
   {

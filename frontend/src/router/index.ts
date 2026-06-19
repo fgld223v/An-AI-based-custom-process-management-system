@@ -83,6 +83,12 @@ const routes: RouteRecordRaw[] = [
       },
       // ---- 流程运行（所有角色）----
       {
+        path: 'ai/optimize',
+        name: 'AiOptimize',
+        component: () => import('@/views/ai/AiOptimize.vue'),
+        meta: { title: 'AI 流程优化', group: 'AI', roles: ADMIN_ROLES }
+      },
+      {
         path: 'dashboard',
         name: 'Dashboard',
         component: () => import('@/views/dashboard/Dashboard.vue'),
