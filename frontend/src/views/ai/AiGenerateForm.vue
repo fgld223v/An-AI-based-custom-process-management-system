@@ -132,6 +132,11 @@ interface FieldItem {
   options?: { label: string; value: string }[]
 }
 
+interface GenerateFormResult {
+  fieldList: string
+  formSchema: string
+}
+
 interface BizType {
   id: number
   typeName: string
@@ -140,7 +145,7 @@ interface BizType {
 
 const description = ref('')
 const generating = ref(false)
-const result = ref<AiGenerateFormResult | null>(null)
+const result = ref<GenerateFormResult | null>(null)
 const errorMessage = ref('')
 const createDialogVisible = ref(false)
 const creating = ref(false)

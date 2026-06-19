@@ -500,6 +500,20 @@ CREATE TABLE IF NOT EXISTS notification (
   KEY idx_notification_created_at (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Notification';
 
+CREATE TABLE IF NOT EXISTS ai_service_account (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  account_name VARCHAR(64) NOT NULL COMMENT '账号名称',
+  api_key VARCHAR(128) NOT NULL COMMENT 'API密钥',
+  status ENUM('active','disabled') NOT NULL DEFAULT 'active',
+  granted_endpoints JSON NULL COMMENT '授权端点列表',
+  rate_limit INT UNSIGNED DEFAULT 100 COMMENT '每分钟限次',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  deleted TINYINT NOT NULL DEFAULT 0,
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_ai_service_account_api_key (api_key)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI服务账号表';
+
 SET FOREIGN_KEY_CHECKS = 1;
 
 INSERT INTO biz_type_dict (parent_id, type_code, type_name, description, sort_order, enabled, deleted)
@@ -537,6 +551,10 @@ WHERE NOT EXISTS (SELECT 1 FROM biz_type_dict WHERE type_code = 'purchase');
 INSERT INTO biz_type_dict (parent_id, type_code, type_name, description, sort_order, enabled, deleted)
 SELECT (SELECT id FROM biz_type_dict WHERE type_code = 'management' LIMIT 1), 'contract_approval', '合同审批', '合同审批流程', 41, 1, 0
 WHERE NOT EXISTS (SELECT 1 FROM biz_type_dict WHERE type_code = 'contract_approval');
+
+INSERT INTO ai_service_account (account_name, api_key, status, granted_endpoints, rate_limit)
+SELECT 'default-ai-client', 'ak-default-dev-key-change-me', 'active', '["/api/ai/*"]', 100
+WHERE NOT EXISTS (SELECT 1 FROM ai_service_account WHERE api_key = 'ak-default-dev-key-change-me');
 
 -- Compatibility migration for databases that were initialized by the old sql/init.sql.
 SET @ddl = IF(
