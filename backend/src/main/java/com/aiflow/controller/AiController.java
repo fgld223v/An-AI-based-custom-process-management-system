@@ -1,14 +1,15 @@
 package com.aiflow.controller;
 
 import com.aiflow.common.ApiResponse;
+import com.aiflow.dto.AiApprovalRequest;
+import com.aiflow.dto.AiApprovalResponse;
 import com.aiflow.dto.AiGenerateProcessResponse;
 import com.aiflow.dto.AiGenerateRequest;
 import com.aiflow.dto.*;
 import com.aiflow.service.AiFormService;
 import com.aiflow.service.AiOptimizationService;
 import com.aiflow.dto.AiGenerateFormResponse;
-import com.aiflow.dto.AiGenerateProcessResponse;
-import com.aiflow.dto.AiGenerateRequest;
+import com.aiflow.service.AiApprovalService;
 import com.aiflow.service.AiFormService;
 import com.aiflow.service.AiProcessService;
 import jakarta.validation.Valid;
@@ -25,8 +26,8 @@ public class AiController {
 
     private final AiProcessService aiProcessService;
     private final AiFormService aiFormService;
+    private final AiApprovalService aiApprovalService;
     private final AiOptimizationService aiOptimizationService;
-    private final AiFormService aiFormService;
 
     @PostMapping("/generate-process")
     public ApiResponse<AiGenerateProcessResponse> generateProcess(
@@ -42,6 +43,11 @@ public class AiController {
                 aiFormService.generateForm(request.getDescription()));
     }
 
+    @PostMapping("/suggest-approval")
+    public ApiResponse<AiApprovalResponse> suggestApproval(
+            @Valid @RequestBody AiApprovalRequest request) {
+        return ApiResponse.success(aiApprovalService.suggest(request));
+    }
     /** AI 流程优化 — 分析单个模板 */
     @PostMapping("/optimize/{templateId}")
     public ApiResponse<OptimizationAnalysisDTO> optimizeTemplate(@PathVariable Long templateId) {

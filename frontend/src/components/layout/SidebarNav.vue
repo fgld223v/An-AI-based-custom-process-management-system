@@ -80,12 +80,6 @@ const allMenuGroups: MenuGroup[] = [
   {
     title: '概览',
     items: [
-      { label: '工作台', path: '/workbench', icon: DataAnalysis, available: true, roles: adminRoles }
-
-const allMenuGroups: MenuGroup[] = [
-  {
-    title: '概览',
-    items: [
       { label: '工作台', path: '/workbench', icon: DataAnalysis, available: true }
     ]
   },
@@ -146,11 +140,7 @@ function canSee(item: MenuItem) {
 
 const menuGroups = computed(() =>
   allMenuGroups
-    .map(group => ({ ...group, items: group.items.filter(canSee) }))
-
-    ]
-  }
-]
+    .map(group => ({ ...group, items: group.items.filter(canSee) })) 
     .filter(group => group.items.length > 0)
 )
 
