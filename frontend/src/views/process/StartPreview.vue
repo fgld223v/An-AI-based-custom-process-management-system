@@ -254,7 +254,7 @@ interface ResolvedNodeForm {
   sourceText: string
 }
 
-const FORM_PREVIEW_TYPES = ['start', 'form_fill', 'approval', 'generic_task']
+const FORM_PREVIEW_TYPES = ['start', 'form_fill']
 const route = useRoute()
 
 const loading = ref(false)

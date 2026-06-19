@@ -26,9 +26,12 @@ import java.util.List;
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final AiServiceAuthFilter aiServiceAuthFilter;
 
-    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter) {
+    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter,
+                         AiServiceAuthFilter aiServiceAuthFilter) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+        this.aiServiceAuthFilter = aiServiceAuthFilter;
     }
 
     @Bean
@@ -82,6 +85,7 @@ public class SecurityConfig {
 
                         .anyRequest().authenticated()
                 )
+                .addFilterBefore(aiServiceAuthFilter, JwtAuthenticationFilter.class)
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }

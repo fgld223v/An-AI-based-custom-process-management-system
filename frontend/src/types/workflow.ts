@@ -231,7 +231,7 @@ export interface TaskItem {
 export interface TaskCompletePayload {
   instanceId: number
   nodeKey: string
-  formId: number
+  formId?: number | null
   formData: Record<string, unknown>
 }
 

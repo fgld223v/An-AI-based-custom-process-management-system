@@ -87,6 +87,11 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-webflux</artifactId>
         </dependency>
+        <!-- AI 模块：AOP 切面（审计日志 + 数据脱敏） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-aop</artifactId>
+        </dependency>
         <!-- OpenAPI / Swagger UI 文档 -->
         <dependency>
             <groupId>org.springdoc</groupId>

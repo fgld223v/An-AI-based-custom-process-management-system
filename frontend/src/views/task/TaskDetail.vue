@@ -219,7 +219,7 @@ async function handleSubmit() {
       await completeTask(task.value.taskId, {
         instanceId: task.value.businessInstanceId,
         nodeKey: task.value.taskDefinitionKey,
-        formId: task.value.formId ?? 0,
+        formId: task.value.formId ?? null,
         formData: {
           approvalResult: form.approvalResult,
           approvalComment: form.approvalComment
