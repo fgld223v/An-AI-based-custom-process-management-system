@@ -14,8 +14,16 @@
 </template>
 
 <script setup lang="ts">
+import { Lock } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
+
 const router = useRouter()
+const authStore = useAuthStore()
+
+function goHome() {
+  router.push(authStore.user?.systemRole === 'normal_user' ? '/process/start-preview' : '/workbench')
+}
 </script>
 
 <style scoped>
@@ -29,9 +37,35 @@ const router = useRouter()
   text-align: center;
   padding: 48px;
 }
-.forbidden-icon { font-size: 64px; margin-bottom: 16px; }
-.forbidden-card h1 { font-size: 72px; margin: 0; color: var(--el-color-danger); font-weight: 800; }
-.forbidden-card h2 { font-size: 24px; margin: 12px 0; color: var(--text); }
-.forbidden-card p { color: var(--muted); margin: 8px 0 28px; font-size: 14px; }
-.forbidden-actions { display: flex; gap: 12px; justify-content: center; }
+
+.forbidden-icon {
+  margin-bottom: 16px;
+  font-size: 64px;
+  color: var(--el-color-warning);
+}
+
+.forbidden-card h1 {
+  margin: 0;
+  color: var(--el-color-danger);
+  font-size: 72px;
+  font-weight: 800;
+}
+
+.forbidden-card h2 {
+  margin: 12px 0;
+  color: var(--text);
+  font-size: 24px;
+}
+
+.forbidden-card p {
+  margin: 8px 0 28px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.forbidden-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
 </style>

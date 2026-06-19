@@ -133,23 +133,79 @@ public class StatisticsServiceImpl implements StatisticsService {
     }
 
     @Override
-    public StatisticsTrendDTO getTrend(LocalDate start, LocalDate end, String granularity) {
+    public StatisticsTrendDTO getTrend(LocalDate start, LocalDate end, String granularity, String mode) {
         boolean byWeek = "week".equalsIgnoreCase(granularity);
-
-        // 1. 生成时间轴标签列表
         List<String> labels = generateLabels(start, end, byWeek);
 
-        // 2. 查询原始聚合数据
-        String sql = buildTrendQuery(byWeek);
+        // 概览模式：发起量 + 办结量
+        if ("summary".equalsIgnoreCase(mode)) {
+            return buildSummaryTrend(labels, start, end, byWeek);
+        }
+
+        // 默认模式：按业务类型分组
+        return buildBizTypeTrend(labels, start, end, byWeek);
+    }
+
+    private StatisticsTrendDTO buildSummaryTrend(List<String> labels, LocalDate start, LocalDate end, boolean byWeek) {
+        String sql = byWeek
+                ? """
+                    SELECT CONCAT(YEAR(MIN(pi.created_at)), '-W', LPAD(WEEK(MIN(pi.created_at), 1), 2, '0')) AS period,
+                           COUNT(*) AS total_count,
+                           COALESCE(SUM(CASE WHEN pi.status = 'completed' THEN 1 ELSE 0 END), 0) AS completed_count
+                    FROM process_instance pi
+                    WHERE pi.deleted = 0 AND pi.created_at >= :start AND pi.created_at < :end
+                    GROUP BY YEAR(pi.created_at), WEEK(pi.created_at, 1)
+                    ORDER BY MIN(pi.created_at)
+                    """
+                : """
+                    SELECT MIN(DATE_FORMAT(pi.created_at, '%Y-%m-%d')) AS period,
+                           COUNT(*) AS total_count,
+                           COALESCE(SUM(CASE WHEN pi.status = 'completed' THEN 1 ELSE 0 END), 0) AS completed_count
+                    FROM process_instance pi
+                    WHERE pi.deleted = 0 AND pi.created_at >= :start AND pi.created_at < :end
+                    GROUP BY DATE(pi.created_at)
+                    ORDER BY MIN(pi.created_at)
+                    """;
+
         @SuppressWarnings("unchecked")
-        List<Object[]> rows = entityManager
-                .createNativeQuery(sql)
+        List<Object[]> rows = entityManager.createNativeQuery(sql)
                 .setParameter("start", start.atStartOfDay())
                 .setParameter("end", end.plusDays(1).atStartOfDay())
                 .getResultList();
 
-        // row: [period(String), bizTypeId(Long), typeName(String), cnt(Long)]
-        // 转换 bizTypeId 为 Long（MySQL 返回 BigInteger 等）
+        Map<String, Long> totalMap = new LinkedHashMap<>();
+        Map<String, Long> completedMap = new LinkedHashMap<>();
+        for (Object[] r : rows) {
+            String period = (String) r[0];
+            totalMap.put(period, ((Number) r[1]).longValue());
+            completedMap.put(period, ((Number) r[2]).longValue());
+        }
+
+        List<Long> totalValues = new ArrayList<>();
+        List<Long> completedValues = new ArrayList<>();
+        for (String label : labels) {
+            totalValues.add(totalMap.getOrDefault(label, 0L));
+            completedValues.add(completedMap.getOrDefault(label, 0L));
+        }
+
+        List<StatisticsTrendDTO.TrendSeries> series = List.of(
+                StatisticsTrendDTO.TrendSeries.builder()
+                        .bizTypeId(0L).bizTypeName("发起量").values(totalValues).build(),
+                StatisticsTrendDTO.TrendSeries.builder()
+                        .bizTypeId(-1L).bizTypeName("办结量").values(completedValues).build()
+        );
+
+        return StatisticsTrendDTO.builder().labels(labels).series(series).build();
+    }
+
+    private StatisticsTrendDTO buildBizTypeTrend(List<String> labels, LocalDate start, LocalDate end, boolean byWeek) {
+        @SuppressWarnings("unchecked")
+        List<Object[]> rows = entityManager
+                .createNativeQuery(buildTrendQuery(byWeek))
+                .setParameter("start", start.atStartOfDay())
+                .setParameter("end", end.plusDays(1).atStartOfDay())
+                .getResultList();
+
         List<TrendRow> trendRows = rows.stream().map(r -> new TrendRow(
                 (String) r[0],
                 ((Number) r[1]).longValue(),

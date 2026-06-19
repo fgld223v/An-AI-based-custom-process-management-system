@@ -64,7 +64,14 @@
           <el-input :model-value="selectedConfig.bpmnType" disabled />
         </el-form-item>
         <el-form-item label="业务类型">
-          <el-input :model-value="getBusinessLabel(selectedConfig.businessType)" disabled />
+          <el-select v-model="selectedConfig.businessType" @change="syncNodeConfig">
+            <el-option label="开始 (start)" value="start" />
+            <el-option label="表单填写 (form_fill)" value="form_fill" />
+            <el-option label="审批 (approval)" value="approval" />
+            <el-option label="条件 (condition)" value="condition" />
+            <el-option label="通知 (notify)" value="notify" />
+            <el-option label="结束 (end)" value="end" />
+          </el-select>
         </el-form-item>
         <el-form-item label="节点名称">
           <el-input v-model="selectedConfig.nodeName" placeholder="请输入节点名称" @change="updateSelectedName" />
@@ -79,11 +86,16 @@
             title="当前仅保存节点表单绑定配置；运行时将优先使用节点表单，否则按配置回退到模板默认表单。"
           />
           <el-form-item label="表单绑定模式">
-            <el-select v-model="selectedConfig.formBindingMode" style="width: 100%" @change="handleFormBindingModeChange">
-              <el-option label="不使用表单" value="none" />
-              <el-option label="使用模板默认表单" value="template_default" />
-              <el-option label="绑定节点表单" value="node_form" />
-            </el-select>
+            <select v-model="selectedConfig.formBindingMode" class="native-select" @change="handleFormBindingModeChange">
+              <option value="none">不使用表单</option>
+              <option value="template_default">使用模板默认表单</option>
+              <option value="node_form">绑定节点表单</option>
+            </select>
+          </el-form-item>
+          <el-form-item label="快捷操作">
+            <el-button type="success" :icon="MagicStick" @click="handleAiGenerateFormForNode">
+              AI 生成此节点表单
+            </el-button>
           </el-form-item>
           <el-form-item v-if="selectedConfig.formBindingMode === 'node_form'" label="绑定表单">
             <el-select
@@ -101,6 +113,17 @@
             <div class="designer-empty-hint">
               <span v-if="forms.length === 0">暂无已发布表单，可先在表单设计器中创建并发布表单。</span>
               <el-button text type="success" :loading="formsLoading" @click="refreshPublishedForms">刷新表单</el-button>
+            </div>
+            <div v-if="selectedConfig.formId" style="margin-top:8px">
+              <el-alert
+                v-if="boundFormStatus(selectedConfig.formId) === 'draft'"
+                title="绑定的表单尚未发布，发布模板前请先发布此表单"
+                type="warning"
+                :closable="false"
+                show-icon
+                style="margin-bottom:8px"
+              />
+              <el-button type="primary" size="small" plain @click="router.push('/form-designer?id=' + selectedConfig.formId)">查看此节点绑定的表单</el-button>
             </div>
           </el-form-item>
           <el-form-item label="表单填写模式">
@@ -424,12 +447,28 @@
         <el-button round type="success" :loading="templateSaving" @click="submitTemplateSave">保存模板</el-button>
       </template>
     </el-dialog>
+
+    <!-- AI 表单生成弹窗 -->
+    <el-dialog v-model="aiFormDialogVisible" title="为节点生成表单" width="500px" :close-on-click-modal="false">
+      <el-form label-position="top">
+        <el-form-item label="目标节点">
+          <el-input :model-value="selectedConfig?.nodeName" disabled />
+        </el-form-item>
+        <el-form-item label="提示词（会带到 AI 表单生成页面）">
+          <el-input v-model="aiFormPrompt" type="textarea" :rows="3" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="aiFormDialogVisible = false">取消</el-button>
+        <el-button type="success" :icon="MagicStick" @click="jumpToAiGenerateForm">跳转到 AI 表单生成</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
   Bell,
@@ -437,12 +476,14 @@ import {
   Download,
   EditPen,
   Finished,
+  View,
   Operation,
   Refresh,
   Share,
   Switch,
   Upload,
-  VideoPlay
+  VideoPlay,
+  MagicStick
 } from '@element-plus/icons-vue'
 import BpmnModeler from 'bpmn-js/lib/Modeler'
 import 'bpmn-js/dist/assets/diagram-js.css'
@@ -450,7 +491,7 @@ import 'bpmn-js/dist/assets/bpmn-js.css'
 import 'bpmn-js/dist/assets/bpmn-font/css/bpmn.css'
 import { showComingSoon } from '@/utils/feedback'
 import { getBizTypes } from '@/api/bizType'
-import { getPublishedForms } from '@/api/formDefinition'
+import { createForm, getForms } from '@/api/formDefinition'
 import { createProcessTemplate, getProcessTemplateDetail, updateProcessTemplate } from '@/api/processTemplate'
 import { useTemplateStore } from '@/stores/template'
 import type { BizType, FormDefinition } from '@/types/workflow'
@@ -603,6 +644,8 @@ const emit = defineEmits<{
 const canvasRef = ref<HTMLDivElement>()
 const modeler = ref<any>()
 const selectedElement = ref<BpmnElement | null>(null)
+const RETURN_SELECTED_NODE_KEY = 'process-designer-return-selected-node'
+const RETURN_NODE_CONFIG_KEY = 'process-designer-return-node-config'
 const xmlVisible = ref(false)
 const importVisible = ref(false)
 const xmlText = ref('')
@@ -613,11 +656,14 @@ const savedTemplateId = ref<number | null>(null)
 const bizTypes = ref<BizType[]>([])
 const forms = ref<FormDefinition[]>([])
 const formsLoading = ref(false)
+const aiFormDialogVisible = ref(false)
+const aiFormPrompt = ref('')
 const FORM_BINDABLE_BUSINESS_TYPES: BusinessType[] = ['start', 'form_fill', 'approval', 'generic_task']
 const elementCount = ref(0)
 const zoomPercent = ref(100)
 const nodeConfigMap = reactive<Record<string, NodeBusinessConfig>>({})
 const route = useRoute()
+const router = useRouter()
 const templateStore = useTemplateStore()
 const currentXml = ref(props.modelValue || defaultBpmnXml())
 const templateSaveForm = reactive({
@@ -654,6 +700,11 @@ onMounted(async () => {
       const template = await getProcessTemplateDetail(Number(templateId))
       if (template?.bpmnXml) {
         currentXml.value = template.bpmnXml
+        savedTemplateId.value = template.id
+        templateSaveForm.templateCode = template.templateCode || ''
+        templateSaveForm.templateName = template.templateName || templateSaveForm.templateName
+        templateSaveForm.bizTypeId = template.bizTypeId ?? null
+        templateSaveForm.formId = template.formId ?? null
         // 同步设置模板 store，使 TopBar 显示当前模板名
         templateStore.setCurrentTemplate({
           id: template.id,
@@ -668,6 +719,16 @@ onMounted(async () => {
           nodeConfig: template.nodeConfig,
           formBindConfig: template.formBindConfig
         } as any)
+        if (template.nodeConfig) {
+          try {
+            const parsedNodeConfig = JSON.parse(template.nodeConfig)
+            if (parsedNodeConfig && typeof parsedNodeConfig === 'object') {
+              for (const [nodeId, config] of Object.entries(parsedNodeConfig)) {
+                nodeConfigMap[nodeId] = normalizeNodeFormConfig(config as NodeBusinessConfig)
+              }
+            }
+          } catch { /* ignore */ }
+        }
       } else {
         console.warn('[ProcessDesigner] 模板无 BPMN XML，使用默认流程图')
       }
@@ -681,7 +742,20 @@ onMounted(async () => {
   const aiXml = sessionStorage.getItem('ai-generated-bpmn')
   if (fromAi && aiXml) {
     currentXml.value = aiXml
-    sessionStorage.removeItem('ai-generated-bpmn') // 用完清理
+    // 不清除 sessionStorage！用户离开再回来时仍然需要这个 BPMN
+    // 保存模板后由 submitTemplateSave 清除
+    templateStore.setCurrentTemplate({
+      id: 0,
+      templateCode: '',
+      templateName: 'AI 生成流程（草稿）',
+      status: '',
+      sourceType: 'ai_generated',
+      bpmnXml: aiXml
+    } as any)
+  }
+  // 离开后回来：如果 sessionStorage 还有 AI BPMN 且没加载模板，恢复 AI 流程
+  if (!fromAi && aiXml && !route.query.templateId) {
+    currentXml.value = aiXml
     templateStore.setCurrentTemplate({
       id: 0,
       templateCode: '',
@@ -727,8 +801,119 @@ onMounted(async () => {
   // 导入成功后的后处理
   const canvas = modeler.value.get('canvas')
   canvas.zoom('fit-viewport', 'auto')
+
+  // 把 AI 返回的 nodeConfig 灌进 nodeConfigMap（array 或 map 格式都兼容）
+  const aiNodeConfigRaw = window.sessionStorage.getItem('ai-generated-nodeconfig')
+  if (aiNodeConfigRaw) {
+    try {
+      const raw = JSON.parse(aiNodeConfigRaw)
+      const entries: [string, any][] = Array.isArray(raw)
+        ? raw.map((c: any) => [c.nodeKey || c.nodeId, c])
+        : Object.entries(raw)
+      // 映射 AI 字段 → 设计器字段
+      const strategyToAssignee: Record<string, string> = {
+        DIRECT_SUPERVISOR: 'MANAGER',
+        DEPARTMENT_MANAGER: 'DEPT_LEADER',
+        SPECIFIC_USERS: 'USER',
+        ROLE: 'ROLE'
+      }
+      for (const [nodeKey, ai] of entries) {
+        const ac = ai as any
+        const config = nodeConfigMap[nodeKey]
+        if (!config) continue
+        if (ac.nodeName) config.nodeName = ac.nodeName
+        if (ac.businessType && ac.businessType !== config.businessType) {
+          config.businessType = ac.businessType
+        }
+        if (ac.approvalMode) config.approvalMode = ac.approvalMode
+        if (ac.assignStrategy) {
+          config.assignStrategy = ac.assignStrategy
+          config.assigneeType = strategyToAssignee[ac.assignStrategy] || config.assigneeType
+        }
+        if (ac.assignValue) config.assigneeValue = ac.assignValue
+        if (ac.notifyTarget) config.notifyTarget = ac.notifyTarget
+        if (ac.notifyChannel) config.notifyChannel = ac.notifyChannel.toUpperCase()
+      }
+    } catch { /* ignore */ }
+  }
+
+  // 恢复之前保存的 nodeConfig（包含表单绑定，覆盖默认值）
+  const savedConfig = window.sessionStorage.getItem('ai-generated-nodeconfig')
+  if (savedConfig) {
+    try {
+      const configMap = JSON.parse(savedConfig)
+      for (const [nodeId, c] of Object.entries(configMap)) {
+        const cfg = c as any
+        const existing = nodeConfigMap[nodeId]
+        if (existing && cfg) {
+          existing.formBindingMode = cfg.formBindingMode || existing.formBindingMode
+          existing.formId = cfg.formId || existing.formId
+          existing.useTemplateFallback = cfg.useTemplateFallback ?? existing.useTemplateFallback
+        }
+      }
+    } catch { /* ignore */ }
+  }
+
   await syncXml(false)
   refreshStats()
+
+  // 检查是否有挂起的表单绑定（从 AI 表单生成页跳回，modeler 已就绪）
+  const pendingBindResult = window.sessionStorage.getItem('pendingBindResult')
+  if (pendingBindResult) {
+    try {
+      const bindInfo = JSON.parse(pendingBindResult)
+      window.sessionStorage.removeItem('pendingBindResult')
+      window.sessionStorage.removeItem('pendingBind')
+      if (!nodeConfigMap[bindInfo.nodeKey]) {
+        nodeConfigMap[bindInfo.nodeKey] = { nodeId: bindInfo.nodeKey, nodeName: bindInfo.nodeName || '' } as any
+      }
+      nodeConfigMap[bindInfo.nodeKey].formBindingMode = 'node_form'
+      nodeConfigMap[bindInfo.nodeKey].formId = bindInfo.formId
+      nodeConfigMap[bindInfo.nodeKey].useTemplateFallback = true
+      syncNodeConfig()
+      await saveTemplateSilently()
+      // 在画布上自动选中该节点，右侧属性面板立刻显示绑定结果
+      try {
+        const registry = modeler.value.get('elementRegistry')
+        const el = registry.get(bindInfo.nodeKey)
+        if (el) {
+          const boundElement = el as BpmnElement
+          modeler.value.get('selection').select(el)
+          selectedElement.value = boundElement
+          const config = ensureNodeConfig(boundElement, bindInfo.nodeName)
+          config.nodeName = bindInfo.nodeName || config.nodeName
+          config.formBindingMode = 'node_form'
+          config.formId = bindInfo.formId
+          config.useTemplateFallback = true
+          syncNodeConfig()
+          await saveTemplateSilently()
+        }
+      } catch { /* ignore */ }
+      ElMessage.success('表单"' + bindInfo.formName + '"已绑定到节点"' + bindInfo.nodeName + '"并自动保存')
+    } catch { /* ignore */ }
+  }
+  const returnSelectedNodeId = window.sessionStorage.getItem(RETURN_SELECTED_NODE_KEY)
+  const returnNodeConfigRaw = window.sessionStorage.getItem(RETURN_NODE_CONFIG_KEY)
+  if (returnNodeConfigRaw) {
+    try {
+      const configMap = JSON.parse(returnNodeConfigRaw)
+      for (const [nodeId, config] of Object.entries(configMap)) {
+        nodeConfigMap[nodeId] = normalizeNodeFormConfig(config as NodeBusinessConfig)
+      }
+    } catch { /* ignore */ }
+    window.sessionStorage.removeItem(RETURN_NODE_CONFIG_KEY)
+  }
+  if (returnSelectedNodeId) {
+    try {
+      const registry = modeler.value.get('elementRegistry')
+      const el = registry.get(returnSelectedNodeId)
+      if (el) {
+        modeler.value.get('selection').select(el)
+        selectedElement.value = el as BpmnElement
+      }
+    } catch { /* ignore */ }
+    window.sessionStorage.removeItem(RETURN_SELECTED_NODE_KEY)
+  }
   setTimeout(addPaletteTooltips, 0)
 
   await Promise.all([loadBizTypeOptions(), loadPublishedFormOptions()])
@@ -813,12 +998,63 @@ async function loadPublishedFormOptions(force = false) {
   if (!force && forms.value.length > 0) return
   formsLoading.value = true
   try {
-    forms.value = await getPublishedForms()
+    forms.value = await getForms()
   } catch {
     ElMessage.warning('已发布表单加载失败，请检查后端服务。')
   } finally {
     formsLoading.value = false
   }
+}
+
+async function saveTemplateSilently() {
+  try {
+    await syncXml(false)
+    const xml = currentXml.value
+    if (!xml) return
+    // nodeConfig: map 格式 { nodeId -> config }
+    const nodeConfigMap2: Record<string, any> = {}
+    for (const [key, c] of Object.entries(nodeConfigMap)) {
+      nodeConfigMap2[key] = { ...c }
+    }
+    const nodeConfig = JSON.stringify(nodeConfigMap2)
+    // formBindConfig: map 格式 { nodeId -> { formId } }
+    const formBindConfig: Record<string, any> = {}
+    for (const [key, cfg] of Object.entries(nodeConfigMap)) {
+      if (cfg.formId) {
+        formBindConfig[key] = { formId: cfg.formId }
+      }
+    }
+    if (templateStore.currentTemplate?.id && templateStore.currentTemplate.id > 0) {
+      await updateProcessTemplate(templateStore.currentTemplate.id, {
+        bpmnXml: xml,
+        nodeConfig,
+        formBindConfig: JSON.stringify(formBindConfig)
+      } as any)
+    } else {
+      const created = await createProcessTemplate({
+        templateName: templateSaveForm.templateName || 'AI生成流程',
+        templateCode: templateSaveForm.templateCode || ('ai-' + Date.now()),
+        bizTypeId: templateSaveForm.bizTypeId || undefined,
+        sourceType: 'ai_generated',
+        bpmnXml: xml,
+        nodeConfig,
+        formBindConfig: JSON.stringify(formBindConfig)
+      } as any)
+      savedTemplateId.value = created.id
+      templateStore.setCurrentTemplate({ id: created.id, templateName: created.templateName } as any)
+      // sessionStorage 也存 map 格式
+      window.sessionStorage.setItem('ai-generated-nodeconfig', JSON.stringify(nodeConfigMap2))
+      void router.replace(`/process-designer?templateId=${created.id}`)
+    }
+  } catch (e) {
+    console.error('自动保存模板失败:', e)
+  }
+}
+
+function boundFormStatus(formId: number | null): string {
+  if (!formId) return ''
+  const f = forms.value.find(item => item.id === formId)
+  return f?.status || ''
 }
 
 async function refreshPublishedForms() {
@@ -1064,6 +1300,89 @@ async function handleFormBindingModeChange() {
     await loadPublishedFormOptions()
   }
   syncNodeConfig()
+}
+
+function handleAiGenerateFormForNode() {
+  if (!selectedConfig.value) { ElMessage.warning('请先选择一个节点'); return }
+  aiFormPrompt.value = '为流程中的"' + (selectedConfig.value.nodeName || '审批节点') + '"节点生成一个完整的表单'
+  aiFormPrompt.value = buildAiFormPrompt(selectedConfig.value)
+  aiFormDialogVisible.value = true
+}
+
+function openBoundFormDesigner() {
+  const formId = selectedConfig.value?.formId
+  if (!formId) {
+    ElMessage.warning('当前节点还没有绑定表单')
+    return
+  }
+  if (selectedConfig.value?.nodeId) {
+    window.sessionStorage.setItem(RETURN_SELECTED_NODE_KEY, selectedConfig.value.nodeId)
+  }
+  window.sessionStorage.setItem(RETURN_NODE_CONFIG_KEY, JSON.stringify(buildPersistableNodeConfig()))
+  void loadPublishedFormOptions()
+  router.push('/form-designer?id=' + formId)
+}
+
+function jumpToAiGenerateForm() {
+  if (selectedConfig.value) {
+    // 保存节点上下文，等表单生成后回来绑定
+    window.sessionStorage.setItem('pendingBind', JSON.stringify({
+      nodeKey: selectedConfig.value.nodeId,
+      nodeName: selectedConfig.value.nodeName || ''
+    }))
+  }
+  window.sessionStorage.setItem('ai-form-prompt', aiFormPrompt.value)
+  router.push('/ai/generate-form')
+  aiFormDialogVisible.value = false
+}
+
+
+function buildAiFormPrompt(config: NodeBusinessConfig) {
+  const nodeName = config.nodeName || '当前节点'
+  const businessLabel = getBusinessLabel(config.businessType)
+  const formModeTextMap: Record<string, string> = {
+    create: '用于新建填写',
+    edit: '用于处理时编辑已有数据',
+    supplement: '用于补充填写已有流程数据',
+    readonly: '以查看为主，只保留极少必要输入'
+  }
+  const formModeText = formModeTextMap[config.formMode] || '用于流程节点处理'
+  const parts = [
+    `请为流程中的“${nodeName}”节点生成一份更贴合业务流转的表单。`,
+    `节点类型是：${businessLabel}。`,
+    `这个表单${formModeText}。`
+  ]
+
+  if (config.requiredFields.length > 0) {
+    parts.push(`请重点包含这些必填字段：${config.requiredFields.join('、')}。`)
+  }
+  if (config.editableFields.length > 0) {
+    parts.push(`优先围绕这些可编辑字段设计：${config.editableFields.join('、')}。`)
+  }
+  if (config.attachmentAllowed) {
+    parts.push('请考虑加入附件上传或图片凭证字段。')
+  }
+  if (!config.draftAllowed) {
+    parts.push('用户通常需要一次提交完成，字段设计请尽量清晰直接。')
+  }
+  if (config.validateOnSubmit) {
+    parts.push('请优先设计便于校验的结构化字段，少用纯自由文本。')
+  }
+  if (config.submitButtonText) {
+    parts.push(`表单提交动作更贴近“${config.submitButtonText}”这个业务语义。`)
+  }
+  if (config.businessType === 'approval') {
+    parts.push('这通常是审批处理节点，请优先包含审批意见、处理结论、补充说明、必要附件等字段。')
+  }
+  if (config.businessType === 'form_fill') {
+    parts.push('这通常是申请或补录节点，请优先包含业务基础信息、说明信息、时间信息、金额或明细信息。')
+  }
+  if (config.businessType === 'start') {
+    parts.push('这通常是流程发起节点，请生成一份适合申请人首次提交的完整申请表单。')
+  }
+
+  parts.push('请直接生成字段合理、分组清晰、适合企业流程场景的表单。')
+  return parts.join('')
 }
 
 function applyDefaultFormBinding(config: NodeBusinessConfig, businessType: BusinessType) {
@@ -1319,3 +1638,19 @@ function defaultBpmnXml() {
 </bpmn:definitions>`
 }
 </script>
+<style scoped>
+.native-select {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+}
+.native-select:focus {
+  border-color: var(--primary);
+  outline: none;
+}
+</style>

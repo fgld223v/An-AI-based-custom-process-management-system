@@ -1,14 +1,15 @@
 package com.aiflow.controller;
 
 import com.aiflow.common.ApiResponse;
-<<<<<<< Updated upstream
 import com.aiflow.dto.AiGenerateProcessResponse;
 import com.aiflow.dto.AiGenerateRequest;
-=======
 import com.aiflow.dto.*;
 import com.aiflow.service.AiFormService;
 import com.aiflow.service.AiOptimizationService;
->>>>>>> Stashed changes
+import com.aiflow.dto.AiGenerateFormResponse;
+import com.aiflow.dto.AiGenerateProcessResponse;
+import com.aiflow.dto.AiGenerateRequest;
+import com.aiflow.service.AiFormService;
 import com.aiflow.service.AiProcessService;
 import jakarta.validation.Valid;
 import lombok.Data;
@@ -23,11 +24,9 @@ import java.util.List;
 public class AiController {
 
     private final AiProcessService aiProcessService;
-<<<<<<< Updated upstream
-=======
     private final AiFormService aiFormService;
     private final AiOptimizationService aiOptimizationService;
->>>>>>> Stashed changes
+    private final AiFormService aiFormService;
 
     @PostMapping("/generate-process")
     public ApiResponse<AiGenerateProcessResponse> generateProcess(
@@ -37,10 +36,10 @@ public class AiController {
     }
 
     @PostMapping("/generate-form")
-    public ApiResponse<Map<String, Object>> generateForm(
+    public ApiResponse<AiGenerateFormResponse> generateForm(
             @Valid @RequestBody AiGenerateRequest request) {
         return ApiResponse.success(
-                aiProcessService.generateForm(request.getDescription()));
+                aiFormService.generateForm(request.getDescription()));
     }
 
     /** AI 流程优化 — 分析单个模板 */

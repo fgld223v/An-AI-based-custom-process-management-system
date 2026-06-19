@@ -22,8 +22,9 @@ public interface StatisticsService {
      * @param start       开始日期（含）
      * @param end         结束日期（含）
      * @param granularity day | week
+     * @param mode        null/bizType（默认）| summary（发起量+办结量汇总）
      */
-    StatisticsTrendDTO getTrend(LocalDate start, LocalDate end, String granularity);
+    StatisticsTrendDTO getTrend(LocalDate start, LocalDate end, String granularity, String mode);
 
     /**
      * 节点效率排名：每个节点的平均停留时长 / 超时率
