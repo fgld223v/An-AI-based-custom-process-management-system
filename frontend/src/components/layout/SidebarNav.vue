@@ -92,7 +92,6 @@ const allMenuGroups: MenuGroup[] = [
   {
     title: '流程',
     items: [
-      { label: '工作台', path: '/workbench', icon: DataAnalysis, available: true },
       { label: '流程编辑器', path: '/process-designer', icon: Share, available: true }
     ]
   },
