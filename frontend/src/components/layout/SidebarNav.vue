@@ -39,11 +39,7 @@ import {
   Files,
   MagicStick,
   Monitor,
-<<<<<<< HEAD
   OfficeBuilding,
-=======
-  Bell,
->>>>>>> origin/main
   Operation,
   Setting,
   Share,
@@ -51,21 +47,11 @@ import {
   Timer,
   Tools,
   TrendCharts,
-<<<<<<< HEAD
   UserFilled
-=======
-  UserFilled,
-  OfficeBuilding
->>>>>>> origin/main
 } from '@element-plus/icons-vue'
 import { getMyTasks } from '@/api/task'
 import { useAuthStore } from '@/stores/auth'
 import { showComingSoon } from '@/utils/feedback'
-<<<<<<< HEAD
-=======
-import { getMyTasks } from '@/api/task'
-import { useAuthStore } from '@/stores/auth'
->>>>>>> origin/main
 import type { SystemRole } from '@/types/auth'
 
 interface MenuItem {
@@ -75,14 +61,6 @@ interface MenuItem {
   available?: boolean
   badge?: string
   roles?: SystemRole[]
-<<<<<<< HEAD
-}
-
-interface MenuGroup {
-  title: string
-  items: MenuItem[]
-=======
->>>>>>> origin/main
 }
 
 const route = useRoute()
@@ -90,17 +68,6 @@ const router = useRouter()
 const authStore = useAuthStore()
 const todoCount = ref<number | null>(null)
 
-<<<<<<< HEAD
-const adminRoles: SystemRole[] = ['super_admin', 'biz_admin']
-const superAdminOnly: SystemRole[] = ['super_admin']
-
-const allMenuGroups: MenuGroup[] = [
-  {
-    title: '概览',
-    items: [
-      { label: '工作台', path: '/workbench', icon: DataAnalysis, available: true, roles: adminRoles }
-=======
-/** 过滤菜单项：当前用户角色可见的项 */
 function filterByRole(items: MenuItem[]): MenuItem[] {
   const userRole = authStore.user?.systemRole
   return items.filter(item => {
@@ -114,46 +81,26 @@ const allMenuGroups = [
     title: '概览',
     items: [
       { label: '工作台', path: '/workbench', icon: DataAnalysis, available: true }
->>>>>>> origin/main
     ]
   },
   {
     title: '流程',
     items: [
-<<<<<<< HEAD
-      { label: '表单设计器', path: '/form-designer', icon: Files, available: true, roles: adminRoles },
-      { label: '流程编辑器', path: '/process-designer', icon: Share, available: true, roles: adminRoles }
-=======
-      { label: '流程编辑器', path: '/process-designer', icon: Share, available: true }
->>>>>>> origin/main
+      { label: '表单设计器', path: '/form-designer', icon: Files, available: true, roles: ['super_admin', 'biz_admin'] as SystemRole[] },
+      { label: '流程编辑器', path: '/process-designer', icon: Share, available: true, roles: ['super_admin', 'biz_admin'] as SystemRole[] }
     ]
   },
   {
     title: 'AI',
     items: [
-<<<<<<< HEAD
-      { label: 'AI 生成流程', path: '/ai/generate-process', icon: MagicStick, available: true, roles: adminRoles },
-      { label: 'AI 生成表单', path: '/ai/generate-form', icon: MagicStick, available: true, roles: adminRoles },
-      { label: 'AI 审批建议', path: '/placeholder/ai-approval', icon: MagicStick, roles: adminRoles }
-=======
-      { label: 'AI生成流程', path: '/ai/generate-process', icon: MagicStick, available: true },
-      { label: 'AI生成表单', path: '/ai/generate-form', icon: MagicStick, available: true },
-      { label: 'AI审批建议', path: '/tasks/todo', icon: MagicStick }
->>>>>>> origin/main
+      { label: 'AI 生成流程', path: '/ai/generate-process', icon: MagicStick, available: true, roles: ['super_admin', 'biz_admin'] as SystemRole[] },
+      { label: 'AI 生成表单', path: '/ai/generate-form', icon: MagicStick, available: true, roles: ['super_admin', 'biz_admin'] as SystemRole[] },
+      { label: 'AI 审批建议', path: '/placeholder/ai-approval', icon: MagicStick, roles: ['super_admin', 'biz_admin'] as SystemRole[] }
     ]
   },
   {
     title: '运行',
     items: [
-<<<<<<< HEAD
-      { label: '运行监控', path: '/dashboard', icon: Monitor, available: true, roles: adminRoles },
-      { label: '流程发起', path: '/process/start-preview', icon: CirclePlus, available: true },
-      { label: '流程实例', path: '/process/instances', icon: Tickets, available: true, roles: adminRoles },
-      { label: '待办任务', path: '/tasks/todo', icon: Tickets, available: true, badge: '' },
-      { label: '已办任务', path: '/tasks/done', icon: Tickets, available: true },
-      { label: '通知中心', path: '/notifications', icon: Bell, available: true },
-      { label: '执行追踪', path: '/placeholder/tracing', icon: TrendCharts, roles: adminRoles }
-=======
       { label: '运行监控', path: '/dashboard', icon: Monitor, available: true },
       { label: '流程发起', path: '/process/start-preview', icon: CirclePlus, available: true },
       { label: '流程实例', path: '/process/instances', icon: Tickets, available: true },
@@ -161,61 +108,32 @@ const allMenuGroups = [
       { label: '已办任务', path: '/tasks/done', icon: Tickets, available: true },
       { label: '通知中心', path: '/notifications', icon: Bell, available: true },
       { label: '执行追踪', path: '/placeholder/tracing', icon: TrendCharts }
->>>>>>> origin/main
     ]
   },
   {
     title: '资源',
     items: [
-<<<<<<< HEAD
-      { label: '流程模板管理', path: '/templates', icon: Files, available: true, roles: adminRoles },
-      { label: '模板市场', path: '/template-market', icon: Files, available: true, roles: adminRoles },
-      { label: '节点/工具库', path: '/placeholder/tools', icon: Tools, roles: adminRoles }
-=======
       { label: '流程模板管理', path: '/templates', icon: Files, available: true, roles: ['super_admin', 'biz_admin'] as SystemRole[] },
       { label: '模板市场', path: '/template-market', icon: Files, available: true, roles: ['super_admin', 'biz_admin'] as SystemRole[] },
       { label: '节点/工具库', path: '/placeholder/tools', icon: Tools }
->>>>>>> origin/main
     ]
   },
   {
     title: '系统',
     items: [
-<<<<<<< HEAD
-      { label: '用户管理', path: '/admin/users', icon: UserFilled, available: true, roles: superAdminOnly },
-      { label: '部门管理', path: '/admin/departments', icon: OfficeBuilding, available: true, roles: superAdminOnly },
-      { label: '自动化策略', path: '/settings/automation', icon: Operation, available: true, roles: adminRoles },
-      { label: '个人设置', path: '/settings', icon: Setting, available: true },
-      { label: 'AI 资源池', path: '/placeholder/ai-pool', icon: Cpu, roles: adminRoles },
-      { label: '定时任务', path: '/placeholder/schedule', icon: Timer, roles: adminRoles }
-=======
       { label: '用户管理', path: '/admin/users', icon: UserFilled, available: true, roles: ['super_admin'] as SystemRole[] },
       { label: '部门管理', path: '/admin/departments', icon: OfficeBuilding, available: true, roles: ['super_admin'] as SystemRole[] },
       { label: '自动化策略', path: '/settings/automation', icon: Operation, available: true, roles: ['super_admin', 'biz_admin'] as SystemRole[] },
       { label: '个人设置', path: '/settings', icon: Setting, available: true },
-      { label: 'AI资源池', path: '/placeholder/ai-pool', icon: Cpu },
+      { label: 'AI 资源池', path: '/placeholder/ai-pool', icon: Cpu },
       { label: '定时任务', path: '/placeholder/schedule', icon: Timer }
->>>>>>> origin/main
     ]
   }
 ]
 
-<<<<<<< HEAD
-function canSee(item: MenuItem) {
-  if (!item.roles || item.roles.length === 0) return true
-  const role = authStore.user?.systemRole
-  return Boolean(role && item.roles.includes(role))
-}
-
-const menuGroups = computed(() =>
-  allMenuGroups
-    .map(group => ({ ...group, items: group.items.filter(canSee) }))
-=======
-/** 按角色过滤后的菜单组 */
 const menuGroups = computed(() =>
   allMenuGroups
     .map(group => ({ ...group, items: filterByRole(group.items) }))
->>>>>>> origin/main
     .filter(group => group.items.length > 0)
 )
 
@@ -223,7 +141,6 @@ onMounted(async () => {
   try {
     const tasks = await getMyTasks()
     todoCount.value = tasks.length
-<<<<<<< HEAD
     const todoItem = allMenuGroups
       .flatMap(group => group.items)
       .find(item => item.path === '/tasks/todo')
@@ -231,7 +148,7 @@ onMounted(async () => {
       todoItem.badge = String(tasks.length)
     }
   } catch {
-    // 待办角标只是辅助信息，加载失败不影响菜单渲染。
+    // badge 获取失败不阻塞侧边栏渲染
   }
 })
 
@@ -239,20 +156,6 @@ function isActive(path: string) {
   return route.path === path || (path !== '/' && route.path.startsWith(`${path}/`))
 }
 
-=======
-    const runGroup = allMenuGroups.find(g => g.title === '运行')
-    if (runGroup) {
-      const todoItem = runGroup.items.find(i => i.path === '/tasks/todo')
-      if (todoItem && tasks.length > 0) {
-        todoItem.badge = String(tasks.length)
-      }
-    }
-  } catch {
-    // badge 获取失败不阻塞侧边栏渲染
-  }
-})
-
->>>>>>> origin/main
 function handleClick(item: MenuItem) {
   if (item.available) {
     router.push(item.path)
@@ -276,92 +179,31 @@ function handleClick(item: MenuItem) {
   background: rgba(255, 255, 255, 0.86);
   backdrop-filter: blur(18px);
 }
-
-.brand {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  margin-bottom: 28px;
-}
-
+.brand { display: flex; gap: 12px; align-items: center; margin-bottom: 28px; }
 .brand-mark {
-  display: grid;
-  width: 42px;
-  height: 42px;
-  color: #fff;
-  font-weight: 800;
-  border-radius: 14px;
-  place-items: center;
+  display: grid; width: 42px; height: 42px; color: #fff; font-weight: 800;
+  border-radius: 14px; place-items: center;
   background: linear-gradient(135deg, #00a3ff, #19c37d);
   box-shadow: 0 12px 24px rgba(0, 163, 255, 0.24);
 }
-
-.brand-title {
-  color: var(--text);
-  font-size: 18px;
-  font-weight: 800;
-}
-
-.brand-subtitle {
-  color: var(--muted);
-  font-size: 11px;
-  letter-spacing: 0.12em;
-}
-
-.nav-groups {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-}
-
-.group-title {
-  margin: 0 0 8px 8px;
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 700;
-}
-
+.brand-title { color: var(--text); font-size: 18px; font-weight: 800; }
+.brand-subtitle { color: var(--muted); font-size: 11px; letter-spacing: 0.12em; }
+.nav-groups { display: flex; flex-direction: column; gap: 18px; }
+.group-title { margin: 0 0 8px 8px; color: var(--muted); font-size: 12px; font-weight: 700; }
 .nav-item {
-  display: flex;
-  align-items: center;
-  width: 100%;
-  min-height: 42px;
-  padding: 0 12px;
-  margin-bottom: 6px;
-  color: #486070;
-  text-align: left;
-  cursor: pointer;
-  border: 0;
-  border-radius: 12px;
-  background: transparent;
-  transition: 0.18s ease;
-  gap: 10px;
+  display: flex; align-items: center; width: 100%; min-height: 42px; padding: 0 12px;
+  margin-bottom: 6px; color: #486070; text-align: left; cursor: pointer; border: 0;
+  border-radius: 12px; background: transparent; transition: 0.18s ease; gap: 10px;
 }
-
-.nav-item:hover {
-  color: var(--text);
-  background: rgba(0, 163, 255, 0.08);
-}
-
+.nav-item:hover { color: var(--text); background: rgba(0, 163, 255, 0.08); }
 .nav-item.active {
   color: #0576b9;
   background: linear-gradient(135deg, rgba(0, 163, 255, 0.14), rgba(25, 195, 125, 0.13));
   box-shadow: inset 3px 0 0 #00a3ff;
 }
-
-.nav-item span:nth-child(2) {
-  flex: 1;
-}
-
+.nav-item span:nth-child(2) { flex: 1; }
 .item-badge {
-  min-width: 20px;
-  height: 20px;
-  padding: 0 6px;
-  color: #fff;
-  font-size: 11px;
-  line-height: 20px;
-  text-align: center;
-  border-radius: 999px;
-  background: #ff6b6b;
+  min-width: 20px; height: 20px; padding: 0 6px; color: #fff; font-size: 11px;
+  line-height: 20px; text-align: center; border-radius: 999px; background: #ff6b6b;
 }
 </style>
