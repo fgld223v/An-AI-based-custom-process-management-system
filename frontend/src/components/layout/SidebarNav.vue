@@ -95,7 +95,8 @@ const allMenuGroups = [
     items: [
       { label: 'AI 生成流程', path: '/ai/generate-process', icon: MagicStick, available: true, roles: ['super_admin', 'biz_admin'] as SystemRole[] },
       { label: 'AI 生成表单', path: '/ai/generate-form', icon: MagicStick, available: true, roles: ['super_admin', 'biz_admin'] as SystemRole[] },
-      { label: 'AI 审批建议', path: '/placeholder/ai-approval', icon: MagicStick, roles: ['super_admin', 'biz_admin'] as SystemRole[] }
+      { label: 'AI 审批建议', path: '/placeholder/ai-approval', icon: MagicStick, roles: ['super_admin', 'biz_admin'] as SystemRole[] },
+      { label: 'AI 流程优化', path: '/ai/optimize', icon: TrendCharts, available: true, roles: ['super_admin', 'biz_admin'] as SystemRole[] }
     ]
   },
   {

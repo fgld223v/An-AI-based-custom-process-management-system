@@ -87,6 +87,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: 'AI 智能生成表单', group: 'AI', roles: ADMIN_ROLES }
       },
       {
+        path: 'ai/optimize',
+        name: 'AiOptimize',
+        component: () => import('@/views/ai/AiOptimize.vue'),
+        meta: { title: 'AI 流程优化', group: 'AI', roles: ADMIN_ROLES }
+      },
+      {
         path: 'dashboard',
         name: 'Dashboard',
         component: () => import('@/views/dashboard/Dashboard.vue'),
