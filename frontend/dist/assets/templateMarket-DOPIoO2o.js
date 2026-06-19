@@ -1,1 +1,0 @@
-import{ae as e}from"./index-CPb-GQbE.js";async function p(){return(await e.get("/template-market")).data.data||[]}async function n(t){return(await e.post("/template-market/publish-template",t)).data.data}async function o(t,a){return(await e.post(`/template-market/${t}/copy`,a)).data.data}export{o as c,p as g,n as p};
