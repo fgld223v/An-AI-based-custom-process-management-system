@@ -35,7 +35,7 @@ public class AiServiceAccount {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
-    @Column(name = "deleted", nullable = false)
+    @Column(name = "deleted", nullable = false, columnDefinition = "TINYINT")
     private Integer deleted = 0;
 
     @PrePersist

@@ -12,6 +12,8 @@ import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -23,7 +25,11 @@ import java.util.List;
 import java.util.Map;
 
 @Component
-public class AiServiceAuthFilter extends OncePerRequestFilter {
+@Order(Ordered.HIGHEST_PRECEDENCE + 20)
+public class AiServiceAuthFilter extends OncePerRequestFilter implements Ordered {
+
+    @Override
+    public int getOrder() { return Ordered.HIGHEST_PRECEDENCE + 20; }
 
     private final AiServiceAccountRepository aiServiceAccountRepository;
     private final ObjectMapper objectMapper;
@@ -45,8 +51,8 @@ public class AiServiceAuthFilter extends OncePerRequestFilter {
         String apiKey = request.getHeader("X-API-Key");
 
         if (!StringUtils.hasText(apiKey)) {
-            sendError(response, HttpStatus.UNAUTHORIZED.value(),
-                    "缺少 API Key，请在请求头中提供 X-API-Key");
+            // 没有 API Key → 放行给 JwtAuthenticationFilter 做普通用户认证
+            filterChain.doFilter(request, response);
             return;
         }
 

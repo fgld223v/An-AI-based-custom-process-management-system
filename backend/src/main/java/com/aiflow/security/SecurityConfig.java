@@ -6,7 +6,6 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
-import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -21,7 +20,6 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import java.util.List;
 
 @Configuration
-@EnableMethodSecurity
 @EnableConfigurationProperties(JwtProperties.class)
 public class SecurityConfig {
 
@@ -42,51 +40,17 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/register").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/health").permitAll()
                         .requestMatchers("/error").permitAll()
-
+                        .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
+                        .requestMatchers("/ws/notifications").permitAll()
                         .requestMatchers("/api/admin/**").hasRole("SUPER_ADMIN")
-
-                        .requestMatchers(HttpMethod.GET,
-                                "/api/user/me",
-                                "/api/biz-types",
-                                "/api/forms/**",
-                                "/api/process-templates/**",
-                                "/api/process-fragments/**",
-                                "/api/template-market/**",
-                                "/api/process-instances/**",
-                                "/api/tasks/**",
-                                "/api/statistics/**",
-                                "/api/templates/**",
-                                "/api/notifications/**"
-                        ).authenticated()
-                        .requestMatchers(HttpMethod.POST,
-                                "/api/forms/**",
-                                "/api/process-templates/**",
-                                "/api/process-fragments/**",
-                                "/api/template-market/**",
-                                "/api/process-instances/**",
-                                "/api/tasks/**",
-                                "/api/ai/**",
-                                "/api/notifications/**"
-                        ).authenticated()
-                        .requestMatchers(HttpMethod.PUT,
-                                "/api/forms/**",
-                                "/api/process-templates/**",
-                                "/api/process-fragments/**",
-                                "/api/process-instances/**",
-                                "/api/notifications/**"
-                        ).authenticated()
-                        .requestMatchers(HttpMethod.DELETE,
-                                "/api/notifications/**",
-                                "/api/template-market/**"
-                        ).authenticated()
-
-                        .anyRequest().authenticated()
+                        .requestMatchers("/api/**").authenticated()
+                        .anyRequest().permitAll()
                 )
-                .addFilterBefore(aiServiceAuthFilter, JwtAuthenticationFilter.class)
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(aiServiceAuthFilter, JwtAuthenticationFilter.class);
         return http.build();
     }
 
@@ -104,10 +68,8 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOrigins(List.of(
-                "http://localhost:5173",
-                "http://localhost:5174",
-                "http://127.0.0.1:5173",
-                "http://127.0.0.1:5174"
+                "http://localhost:5173", "http://localhost:5174",
+                "http://127.0.0.1:5173", "http://127.0.0.1:5174"
         ));
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
