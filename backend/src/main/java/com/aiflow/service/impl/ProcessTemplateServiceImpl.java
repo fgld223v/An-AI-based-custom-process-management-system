@@ -50,7 +50,8 @@ public class ProcessTemplateServiceImpl implements ProcessTemplateService {
         if (processTemplateRepository.existsByTemplateCodeAndVersion(template.getTemplateCode(), template.getVersion())) {
             throw new IllegalStateException("templateCode and version already exist");
         }
-        // 创建时不强制表单已发布，允许先绑定草稿
+        validatePublishedForm(template.getFormId());
+        validateFormBindConfig(template.getFormBindConfig());
 
         LocalDateTime now = LocalDateTime.now();
         if (template.getStatus() == null) {
@@ -77,7 +78,8 @@ public class ProcessTemplateServiceImpl implements ProcessTemplateService {
             throw new IllegalStateException("only draft or reviewing template can be updated");
         }
         requireText(template.getTemplateName(), "templateName must not be blank");
-        // 更新时不强制表单已发布，允许先绑定草稿
+        validatePublishedForm(template.getFormId());
+        validateFormBindConfig(template.getFormBindConfig());
 
         existing.setTemplateName(template.getTemplateName().trim());
         existing.setBizTypeId(template.getBizTypeId());

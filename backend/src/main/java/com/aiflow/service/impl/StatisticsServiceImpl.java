@@ -213,25 +213,39 @@ public class StatisticsServiceImpl implements StatisticsService {
                 ((Number) r[3]).longValue()
         )).collect(Collectors.toList());
 
-        Map<Long, String> bizTypeMap = new LinkedHashMap<>();
-        Map<Long, Map<String, Long>> bizPeriodCount = new LinkedHashMap<>();
+        // 3. 按 bizTypeId 分组，填充与 labels 等长的 values 数组
+        Map<Long, String> bizTypeMap = new LinkedHashMap<>(); // id -> name
+        Map<Long, Map<String, Long>> bizPeriodCount = new LinkedHashMap<>(); // bizTypeId -> (period -> count)
+
         for (TrendRow row : trendRows) {
             bizTypeMap.putIfAbsent(row.bizTypeId, row.typeName);
-            bizPeriodCount.computeIfAbsent(row.bizTypeId, k -> new LinkedHashMap<>()).put(row.period, row.cnt);
+            bizPeriodCount
+                    .computeIfAbsent(row.bizTypeId, k -> new LinkedHashMap<>())
+                    .put(row.period, row.cnt);
         }
 
         List<StatisticsTrendDTO.TrendSeries> series = new ArrayList<>();
         for (Map.Entry<Long, String> entry : bizTypeMap.entrySet()) {
-            Map<String, Long> periodMap = bizPeriodCount.getOrDefault(entry.getKey(), Map.of());
+            Long bizTypeId = entry.getKey();
+            String bizTypeName = entry.getValue();
+            Map<String, Long> periodMap = bizPeriodCount.getOrDefault(bizTypeId, Map.of());
+
             List<Long> values = new ArrayList<>();
             for (String label : labels) {
                 values.add(periodMap.getOrDefault(label, 0L));
             }
+
             series.add(StatisticsTrendDTO.TrendSeries.builder()
-                    .bizTypeId(entry.getKey()).bizTypeName(entry.getValue()).values(values).build());
+                    .bizTypeId(bizTypeId)
+                    .bizTypeName(bizTypeName)
+                    .values(values)
+                    .build());
         }
 
-        return StatisticsTrendDTO.builder().labels(labels).series(series).build();
+        return StatisticsTrendDTO.builder()
+                .labels(labels)
+                .series(series)
+                .build();
     }
 
     // --- helper ---
