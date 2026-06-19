@@ -26,7 +26,6 @@ public class AiController {
     private final AiProcessService aiProcessService;
     private final AiFormService aiFormService;
     private final AiOptimizationService aiOptimizationService;
-    private final AiFormService aiFormService;
 
     @PostMapping("/generate-process")
     public ApiResponse<AiGenerateProcessResponse> generateProcess(
