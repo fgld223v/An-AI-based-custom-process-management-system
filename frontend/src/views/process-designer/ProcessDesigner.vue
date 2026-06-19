@@ -123,7 +123,7 @@
                 show-icon
                 style="margin-bottom:8px"
               />
-              <el-button type="primary" size="small" plain @click="openBoundFormDesigner">查看此节点绑定的表单</el-button>
+              <el-button type="primary" size="small" plain @click="router.push('/form-designer?id=' + selectedConfig.formId)">查看此节点绑定的表单</el-button>
             </div>
           </el-form-item>
           <el-form-item label="表单填写模式">
@@ -864,13 +864,20 @@ onMounted(async () => {
       const bindInfo = JSON.parse(pendingBindResult)
       window.sessionStorage.removeItem('pendingBindResult')
       window.sessionStorage.removeItem('pendingBind')
-      let boundElement: BpmnElement | null = null
+      if (!nodeConfigMap[bindInfo.nodeKey]) {
+        nodeConfigMap[bindInfo.nodeKey] = { nodeId: bindInfo.nodeKey, nodeName: bindInfo.nodeName || '' } as any
+      }
+      nodeConfigMap[bindInfo.nodeKey].formBindingMode = 'node_form'
+      nodeConfigMap[bindInfo.nodeKey].formId = bindInfo.formId
+      nodeConfigMap[bindInfo.nodeKey].useTemplateFallback = true
+      syncNodeConfig()
+      await saveTemplateSilently()
       // 在画布上自动选中该节点，右侧属性面板立刻显示绑定结果
       try {
         const registry = modeler.value.get('elementRegistry')
         const el = registry.get(bindInfo.nodeKey)
         if (el) {
-          boundElement = el as BpmnElement
+          const boundElement = el as BpmnElement
           modeler.value.get('selection').select(el)
           selectedElement.value = boundElement
           const config = ensureNodeConfig(boundElement, bindInfo.nodeName)

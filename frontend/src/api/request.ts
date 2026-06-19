@@ -13,14 +13,14 @@ type DataRequest = Omit<AxiosInstance, 'get' | 'post' | 'put' | 'delete'> & {
 
 const NETWORK_ERROR_MESSAGE = '请求失败，请检查后端服务是否启动'
 const UNAUTHORIZED_MESSAGE = '登录已失效，请重新登录'
-const FORBIDDEN_MESSAGE = '当前账号没有操作权限，请重新登录或联系管理员'
+const FORBIDDEN_MESSAGE = '当前账号没有操作权限，请联系管理员'
 const ERROR_TOAST_INTERVAL = 2500
 let lastErrorMessage = ''
 let lastErrorTime = 0
 
 const request = axios.create({
   baseURL: '',
-  timeout: 60000  // AI 流程生成调用 DeepSeek API 可能耗时 15-30 秒
+  timeout: 60000
 }) as unknown as DataRequest
 
 request.interceptors.request.use((config) => {
@@ -48,12 +48,10 @@ request.interceptors.response.use(
     const status = error.response?.status
     const responseMessage = error.response?.data?.message
     const requestUrl = error.config?.url || ''
-
-    // 登录和注册接口不触发 401 跳转，直接返回服务端错误信息
-    const isAuthEndpoint = requestUrl.includes('/api/auth/login') || requestUrl.includes('/api/auth/register')
+    const isLoginEndpoint = requestUrl.includes('/api/auth/login')
 
     if (status === 401) {
-      if (isAuthEndpoint) {
+      if (isLoginEndpoint) {
         const message = responseMessage || '用户名或密码错误'
         return Promise.reject(new Error(message))
       }
