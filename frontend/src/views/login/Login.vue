@@ -33,6 +33,9 @@
         </el-button>
       </el-form>
 
+      <div class="login-footer">
+        <span class="footer-link" @click="router.push('/register')">还没有账号？立即注册</span>
+      </div>
     </section>
   </div>
 </template>

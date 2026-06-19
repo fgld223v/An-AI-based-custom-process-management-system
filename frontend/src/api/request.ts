@@ -50,7 +50,7 @@ request.interceptors.response.use(
     const requestUrl = error.config?.url || ''
 
     // 登录和注册接口不触发 401 跳转，直接返回服务端错误信息
-    const isAuthEndpoint = requestUrl.includes('/api/auth/login')
+    const isAuthEndpoint = requestUrl.includes('/api/auth/login') || requestUrl.includes('/api/auth/register')
 
     if (status === 401) {
       if (isAuthEndpoint) {

@@ -10,6 +10,7 @@ export function getStatisticsTrend(params: {
   start: string
   end: string
   granularity?: string
+  mode?: string
 }) {
   return request.get('/api/statistics/trend', { params })
 }

@@ -184,7 +184,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, defineComponent, h, onMounted, reactive, ref, resolveComponent } from 'vue'
+import { computed, defineComponent, h, onMounted, reactive, ref, resolveComponent, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
@@ -282,6 +282,13 @@ const formSchemaObject = computed(() => ({
 const formattedSchema = computed(() => JSON.stringify(formSchemaObject.value, null, 2))
 const route = useRoute()
 
+watch(
+  () => route.query.id,
+  async (formId) => {
+    await loadRouteForm(formId)
+  }
+)
+
 onMounted(async () => {
   await Promise.all([loadForms(), loadBizTypes()])
   // 从 AI 表单生成页跳转过来时，自动加载指定表单
@@ -349,6 +356,23 @@ function loadForm(item: FormDefinition) {
   formJson.fields.splice(0, formJson.fields.length, ...fields)
   selectedFieldId.value = formJson.fields[0]?.fieldId || ''
   previewData.value = {}
+}
+
+async function loadRouteForm(routeFormId: unknown) {
+  const formId = normalizeRouteFormId(routeFormId)
+  if (!formId || currentFormId.value === formId) return
+  try {
+    const detail = await getFormDetail(formId)
+    if (detail) loadForm(detail)
+  } catch {
+    // Ignore invalid route ids so the designer stays usable.
+  }
+}
+
+function normalizeRouteFormId(routeFormId: unknown) {
+  if (typeof routeFormId !== 'string') return null
+  const formId = Number(routeFormId)
+  return Number.isFinite(formId) && formId > 0 ? formId : null
 }
 
 async function saveDraft() {

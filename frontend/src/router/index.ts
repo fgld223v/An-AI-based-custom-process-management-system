@@ -2,6 +2,10 @@ import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import type { SystemRole } from '@/types/auth'
 
+// 角色-路由可见性：
+//   super_admin → 全部
+//   biz_admin   → 流程/表单/模板/实例/任务（不含系统管理）
+//   normal_user → 流程发起/我的待办/已办/通知
 type RouteMeta = {
   public?: boolean
   title?: string
@@ -18,6 +22,12 @@ const routes: RouteRecordRaw[] = [
     name: 'Login',
     component: () => import('@/views/login/Login.vue'),
     meta: { public: true, title: '登录' }
+  },
+  {
+    path: '/register',
+    name: 'Register',
+    component: () => import('@/views/login/Register.vue'),
+    meta: { public: true, title: '注册' }
   },
   {
     path: '/403',
@@ -39,6 +49,7 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/workbench/Workbench.vue'),
         meta: { title: '工作台', group: '概览', roles: ADMIN_ROLES }
       },
+      // ---- 流程设计（super_admin / biz_admin）----
       {
         path: 'form-designer',
         name: 'FormDesigner',
@@ -147,6 +158,13 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/settings/AutomationSettings.vue'),
         meta: { title: '自动化策略', group: '系统', roles: ADMIN_ROLES }
       },
+      {
+        path: 'settings/automation',
+        name: 'AutomationSettings',
+        component: () => import('@/views/settings/AutomationSettings.vue'),
+        meta: { title: '自动化策略', group: '系统', roles: ['super_admin', 'biz_admin'] }
+      },
+      // ---- 占位页面 ----
       {
         path: 'placeholder/:feature',
         name: 'Placeholder',

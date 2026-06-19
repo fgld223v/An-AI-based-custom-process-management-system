@@ -42,9 +42,11 @@ public class SecurityConfig {
                         // 1. 公开端点 — 无需认证
                         // ============================================================
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/register").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/health").permitAll()
                         .requestMatchers("/error").permitAll()
+                        .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
+                        .requestMatchers("/ws/notifications").permitAll()
 
                         // ============================================================
                         // 2. 超管专属 — 用户管理、部门管理
