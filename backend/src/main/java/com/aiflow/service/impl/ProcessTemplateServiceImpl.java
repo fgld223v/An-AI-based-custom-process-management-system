@@ -12,7 +12,6 @@ import com.aiflow.repository.ProcessTemplateRepository;
 import com.aiflow.service.FlowableDeploymentService;
 import com.aiflow.service.ProcessTemplateService;
 import com.aiflow.common.BusinessException;
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -37,6 +36,7 @@ public class ProcessTemplateServiceImpl implements ProcessTemplateService {
     private final FormDefinitionRepository formDefinitionRepository;
     private final FlowableDeploymentService flowableDeploymentService;
     private final ObjectMapper objectMapper;
+    private final FormBindConfigParser formBindConfigParser;
 
     @Override
     public ProcessTemplate createTemplate(ProcessTemplate template) {
@@ -239,10 +239,18 @@ public class ProcessTemplateServiceImpl implements ProcessTemplateService {
      */
     private void validateFormBindConfig(String formBindConfigJson) {
         if (formBindConfigJson == null || formBindConfigJson.isBlank()) return;
-        try {
-            Map<String, Map<String, Object>> map = objectMapper.readValue(
-                formBindConfigJson, new TypeReference<Map<String, Map<String, Object>>>() {});
-            for (Map.Entry<String, Map<String, Object>> entry : map.entrySet()) {
+
+        // 1. 格式校验（由工具类统一处理，不暴露原始 JSON）
+        String validationError = formBindConfigParser.validate(formBindConfigJson);
+        if (validationError != null) {
+            throw new IllegalStateException(validationError);
+        }
+
+        // 2. 检查绑定的表单是否存在且已发布
+        // 先尝试标准格式 {{nodeKey: {formId: N}, ...}
+        Map<String, Map<String, Object>> standardMap = formBindConfigParser.tryParseAsNestedMap(formBindConfigJson);
+        if (standardMap != null) {
+            for (Map.Entry<String, Map<String, Object>> entry : standardMap.entrySet()) {
                 Object formIdObj = entry.getValue().get("formId");
                 if (formIdObj != null) {
                     Long formId = formIdObj instanceof Integer
@@ -255,10 +263,16 @@ public class ProcessTemplateServiceImpl implements ProcessTemplateService {
                     }
                 }
             }
-        } catch (BusinessException | IllegalStateException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new IllegalStateException("formBindConfig format error: " + e.getMessage());
+            return;
+        }
+
+        // 再尝试扁平格式 {formId: N}（历史遗留兼容，不抛异常阻塞保存）
+        Map<String, Object> flatMap = formBindConfigParser.tryParseAsFlatMap(formBindConfigJson);
+        if (flatMap != null) {
+            Object formIdObj = flatMap.get("formId");
+            if (formIdObj instanceof Number) {
+                getPublishedForm(((Number) formIdObj).longValue());
+            }
         }
     }
 

@@ -19,7 +19,6 @@ import com.aiflow.service.ApproverResolverService;
 import com.aiflow.service.FlowableRuntimeService;
 import com.aiflow.service.ProcessInstanceService;
 import com.aiflow.service.RuleEvaluatorService;
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,7 +34,6 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 @Slf4j
 @Service
@@ -57,6 +55,7 @@ public class ProcessInstanceServiceImpl implements ProcessInstanceService {
     private final SysUserMapper sysUserMapper;
     private final TaskService taskService;
     private final ObjectMapper objectMapper;
+    private final FormBindConfigParser formBindConfigParser;
     private final EntityManager entityManager;
     private final NodeConfigParser nodeConfigParser;
 
@@ -272,31 +271,8 @@ public class ProcessInstanceServiceImpl implements ProcessInstanceService {
                 .build();
     }
 
-    /**
-     * 从 formBindConfig 中根据 taskDefinitionKey 解析 formId。
-     * formBindConfig 格式：{"StartEvent_1":{"formId":1},"UserTask_ManagerApprove":{"formId":2}}
-     */
     private Long resolveFormId(String formBindConfigJson, String taskDefinitionKey) {
-        if (!hasText(formBindConfigJson)) {
-            return null;
-        }
-        try {
-            Map<String, Map<String, Object>> bindConfig = objectMapper.readValue(
-                    formBindConfigJson,
-                    new TypeReference<Map<String, Map<String, Object>>>() {}
-            );
-            Map<String, Object> nodeBinding = bindConfig.get(taskDefinitionKey);
-            if (nodeBinding != null && nodeBinding.get("formId") != null) {
-                Object formIdObj = nodeBinding.get("formId");
-                if (formIdObj instanceof Number) {
-                    return ((Number) formIdObj).longValue();
-                }
-            }
-            return null;
-        } catch (Exception ex) {
-            throw new IllegalStateException(
-                    "解析 formBindConfig 失败，taskDefinitionKey: " + taskDefinitionKey, ex);
-        }
+        return formBindConfigParser.resolveFormId(formBindConfigJson, taskDefinitionKey);
     }
 
     private FormSubmission saveSubmission(ProcessInstance instance,
