@@ -1,0 +1,17 @@
+# 本地配置模板 - 复制此文件为 application-local.yml 并填写真实值
+# cp application-local.yml.example application-local.yml
+
+spring:
+  datasource:
+    username: root
+    password: 你的数据库密码
+
+ai:
+  deepseek:
+    api-key: 你的DeepSeek-API-Key
+    base-url: https://api.deepseek.com/v1
+    model: deepseek-chat
+    timeout-seconds: 60
+
+jwt:
+  secret: 生成一个长随机字符串至少32字节

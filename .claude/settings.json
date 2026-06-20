@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(git check-ignore -v local-docs/������������.md 2>&1)",
+      "PowerShell(git checkout -- backend/src/main/java/com/aiflow/common/GlobalExceptionHandler.java)",
+      "PowerShell(& \"C:\\\\Program Files\\\\MySQL\\\\MySQL Server 8.0\\\\bin\\\\mysql.exe\" -u root -p20041004 -e \"SELECT 1 AS test\" 2>&1)",
+      "PowerShell(netstat -ano)",
+      "Bash(mvn spring-boot:run -Dspring-boot.run.profiles=local)",
+      "Bash(echo \"PID: $!\")",
+      "Bash(mvn compile *)"
+    ]
+  }
+}

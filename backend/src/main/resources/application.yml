@@ -11,8 +11,8 @@ spring:
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: jdbc:mysql://localhost:3306/ai_workflow_mvp?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
-    username: root
-    password: fgld@223v
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:your-database-password}
   sql:
     init:
       mode: always
@@ -37,7 +37,7 @@ mybatis-plus:
       logic-not-delete-value: 0
 
 jwt:
-  secret: change-this-secret-to-a-long-random-string-at-least-32-bytes
+  secret: ${JWT_SECRET:change-this-secret-to-a-long-random-string-at-least-32-bytes}
   expiration-minutes: 1440
 
 flowable:
