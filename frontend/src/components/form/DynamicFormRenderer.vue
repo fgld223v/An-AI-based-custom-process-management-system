@@ -84,9 +84,46 @@
           style="width: 100%"
           @update:model-value="updateValue(field.field, $event)"
         />
-        <div v-else-if="field.type === 'upload'" class="upload-placeholder">
-          <el-button plain disabled>上传占位</el-button>
-          <span>{{ field.placeholder || '当前阶段暂不上传附件' }}</span>
+        <div v-else-if="field.type === 'upload'" class="upload-field">
+          <el-upload
+            :model-value="uploadFileList(field.field)"
+            :disabled="disabled || readonly"
+            :auto-upload="false"
+            :multiple="field.multiple ?? false"
+            :accept="field.accept ?? undefined"
+            :limit="field.maxCount ?? undefined"
+            drag
+            action="#"
+            @change="(_file: any, files: any) => handleUploadChange(field.field, files)"
+            @remove="(_file: any, files: any) => handleUploadChange(field.field, files)"
+          >
+            <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
+            v-model:file-list="uploadFileLists[field.field]"
+            :action="uploadAction"
+            :headers="uploadHeaders"
+            :multiple="field.multiple ?? true"
+            :limit="field.limit ?? 5"
+            :disabled="disabled"
+            :on-success="(res: any) => onUploadSuccess(field.field, res)"
+            :on-error="onUploadError"
+            :on-exceed="onUploadExceed"
+            :before-upload="beforeUpload"
+            :auto-upload="true"
+            drag
+          >
+            <el-icon class="el-icon--upload"><component :is="resolveUploadIcon()" /></el-icon>
+            <div class="el-upload__text">
+              拖拽文件到此处或 <em>点击上传</em>
+            </div>
+            <template #tip>
+              <div class="el-upload__tip" v-if="field.placeholder">
+                {{ field.placeholder }}
+              </div>
+              <div class="el-upload__tip" v-else-if="field.maxCount">
+                最多上传 {{ field.maxCount }} 个文件
+              </div>
+            </template>
+          </el-upload>
         </div>
         <el-input
           v-else
@@ -103,7 +140,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, watch } from 'vue'
+import { computed, reactive, watch, resolveComponent } from 'vue'
+import { ElMessage } from 'element-plus'
+import { UploadFilled } from '@element-plus/icons-vue'
+import type { UploadFile, UploadFiles } from 'element-plus'
+import { useAuthStore } from '@/stores/auth'
+import type { FileUploadResult } from '@/api/file'
 
 type FieldType = 'input' | 'textarea' | 'number' | 'select' | 'radio' | 'checkbox' | 'date' | 'datetime' | 'upload'
 
@@ -119,6 +161,10 @@ interface DynamicField {
   required: boolean
   placeholder: string
   options: FieldOption[]
+  // upload-specific
+  multiple?: boolean
+  accept?: string
+  maxCount?: number
 }
 
 const props = withDefaults(defineProps<{
@@ -147,6 +193,71 @@ const errors = reactive<Record<string, string>>({})
 const parseError = computed(() => parsedConfig.value.error)
 const fields = computed(() => parsedConfig.value.fields)
 
+// ---- 文件上传相关 ----
+const uploadFileLists = reactive<Record<string, UploadFile[]>>({})
+const uploadAction = '/api/files/upload'
+const uploadHeaders = computed(() => {
+  const authStore = useAuthStore()
+  const headers: Record<string, string> = {}
+  if (authStore.token) {
+    headers.Authorization = `Bearer ${authStore.token}`
+  }
+  return headers
+})
+
+function resolveUploadIcon() {
+  return UploadFilled
+}
+
+function onUploadSuccess(field: string, response: any) {
+  // 后端返回 { code: 200, data: { fileName, originalName, url, size } }
+  const result = response?.data || response
+  if (!result) return
+
+  // 将已上传文件信息存入 innerData
+  const existing = innerData[field]
+  const files: FileUploadResult[] = Array.isArray(existing) ? [...existing] : []
+  files.push({
+    fileName: result.fileName,
+    originalName: result.originalName,
+    url: result.url,
+    size: result.size
+  })
+  innerData[field] = files
+  const data = { ...innerData }
+  emit('update:modelValue', data)
+  emit('change', data)
+}
+
+function onUploadError(error: Error) {
+  ElMessage.error('文件上传失败：' + (error.message || '未知错误'))
+}
+
+function onUploadExceed() {
+  ElMessage.warning('已达到最大上传数量限制')
+}
+
+function beforeUpload(file: File) {
+  const maxSize = 20 * 1024 * 1024 // 20MB
+  if (file.size > maxSize) {
+    ElMessage.error(`文件"${file.name}"超过 20MB 限制`)
+    return false
+  }
+  return true
+}
+
+// 移除已上传文件
+function removeUploadedFile(field: string, fileName: string) {
+  const existing = innerData[field]
+  if (Array.isArray(existing)) {
+    const files = existing.filter((f: FileUploadResult) => f.fileName !== fileName)
+    innerData[field] = files
+    const data = { ...innerData }
+    emit('update:modelValue', data)
+    emit('change', data)
+  }
+}
+
 const parsedConfig = computed(() => {
   const schemaFields = readFields(props.formSchema)
   if (schemaFields.error) return schemaFields
@@ -170,6 +281,9 @@ watch(fields, (value) => {
   value.forEach((field) => {
     if (!(field.field in innerData)) {
       innerData[field.field] = field.type === 'checkbox' ? [] : ''
+    }
+    if (field.type === 'upload' && !(field.field in uploadFileLists)) {
+      uploadFileLists[field.field] = []
     }
   })
 }, { immediate: true })
@@ -212,7 +326,10 @@ function normalizeField(raw: unknown): DynamicField | null {
     type: normalizeType(String(value.type || 'input')),
     required: Boolean(value.required),
     placeholder: String(value.placeholder || ''),
-    options: normalizeOptions(value.options)
+    options: normalizeOptions(value.options),
+    multiple: Boolean(value.multiple ?? false),
+    accept: value.accept ? String(value.accept) : undefined,
+    maxCount: value.maxCount ? Number(value.maxCount) : undefined
   }
 }
 
@@ -236,6 +353,38 @@ function normalizeOptions(options: unknown): FieldOption[] {
     }
     return { label: String(option), value: String(option) }
   })
+}
+
+// ================================================================
+// Upload helpers — files stored as JSON array in form data
+// ================================================================
+
+interface FileMeta {
+  name: string
+  size: number
+  type: string
+  lastModified: number
+}
+
+function uploadFileList(field: string) {
+  const raw = innerData[field]
+  if (!raw || typeof raw !== 'string') return []
+  try {
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+function handleUploadChange(field: string, files: any[]) {
+  const fileInfos: FileMeta[] = files.map((f: any) => ({
+    name: f.name,
+    size: f.size,
+    type: f.raw?.type || f.type || '',
+    lastModified: f.raw?.lastModified || Date.now()
+  }))
+  updateValue(field, JSON.stringify(fileInfos))
 }
 
 function updateValue(field: string, value: unknown) {
@@ -267,6 +416,10 @@ function isEmpty(value: unknown) {
 
 function displayValue(field: DynamicField) {
   const value = innerData[field.field]
+  if (field.type === 'upload' && Array.isArray(value)) {
+    const fileNames = value.map((f: any) => f?.originalName || f?.fileName || '').filter(Boolean)
+    return fileNames.length > 0 ? fileNames.join('、') : '暂无附件'
+  }
   if (Array.isArray(value)) return value.join('、') || '-'
   return isEmpty(value) ? '-' : String(value)
 }
@@ -302,14 +455,6 @@ defineExpose({ validate })
   line-height: 1.4;
 }
 
-.readonly-value,
-.upload-placeholder {
-  min-height: 32px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
 .readonly-value {
   padding: 0 12px;
   border: 1px solid var(--el-border-color);
@@ -317,9 +462,17 @@ defineExpose({ validate })
   background: var(--el-fill-color-lighter);
 }
 
-.upload-placeholder span {
-  color: var(--el-text-color-secondary);
-  font-size: 13px;
+.upload-field {
+  width: 100%;
+}
+
+.upload-field :deep(.el-upload) {
+  width: 100%;
+}
+
+.upload-field :deep(.el-upload-dragger) {
+  width: 100%;
+  padding: 20px;
 }
 
 @media (max-width: 760px) {

@@ -12,9 +12,9 @@ import com.aiflow.repository.ProcessTemplateRepository;
 import com.aiflow.service.FlowableDeploymentService;
 import com.aiflow.service.ProcessTemplateService;
 import com.aiflow.common.BusinessException;
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -35,6 +36,7 @@ public class ProcessTemplateServiceImpl implements ProcessTemplateService {
     private final FormDefinitionRepository formDefinitionRepository;
     private final FlowableDeploymentService flowableDeploymentService;
     private final ObjectMapper objectMapper;
+    private final FormBindConfigParser formBindConfigParser;
 
     @Override
     public ProcessTemplate createTemplate(ProcessTemplate template) {
@@ -223,30 +225,61 @@ public class ProcessTemplateServiceImpl implements ProcessTemplateService {
                 .orElseThrow(() -> new IllegalArgumentException("template not found"));
     }
 
+    /**
+     * 校验顶层绑定的表单是否已发布。
+     * 仅记录警告，不抛出异常 —— 草稿阶段的模板允许绑定未发布的表单。
+     * 发布模板时（publishTemplate）仍会严格校验。
+     */
     private void validatePublishedForm(Long formId) {
         if (formId != null) {
-            getPublishedForm(formId);
+            try {
+                getPublishedForm(formId);
+            } catch (IllegalStateException e) {
+                log.warn("模板顶层绑定的表单尚未发布 (formId={})，草稿阶段容忍此状态", formId);
+            }
         }
     }
 
+    /**
+     * 校验节点级别的表单绑定配置。
+     * 草稿阶段仅记录警告，不阻塞保存；发布时 publishTemplate 会再次严格校验。
+     */
     private void validateFormBindConfig(String formBindConfigJson) {
         if (formBindConfigJson == null || formBindConfigJson.isBlank()) return;
-        try {
-            Map<String, Map<String, Object>> map = objectMapper.readValue(
-                formBindConfigJson, new TypeReference<Map<String, Map<String, Object>>>() {});
-            for (Map.Entry<String, Map<String, Object>> entry : map.entrySet()) {
+
+        // 1. 格式校验（由工具类统一处理，不暴露原始 JSON）
+        String validationError = formBindConfigParser.validate(formBindConfigJson);
+        if (validationError != null) {
+            throw new IllegalStateException(validationError);
+        }
+
+        // 2. 检查绑定的表单是否存在且已发布
+        // 先尝试标准格式 {{nodeKey: {formId: N}, ...}
+        Map<String, Map<String, Object>> standardMap = formBindConfigParser.tryParseAsNestedMap(formBindConfigJson);
+        if (standardMap != null) {
+            for (Map.Entry<String, Map<String, Object>> entry : standardMap.entrySet()) {
                 Object formIdObj = entry.getValue().get("formId");
                 if (formIdObj != null) {
                     Long formId = formIdObj instanceof Integer
                         ? ((Integer) formIdObj).longValue()
                         : (Long) formIdObj;
-                    getPublishedForm(formId);
+                    try {
+                        getPublishedForm(formId);
+                    } catch (IllegalStateException e) {
+                        log.warn("节点 [{}] 绑定的表单尚未发布 (formId={})，草稿阶段容忍此状态", entry.getKey(), formId);
+                    }
                 }
             }
-        } catch (BusinessException | IllegalStateException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new IllegalStateException("formBindConfig format error: " + e.getMessage());
+            return;
+        }
+
+        // 再尝试扁平格式 {formId: N}（历史遗留兼容，不抛异常阻塞保存）
+        Map<String, Object> flatMap = formBindConfigParser.tryParseAsFlatMap(formBindConfigJson);
+        if (flatMap != null) {
+            Object formIdObj = flatMap.get("formId");
+            if (formIdObj instanceof Number) {
+                getPublishedForm(((Number) formIdObj).longValue());
+            }
         }
     }
 

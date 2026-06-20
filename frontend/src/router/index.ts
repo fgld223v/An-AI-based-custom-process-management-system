@@ -21,6 +21,12 @@ const routes: RouteRecordRaw[] = [
     meta: { public: true, title: '登录' }
   },
   {
+    path: '/register',
+    name: 'Register',
+    component: () => import('@/views/login/Register.vue'),
+    meta: { public: true, title: '注册' }
+  },
+  {
     path: '/403',
     name: 'Forbidden',
     component: () => import('@/views/error/Forbidden.vue'),
@@ -192,30 +198,23 @@ router.beforeEach(async (to) => {
   const authStore = useAuthStore()
   const meta = to.meta as RouteMeta
 
-  if (to.path === '/login' && authStore.isLoggedIn) {
-    if (!authStore.user) {
-      try {
-        await authStore.fetchMe()
-      } catch {
-        authStore.logout()
-        return true
-      }
+  // 确保 user 数据完整（localStorage 旧数据可能缺 systemRole）
+  if (authStore.isLoggedIn && (!authStore.user || !authStore.user.systemRole)) {
+    try {
+      await authStore.fetchMe()
+    } catch {
+      authStore.logout()
+      return to.path === '/login' ? true : '/login'
     }
+  }
+
+  if (to.path === '/login' && authStore.isLoggedIn) {
     return authStore.user?.systemRole === 'normal_user' ? '/process/start-preview' : '/workbench'
   }
 
   if (meta.public) return true
 
   if (!authStore.isLoggedIn) return '/login'
-
-  if (!authStore.user) {
-    try {
-      await authStore.fetchMe()
-    } catch {
-      authStore.logout()
-      return '/login'
-    }
-  }
 
   if (!hasRouteAccess(authStore.user?.systemRole, meta.roles)) {
     return '/403'

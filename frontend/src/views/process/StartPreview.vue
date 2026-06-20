@@ -254,7 +254,7 @@ interface ResolvedNodeForm {
   sourceText: string
 }
 
-const FORM_PREVIEW_TYPES = ['start', 'form_fill', 'approval', 'generic_task']
+const FORM_PREVIEW_TYPES = ['start', 'form_fill']
 const route = useRoute()
 
 const loading = ref(false)
@@ -366,6 +366,15 @@ async function handleTemplateChange(id?: number) {
     templateDetail.value = detail
     instanceTitle.value = `${detail.templateName}-${formatDate(new Date())}`
     previewNodes.value = parsePreviewNodes(detail.nodeConfig)
+    // 如果模板有默认表单，将 formBindingMode=none 的节点升级为 template_default
+    if (detail.formId) {
+      previewNodes.value = previewNodes.value.map(node => {
+        if (node.formBindingMode === 'none') {
+          return { ...node, formBindingMode: 'template_default' as FormBindingMode, formId: detail.formId ?? node.formId }
+        }
+        return node
+      })
+    }
     if (previewNodes.value.length === 0) {
       message.value = detail.nodeConfig ? '当前流程暂无可预览表单节点。' : '当前流程模板暂无节点配置。'
     }
@@ -438,12 +447,19 @@ async function saveDraftInstance() {
     ElMessage.warning('请先选择流程模板。')
     return
   }
+  // 如果没有选中节点但有模板默认表单，使用 start 节点兜底
   if (!selectedNode.value) {
-    ElMessage.warning('请先选择流程节点。')
-    return
+    const firstNode = previewNodes.value[0]
+    if (firstNode && resolvedSource.value.formId) {
+      selectedNode.value = firstNode
+      selectedNodeId.value = firstNode.nodeId
+    } else {
+      ElMessage.warning('请先选择预览节点。（若无可选节点，请确认模板已发布且包含 start 或 form_fill 节点）')
+      return
+    }
   }
-  if (!resolvedSource.value.formId) {
-    ElMessage.warning('当前节点无表单，无法保存表单数据。')
+  if (!resolvedSource.value.formId && !templateDetail.value.formId) {
+    ElMessage.warning('当前节点无表单且模板无默认表单，无法保存。请先在流程设计器中绑定表单。')
     return
   }
   if (!validateBeforeSave()) return
@@ -460,6 +476,9 @@ async function saveDraftInstance() {
       status: 'draft' as const
     }
 
+    // 确保 formId 不为 null（类型守卫已在函数开头检查）
+    const formId: number = payloadBase.formId ?? templateDetail.value.formId ?? 0
+
     if (!currentInstance.value) {
       currentInstance.value = await createProcessInstanceDraft({
         templateId: payloadBase.templateId,
@@ -467,14 +486,20 @@ async function saveDraftInstance() {
         startNodeKey: payloadBase.nodeKey,
         startNodeName: payloadBase.nodeName,
         businessType: payloadBase.businessType,
-        formId: payloadBase.formId,
+        formId,
         formDataJson: payloadBase.formDataJson,
         status: 'draft'
       })
     } else {
       await saveNodeForm({
         processInstanceId: currentInstance.value.id,
-        ...payloadBase
+        templateId: payloadBase.templateId,
+        nodeKey: payloadBase.nodeKey,
+        nodeName: payloadBase.nodeName,
+        businessType: payloadBase.businessType,
+        formId,
+        formDataJson: payloadBase.formDataJson,
+        status: 'draft' as const
       })
     }
 
@@ -542,10 +567,22 @@ function parsePreviewNodes(nodeConfig?: string): PreviewNodeConfig[] {
   if (!nodeConfig) return []
   try {
     const parsed = JSON.parse(nodeConfig)
-    const source = parsed?.nodes && typeof parsed.nodes === 'object' ? parsed.nodes : parsed
-    if (!source || typeof source !== 'object' || Array.isArray(source)) return []
+    // 兼容两种格式：
+    //   Map 格式: { "NodeId": {...}, ... }
+    //   Array 格式: [{ "nodeKey": "...", ... }, ...]
+    let entries: Array<[string, unknown]> = []
 
-    return Object.entries(source)
+    if (Array.isArray(parsed)) {
+      // Array 格式：以 nodeKey/nodeId 作为 key
+      entries = parsed.map((item: any) => [item?.nodeKey || item?.nodeId || '', item])
+    } else if (parsed && typeof parsed === 'object') {
+      const source = parsed?.nodes && typeof parsed.nodes === 'object' ? parsed.nodes : parsed
+      if (source && typeof source === 'object' && !Array.isArray(source)) {
+        entries = Object.entries(source)
+      }
+    }
+
+    return entries
       .map(([nodeId, raw]) => normalizeNodeConfig(nodeId, raw))
       .filter((node): node is PreviewNodeConfig => Boolean(node && FORM_PREVIEW_TYPES.includes(node.businessType)))
   } catch {
@@ -579,6 +616,14 @@ function resolveNodeForm(template: ProcessTemplate, node: PreviewNodeConfig): Re
       formId: node.formId,
       source: 'node_form',
       sourceText: '节点绑定表单'
+    }
+  }
+  // template_default：使用模板默认表单（或节点已升级到 template_default 时用模板 formId）
+  if ((node.formBindingMode === 'template_default' || node.useTemplateFallback) && (node.formId || template.formId)) {
+    return {
+      formId: (node.formId || template.formId)!,
+      source: 'template_default',
+      sourceText: '模板默认表单'
     }
   }
 

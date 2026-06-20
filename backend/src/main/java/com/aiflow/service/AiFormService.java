@@ -29,17 +29,30 @@ public class AiFormService {
         输出必须是合法的 JSON 对象，不要包裹在 Markdown 代码块中：
 
         {
-          "fieldList": "[{\\"field\\":\\"applicant\\",\\"label\\":\\"申请人\\",\\"type\\":\\"text\\",\\"required\\":true},{\\"field\\":\\"leaveType\\",\\"label\\":\\"请假类型\\",\\"type\\":\\"select\\",\\"required\\":true,\\"options\\":[{\\"label\\":\\"事假\\",\\"value\\":\\"事假\\"},{\\"label\\":\\"病假\\",\\"value\\":\\"病假\\"}]},{\\"field\\":\\"startDate\\",\\"label\\":\\"开始日期\\",\\"type\\":\\"date\\",\\"required\\":true},{\\"field\\":\\"endDate\\",\\"label\\":\\"结束日期\\",\\"type\\":\\"date\\",\\"required\\":true},{\\"field\\":\\"days\\",\\"label\\":\\"请假天数\\",\\"type\\":\\"number\\",\\"required\\":true},{\\"field\\":\\"reason\\",\\"label\\":\\"请假原因\\",\\"type\\":\\"textarea\\",\\"required\\":true}]",
-          "formSchema": "{\\"layout\\":\\"vertical\\",\\"sections\\":[{\\"title\\":\\"基本信息\\",\\"fields\\":[\\"applicant\\",\\"leaveType\\",\\"startDate\\",\\"endDate\\",\\"days\\"]},{\\"title\\":\\"补充信息\\",\\"fields\\":[\\"reason\\"]}]}"
+          "fieldList": [
+            {"field":"applicant","label":"申请人","type":"text","required":true},
+            {"field":"leaveType","label":"请假类型","type":"select","required":true,"options":[{"label":"事假","value":"事假"},{"label":"病假","value":"病假"}]},
+            {"field":"startDate","label":"开始日期","type":"date","required":true},
+            {"field":"endDate","label":"结束日期","type":"date","required":true},
+            {"field":"days","label":"请假天数","type":"number","required":true},
+            {"field":"reason","label":"请假原因","type":"textarea","required":true}
+          ],
+          "formSchema": {
+            "layout":"vertical",
+            "sections":[
+              {"title":"基本信息","fields":["applicant","leaveType","startDate","endDate","days"]},
+              {"title":"补充信息","fields":["reason"]}
+            ]
+          }
         }
 
         规则：
-        1. fieldList 必须是 JSON 字符串数组，生成 5-10 个字段
+        1. fieldList 必须是 JSON 数组（不是字符串！），生成 5-10 个字段
         2. 审批节点必须额外包含：审批意见(label:"审批意见",type:"textarea",required:true)、审批结果(label:"审批结果",type:"select",options:[{"label":"同意","value":"agree"},{"label":"驳回","value":"reject"},{"label":"需修改","value":"modify"}],required:true)
         3. 每个字段必须包含：field（英文驼峰）、label（中文）、type、required
         4. type 取值：text、textarea、number、select、date、datetime、radio、checkbox、upload
         5. select/radio/checkbox 必须包含 options 数组，每个 option 含 label 和 value
-        6. formSchema 是 JSON 对象字符串，含 layout（"vertical"）和 sections 数组
+        6. formSchema 是 JSON 对象（不是字符串！），含 layout（"vertical"）和 sections 数组
         7. 别用 fieldName/fieldLabel/fieldType，用 field/label/type
         """;
 
@@ -106,21 +119,64 @@ public class AiFormService {
             json = json.replaceFirst("\\n?```\\s*$", "");
         }
 
-        // 5. 解析为响应对象
-        AiGenerateFormResponse result;
+        // 5. 解析为 Map（通用格式），兼容 AI 返回 string 或 array/object 两种格式
+        Map<String, Object> resultMap;
         try {
-            result = objectMapper.readValue(json, AiGenerateFormResponse.class);
+            resultMap = objectMapper.readValue(json,
+                    new TypeReference<Map<String, Object>>() {});
         } catch (Exception e) {
             log.error("解析 AI 生成的表单 JSON 失败：{}", json);
             throw new BusinessException("AI 生成的表单格式有误，请重试");
         }
 
-        // 6. 校验
-        if (result.getFieldList() == null || result.getFieldList().isBlank()) {
-            throw new BusinessException("AI 未生成有效的字段列表，请重试");
+        // 6. 提取 fieldList — 兼容两种格式：
+        //    新格式: "fieldList": [{...}, ...]  (JSON 数组)
+        //    旧格式: "fieldList": "[{...},...]"  (JSON 字符串)
+        Object fieldListObj = resultMap.get("fieldList");
+        String fieldListStr;
+        if (fieldListObj instanceof String s) {
+            fieldListStr = s;
+        } else if (fieldListObj instanceof List<?> list) {
+            try {
+                fieldListStr = objectMapper.writeValueAsString(list);
+            } catch (Exception e) {
+                throw new BusinessException("fieldList 序列化失败：" + e.getMessage());
+            }
+        } else {
+            throw new BusinessException("AI 未生成有效的字段列表（fieldList 格式异常），请重试");
         }
 
-        log.info("表单生成成功，fieldList 长度：{}", result.getFieldList().length());
+        // 7. 提取 formSchema — 同样兼容两种格式
+        Object formSchemaObj = resultMap.get("formSchema");
+        String formSchemaStr;
+        if (formSchemaObj instanceof String s) {
+            formSchemaStr = s;
+        } else if (formSchemaObj instanceof Map<?, ?> map) {
+            try {
+                formSchemaStr = objectMapper.writeValueAsString(map);
+            } catch (Exception e) {
+                formSchemaStr = "{\"layout\":\"vertical\",\"sections\":[]}";
+            }
+        } else {
+            // formSchema 为可选，兜底生成一个
+            formSchemaStr = "{\"layout\":\"vertical\",\"sections\":[]}";
+        }
+
+        // 8. 校验 fieldList 非空且为有效 JSON
+        if (fieldListStr.isBlank()) {
+            throw new BusinessException("AI 未生成有效的字段列表，请重试");
+        }
+        try {
+            objectMapper.readTree(fieldListStr); // 验证是合法 JSON
+        } catch (Exception e) {
+            log.error("fieldList 不是合法 JSON：{}", fieldListStr);
+            throw new BusinessException("AI 生成的字段列表格式异常，请重试");
+        }
+
+        AiGenerateFormResponse result = new AiGenerateFormResponse(fieldListStr, formSchemaStr);
+        log.info("表单生成成功，fieldList 长度：{}，字段数：{}",
+                fieldListStr.length(),
+                fieldListObj instanceof List<?> l ? l.size() : "?");
         return result;
     }
 }

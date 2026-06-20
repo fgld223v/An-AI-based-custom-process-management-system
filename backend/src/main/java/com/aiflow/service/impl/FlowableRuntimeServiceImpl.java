@@ -160,6 +160,11 @@ public class FlowableRuntimeServiceImpl implements FlowableRuntimeService {
         variables.put("allFormData", allFormData);
         variables.put("startFormData", startFormData == null ? Map.of() : startFormData);
 
+        // 设置流程发起人（initiator），使 form_fill 节点能自动分配给申请人
+        String applicantId = String.valueOf(instance.getApplicantId());
+        variables.put("initiator", applicantId);
+        variables.put("applicantId", applicantId);
+
         // 将 startFormData 中的字段提升为顶层流程变量，
         // 使 BPMN 排他网关条件表达式可直接引用（如 ${leaveDays > 3}）
         if (startFormData != null) {

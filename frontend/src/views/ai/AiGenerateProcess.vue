@@ -142,6 +142,7 @@ import { ref, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { MagicStick, Edit } from '@element-plus/icons-vue'
 import BpmnViewerPanel from '@/components/ai/BpmnViewerPanel.vue'
+import type { AiGenerateProcessResult } from '@/api/ai'
 import { createProcessTemplate } from '@/api/processTemplate'
 import { createMyProcess } from '@/api/myProcess'
 import { getBizTypes } from '@/api/bizType'
@@ -152,18 +153,6 @@ const STORAGE_KEY = 'ai-generate-process-state'
 const router = useRouter()
 const authStore = useAuthStore()
 
-interface NodeConfigItem {
-  nodeKey: string
-  nodeName: string
-  businessType: string
-}
-
-interface GenerateResult {
-  bpmnXml: string
-  nodeConfig: NodeConfigItem[]
-  summary: string
-}
-
 interface BizType {
   id: number
   typeName: string
@@ -172,7 +161,7 @@ interface BizType {
 
 const description = ref('')
 const generating = ref(false)
-const result = ref<GenerateResult | null>(null)
+const result = ref<AiGenerateProcessResult | null>(null)
 const errorMessage = ref('')
 const createDialogVisible = ref(false)
 const creating = ref(false)
@@ -238,10 +227,7 @@ async function handleGenerate() {
     const { generateProcess } = await import('@/api/ai')
     const data = await generateProcess(text)
     result.value = data
-    ElMessage.success('流程生成成功，正在打开流程编辑器...')
-    // 自动跳转到流程编辑器
-    sessionStorage.setItem('ai-generated-bpmn', data.bpmnXml)
-    setTimeout(() => router.push('/process-designer?from=ai'), 800)
+    ElMessage.success('流程生成成功')
   } catch (e: any) {
     const msg = e?.response?.data?.message || e?.message || '生成失败，请检查后端服务是否启动'
     errorMessage.value = msg

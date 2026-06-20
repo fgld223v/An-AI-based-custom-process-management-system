@@ -447,8 +447,8 @@ CREATE TABLE IF NOT EXISTS ai_model_metric (
 CREATE TABLE IF NOT EXISTS operation_log (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   operator_id BIGINT UNSIGNED NULL,
-  operation_type ENUM('login','logout','create','update','delete','approve','reject','publish','config_change') NOT NULL,
-  target_type ENUM('template','instance','user','role','config','form','fragment','market') NULL,
+  operation_type VARCHAR(64) NOT NULL COMMENT '操作类型: login/logout/create/update/delete/approve/reject/publish/config_change/ai_generate_process/ai_generate_form/ai_suggest_approval/ai_optimize/ai_optimize_all/ai_adopt_optimization',
+  target_type VARCHAR(64) NULL COMMENT '目标类型: template/instance/user/role/config/form/fragment/market',
   target_id BIGINT UNSIGNED NULL,
   operation_content TEXT NULL,
   request_ip VARCHAR(64) NULL,
@@ -460,6 +460,14 @@ CREATE TABLE IF NOT EXISTS operation_log (
   KEY idx_operation_log_target (target_type, target_id),
   KEY idx_operation_log_created_at (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Operation log';
+
+-- D9: 将 operation_type 从 ENUM 迁移为 VARCHAR(64)，避免新增操作类型时 ALTER ENUM 与已有数据冲突
+ALTER TABLE operation_log
+  MODIFY COLUMN operation_type VARCHAR(64) NOT NULL COMMENT '操作类型';
+
+-- target_type 同样从 ENUM 迁移为 VARCHAR，防止未来新增目标类型时出现同类问题
+ALTER TABLE operation_log
+  MODIFY COLUMN target_type VARCHAR(64) NULL COMMENT '目标类型';
 
 CREATE TABLE IF NOT EXISTS system_config (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -500,6 +508,52 @@ CREATE TABLE IF NOT EXISTS notification (
   KEY idx_notification_created_at (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Notification';
 
+CREATE TABLE IF NOT EXISTS ai_service_account (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  account_name VARCHAR(64) NOT NULL COMMENT '账号名称',
+  api_key VARCHAR(128) NOT NULL COMMENT 'API密钥',
+  status ENUM('active','disabled') NOT NULL DEFAULT 'active',
+  granted_endpoints JSON NULL COMMENT '授权端点列表',
+  rate_limit INT UNSIGNED DEFAULT 100 COMMENT '每分钟限次',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  deleted TINYINT NOT NULL DEFAULT 0,
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_ai_service_account_api_key (api_key)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI服务账号表';
+
+-- AI Chat Session (对话会话)
+CREATE TABLE IF NOT EXISTS ai_chat_session (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id BIGINT UNSIGNED NOT NULL,
+  title VARCHAR(128) NOT NULL DEFAULT '新对话',
+  model VARCHAR(64) NOT NULL DEFAULT 'deepseek-chat',
+  message_count INT UNSIGNED NOT NULL DEFAULT 0,
+  last_message_at DATETIME NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  deleted TINYINT NOT NULL DEFAULT 0,
+  PRIMARY KEY (id),
+  KEY idx_acs_user_id (user_id),
+  KEY idx_acs_updated_at (updated_at),
+  KEY idx_acs_deleted (deleted)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI Chat Session';
+
+-- AI Chat Message (对话消息)
+CREATE TABLE IF NOT EXISTS ai_chat_message (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  session_id BIGINT UNSIGNED NOT NULL,
+  role VARCHAR(16) NOT NULL COMMENT 'user / assistant / system',
+  content LONGTEXT NOT NULL,
+  token_count INT UNSIGNED NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  deleted TINYINT NOT NULL DEFAULT 0,
+  PRIMARY KEY (id),
+  KEY idx_acm_session_id (session_id),
+  KEY idx_acm_created_at (created_at),
+  KEY idx_acm_deleted (deleted)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI Chat Message';
+
 SET FOREIGN_KEY_CHECKS = 1;
 
 INSERT INTO biz_type_dict (parent_id, type_code, type_name, description, sort_order, enabled, deleted)
@@ -537,6 +591,10 @@ WHERE NOT EXISTS (SELECT 1 FROM biz_type_dict WHERE type_code = 'purchase');
 INSERT INTO biz_type_dict (parent_id, type_code, type_name, description, sort_order, enabled, deleted)
 SELECT (SELECT id FROM biz_type_dict WHERE type_code = 'management' LIMIT 1), 'contract_approval', '合同审批', '合同审批流程', 41, 1, 0
 WHERE NOT EXISTS (SELECT 1 FROM biz_type_dict WHERE type_code = 'contract_approval');
+
+INSERT INTO ai_service_account (account_name, api_key, status, granted_endpoints, rate_limit)
+SELECT 'default-ai-client', 'ak-default-dev-key-change-me', 'active', '["/api/ai/*"]', 100
+WHERE NOT EXISTS (SELECT 1 FROM ai_service_account WHERE api_key = 'ak-default-dev-key-change-me');
 
 -- Compatibility migration for databases that were initialized by the old sql/init.sql.
 SET @ddl = IF(

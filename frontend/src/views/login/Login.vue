@@ -32,6 +32,13 @@
           登录工作台
         </el-button>
       </el-form>
+
+      <div class="panel-footer">
+        <span class="footer-text">还没有账号？</span>
+        <el-button text type="success" size="default" @click="goRegister">
+          立即注册
+        </el-button>
+      </div>
     </section>
   </div>
 </template>
@@ -60,13 +67,17 @@ const rules: FormRules = {
 }
 
 const heroItems = [
-  { value: 'MVP', title: '第一阶段' },
+  { value: 'AI', title: '智能构建' },
   { value: 'BPMN', title: '流程建模' },
   { value: 'JSON', title: '表单配置' }
 ]
 
 async function submit() {
-  await formRef.value?.validate()
+  try {
+    await formRef.value?.validate()
+  } catch {
+    return
+  }
   loading.value = true
   try {
     authStore.logout()
@@ -79,6 +90,10 @@ async function submit() {
   } finally {
     loading.value = false
   }
+}
+
+function goRegister() {
+  router.push('/register')
 }
 </script>
 
@@ -193,6 +208,19 @@ async function submit() {
 .login-button {
   width: 100%;
   margin-top: 8px;
+}
+
+.panel-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 18px;
+  gap: 4px;
+}
+
+.footer-text {
+  color: var(--muted);
+  font-size: 13px;
 }
 
 @media (max-width: 860px) {

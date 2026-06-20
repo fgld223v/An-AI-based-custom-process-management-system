@@ -30,7 +30,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import type { AiApprovalSuggestion } from '@/api/ai'
 
 const props = defineProps<{

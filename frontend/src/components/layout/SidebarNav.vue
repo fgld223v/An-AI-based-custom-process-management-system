@@ -73,15 +73,14 @@ const router = useRouter()
 const authStore = useAuthStore()
 const todoCount = ref<number | null>(null)
 
+// 确保 systemRole 已加载（localStorage 旧数据可能缺失）
+if (authStore.isLoggedIn && !authStore.user?.systemRole) {
+  authStore.fetchMe().catch(() => authStore.logout())
+}
+
 const adminRoles: SystemRole[] = ['super_admin', 'biz_admin']
 const superAdminOnly: SystemRole[] = ['super_admin']
 const bizAdminOnly: SystemRole[] = ['biz_admin']
-
-const allMenuGroups: MenuGroup[] = [
-  {
-    title: '概览',
-    items: [
-      { label: '工作台', path: '/workbench', icon: DataAnalysis, available: true, roles: adminRoles }
 
 const allMenuGroups: MenuGroup[] = [
   {
@@ -103,7 +102,7 @@ const allMenuGroups: MenuGroup[] = [
     items: [
       { label: 'AI 生成流程', path: '/ai/generate-process', icon: MagicStick, available: true, roles: adminRoles },
       { label: 'AI 生成表单', path: '/ai/generate-form', icon: MagicStick, available: true, roles: adminRoles },
-      { label: 'AI 审批建议', path: '/placeholder/ai-approval', icon: MagicStick, roles: adminRoles }
+      { label: 'AI 流程优化', path: '/ai/optimize', icon: TrendCharts, available: true, roles: adminRoles }
     ]
   },
   {
@@ -148,11 +147,7 @@ function canSee(item: MenuItem) {
 
 const menuGroups = computed(() =>
   allMenuGroups
-    .map(group => ({ ...group, items: group.items.filter(canSee) }))
-
-    ]
-  }
-]
+    .map(group => ({ ...group, items: group.items.filter(canSee) })) 
     .filter(group => group.items.length > 0)
 )
 
@@ -172,7 +167,7 @@ onMounted(async () => {
 })
 
 function isActive(path: string) {
-  return route.path === path || (path !== '/' && route.path.startsWith(`${path}/`))
+  return route.path === path
 }
 
 function handleClick(item: MenuItem) {
