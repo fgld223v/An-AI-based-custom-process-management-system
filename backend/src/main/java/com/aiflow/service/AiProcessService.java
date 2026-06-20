@@ -33,11 +33,28 @@ public class AiProcessService {
           "bpmnXml": "<BPMN XML 字符串>",
           "nodeConfig": [
             {"nodeKey": "StartEvent_1", "nodeName": "开始", "businessType": "start"},
-            {"nodeKey": "UserTask_1",   "nodeName": "经理审批", "businessType": "approval", "approvalMode": "SINGLE", "assignStrategy": "DIRECT_SUPERVISOR"},
+            {"nodeKey": "UserTask_1",   "nodeName": "填写申请表", "businessType": "form_fill"},
+            {"nodeKey": "UserTask_2",   "nodeName": "经理审批", "businessType": "approval", "approvalMode": "SINGLE", "assignStrategy": "DIRECT_SUPERVISOR"},
             {"nodeKey": "EndEvent_1",   "nodeName": "结束", "businessType": "end"}
           ],
           "summary": "流程简短摘要"
         }
+
+        重要的 businessType 说明（必须理解并正确使用）：
+        - start：流程开始节点，对应 bpmn:startEvent
+        - form_fill：表单填写节点（如填写申请、提交材料、补录信息等），对应 bpmn:userTask。任何需要用户填写/提交数据的环节都应该用 form_fill，不要用 approval
+        - approval：审批处理节点（如经理审批、总监审批等），对应 bpmn:userTask。只有明确涉及审批决策的环节才用 approval
+        - condition：条件分支/排他网关，对应 bpmn:exclusiveGateway
+        - parallel：并行网关，对应 bpmn:parallelGateway
+        - notify：抄送通知节点，对应 bpmn:serviceTask，设置 notifyTarget、notifyChannel
+        - system_action：系统自动处理节点，对应 bpmn:serviceTask
+        - end：流程结束节点，对应 bpmn:endEvent
+
+        区分 form_fill 和 approval 的原则：
+        - 如果用户需要填写信息、提交申请、上传材料 → 使用 form_fill
+        - 如果用户需要审核/批准/驳回他人的申请 → 使用 approval
+        - 一个典型的审批流程应该是：start → form_fill（填写申请）→ approval（审批）→ end
+        - 不要把填写申请也标记为 approval！
 
         BPMN XML 必须遵循以下格式（参照示例，使用 bpmn: 命名空间前缀）：
 
@@ -52,15 +69,20 @@ public class AiProcessService {
             <bpmn:startEvent id="StartEvent_1" name="开始">
               <bpmn:outgoing>Flow_1</bpmn:outgoing>
             </bpmn:startEvent>
-            <bpmn:userTask id="UserTask_1" name="审批节点">
+            <bpmn:userTask id="UserTask_1" name="填写申请">
               <bpmn:incoming>Flow_1</bpmn:incoming>
               <bpmn:outgoing>Flow_2</bpmn:outgoing>
             </bpmn:userTask>
-            <bpmn:endEvent id="EndEvent_1" name="结束">
+            <bpmn:userTask id="UserTask_2" name="审批节点">
               <bpmn:incoming>Flow_2</bpmn:incoming>
+              <bpmn:outgoing>Flow_3</bpmn:outgoing>
+            </bpmn:userTask>
+            <bpmn:endEvent id="EndEvent_1" name="结束">
+              <bpmn:incoming>Flow_3</bpmn:incoming>
             </bpmn:endEvent>
             <bpmn:sequenceFlow id="Flow_1" sourceRef="StartEvent_1" targetRef="UserTask_1" />
-            <bpmn:sequenceFlow id="Flow_2" sourceRef="UserTask_1" targetRef="EndEvent_1" />
+            <bpmn:sequenceFlow id="Flow_2" sourceRef="UserTask_1" targetRef="UserTask_2" />
+            <bpmn:sequenceFlow id="Flow_3" sourceRef="UserTask_2" targetRef="EndEvent_1" />
           </bpmn:process>
           <bpmndi:BPMNDiagram>
             <bpmndi:BPMNPlane bpmnElement="Process_Main">
@@ -70,8 +92,11 @@ public class AiProcessService {
               <bpmndi:BPMNShape bpmnElement="UserTask_1">
                 <dc:Bounds x="280" y="138" width="120" height="80" />
               </bpmndi:BPMNShape>
+              <bpmndi:BPMNShape bpmnElement="UserTask_2">
+                <dc:Bounds x="470" y="138" width="120" height="80" />
+              </bpmndi:BPMNShape>
               <bpmndi:BPMNShape bpmnElement="EndEvent_1">
-                <dc:Bounds x="470" y="160" width="36" height="36" />
+                <dc:Bounds x="660" y="160" width="36" height="36" />
               </bpmndi:BPMNShape>
               <bpmndi:BPMNEdge bpmnElement="Flow_1">
                 <di:waypoint x="216" y="178" />
@@ -80,6 +105,10 @@ public class AiProcessService {
               <bpmndi:BPMNEdge bpmnElement="Flow_2">
                 <di:waypoint x="400" y="178" />
                 <di:waypoint x="470" y="178" />
+              </bpmndi:BPMNEdge>
+              <bpmndi:BPMNEdge bpmnElement="Flow_3">
+                <di:waypoint x="590" y="178" />
+                <di:waypoint x="660" y="178" />
               </bpmndi:BPMNEdge>
             </bpmndi:BPMNPlane>
           </bpmndi:BPMNDiagram>
@@ -97,10 +126,11 @@ public class AiProcessService {
            - waypoint 必须与对应 BPMNShape 的 x/y 对齐，不要出现交叉连线
            - 如果有分支路径（排他网关），主路径在上半部分（y 较小），分支路径在下半部分（y 较大），两条路径在汇聚点合并
         6. nodeConfig 的 nodeKey 必须与 BPMN 元素的 id 完全一致
-        7. 审批节点必须设置 approvalMode（SINGLE/ALL/ANY）+ assignStrategy（DEPARTMENT_MANAGER/DIRECT_SUPERVISOR/SPECIFIC_USERS）
+        7. 【关键】审批节点（businessType="approval"）必须设置 approvalMode（SINGLE/ALL/ANY）和 assignStrategy（DEPARTMENT_MANAGER/DIRECT_SUPERVISOR/SPECIFIC_USERS/ROLE）。不设置会导致流程卡死！
         8. 抄送节点使用 bpmn:serviceTask，businessType="notify"，设置 notifyTarget（APPLICANT/APPROVER/USER）、notifyChannel（in_app/email/both）
         9. 排他网关 businessType="condition"
         10. 流程保持简洁，不超过 8 个节点
+        11. 重要：填写申请/提交材料环节用 form_fill，审批决策环节用 approval，不要混用！
         """;
 
     public AiGenerateProcessResponse generateProcess(String description) {
