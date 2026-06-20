@@ -122,6 +122,13 @@ public class ProcessTemplateServiceImpl implements ProcessTemplateService {
 
     @Override
     @Transactional(readOnly = true)
+    public List<ProcessTemplate> listTemplatesByCreatedBy(Long createdBy) {
+        requireId(createdBy, "createdBy must not be null");
+        return processTemplateRepository.findByCreatedByAndDeletedOrderByUpdatedAtDesc(createdBy, 0);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public Optional<ProcessTemplate> findById(Long id) {
         requireId(id, "id must not be null");
         // 使用 findByIdAndDeleted 确保只查询未删除的模板，并保证 LONGTEXT 字段（bpmnXml）在事务内被加载

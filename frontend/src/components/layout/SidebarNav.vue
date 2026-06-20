@@ -80,6 +80,7 @@ if (authStore.isLoggedIn && !authStore.user?.systemRole) {
 
 const adminRoles: SystemRole[] = ['super_admin', 'biz_admin']
 const superAdminOnly: SystemRole[] = ['super_admin']
+const bizAdminOnly: SystemRole[] = ['biz_admin']
 
 const allMenuGroups: MenuGroup[] = [
   {
@@ -91,6 +92,7 @@ const allMenuGroups: MenuGroup[] = [
   {
     title: '流程',
     items: [
+      { label: '我的流程', path: '/my-processes', icon: Share, available: true, roles: bizAdminOnly },
       { label: '表单设计器', path: '/form-designer', icon: Files, available: true, roles: adminRoles },
       { label: '流程编辑器', path: '/process-designer', icon: Share, available: true, roles: adminRoles }
     ]
@@ -108,7 +110,7 @@ const allMenuGroups: MenuGroup[] = [
     items: [
       { label: '运行监控', path: '/dashboard', icon: Monitor, available: true, roles: adminRoles },
       { label: '流程发起', path: '/process/start-preview', icon: CirclePlus, available: true },
-      { label: '流程实例', path: '/process/instances', icon: Tickets, available: true, roles: adminRoles },
+      { label: '我的申请', path: '/process/instances', icon: Tickets, available: true },
       { label: '待办任务', path: '/tasks/todo', icon: Tickets, available: true, badge: '' },
       { label: '已办任务', path: '/tasks/done', icon: Tickets, available: true },
       { label: '通知中心', path: '/notifications', icon: Bell, available: true },
@@ -118,7 +120,7 @@ const allMenuGroups: MenuGroup[] = [
   {
     title: '资源',
     items: [
-      { label: '流程模板管理', path: '/templates', icon: Files, available: true, roles: adminRoles },
+      { label: '流程模板管理', path: '/templates', icon: Files, available: true, roles: superAdminOnly },
       { label: '模板市场', path: '/template-market', icon: Files, available: true, roles: adminRoles },
       { label: '节点/工具库', path: '/placeholder/tools', icon: Tools, roles: adminRoles }
     ]

@@ -16,6 +16,8 @@ public interface ProcessTemplateService {
 
     List<ProcessTemplate> listTemplates();
 
+    List<ProcessTemplate> listTemplatesByCreatedBy(Long createdBy);
+
     Optional<ProcessTemplate> findById(Long id);
 
     TemplateFormBindingDTO getTemplateBoundForm(Long templateId);

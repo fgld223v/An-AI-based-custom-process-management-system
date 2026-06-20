@@ -294,6 +294,7 @@ const submissionMap = computed(() => {
 
 onMounted(async () => {
   await loadTemplates()
+  await selectTemplateFromQuery()
   await restoreInstanceFromQuery()
 })
 
@@ -346,6 +347,13 @@ async function restoreInstanceFromQuery() {
   } catch (error) {
     message.value = normalizeError(error, '流程实例详情加载失败。')
   }
+}
+
+async function selectTemplateFromQuery() {
+  const templateId = Number(route.query.templateId)
+  if (!templateId || route.query.instanceId) return
+  selectedTemplateId.value = templateId
+  await handleTemplateChange(templateId)
 }
 
 async function handleTemplateChange(id?: number) {

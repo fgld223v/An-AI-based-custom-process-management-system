@@ -11,6 +11,7 @@ type RouteMeta = {
 
 const ADMIN_ROLES: SystemRole[] = ['super_admin', 'biz_admin']
 const SUPER_ADMIN: SystemRole[] = ['super_admin']
+const BIZ_ADMIN: SystemRole[] = ['biz_admin']
 
 const routes: RouteRecordRaw[] = [
   {
@@ -58,10 +59,16 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '流程编辑器', group: '流程', roles: ADMIN_ROLES }
       },
       {
+        path: 'my-processes',
+        name: 'MyProcessList',
+        component: () => import('@/views/process/MyProcessList.vue'),
+        meta: { title: '我的流程', group: '流程', roles: BIZ_ADMIN }
+      },
+      {
         path: 'templates',
         name: 'TemplateList',
         component: () => import('@/views/template/TemplateList.vue'),
-        meta: { title: '流程模板管理', group: '资源', roles: ADMIN_ROLES }
+        meta: { title: '流程模板管理', group: '资源', roles: SUPER_ADMIN }
       },
       {
         path: 'template-market',
@@ -103,13 +110,13 @@ const routes: RouteRecordRaw[] = [
         path: 'process/instances',
         name: 'ProcessInstanceList',
         component: () => import('@/views/process/InstanceList.vue'),
-        meta: { title: '流程实例', group: '运行' }
+        meta: { title: '我的申请', group: '运行' }
       },
       {
         path: 'process/instances/:id',
         name: 'ProcessInstanceDetail',
         component: () => import('@/views/process/InstanceDetail.vue'),
-        meta: { title: '流程实例详情', group: '运行' }
+        meta: { title: '我的申请详情', group: '运行' }
       },
       {
         path: 'tasks/todo',

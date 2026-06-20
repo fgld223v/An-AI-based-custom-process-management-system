@@ -127,7 +127,7 @@ export interface MarketPublishPayload {
 }
 
 export interface MarketCopyPayload {
-  userId: number
+  userId?: number
   newTemplateName?: string
 }
 

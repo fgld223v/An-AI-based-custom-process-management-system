@@ -8,6 +8,7 @@ import com.aiflow.dto.ProcessTemplateDTO;
 import com.aiflow.dto.TemplateMarketDTO;
 import com.aiflow.model.ProcessTemplate;
 import com.aiflow.model.TemplateMarket;
+import com.aiflow.security.SecurityUtils;
 import com.aiflow.service.TemplateMarketService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -57,9 +58,13 @@ public class TemplateMarketController {
     @PostMapping("/{marketId}/copy")
     public ApiResponse<ProcessTemplateDTO> copyTemplateFromMarket(@PathVariable Long marketId,
                                                                   @RequestBody MarketCopyRequest request) {
+        Long currentUserId = SecurityUtils.currentUserId();
+        if (currentUserId == null) {
+            throw new IllegalStateException("current user is required");
+        }
         ProcessTemplate copied = templateMarketService.copyTemplateFromMarket(
                 marketId,
-                request.getUserId(),
+                currentUserId,
                 request.getNewTemplateName()
         );
         return ApiResponse.success(DtoMapper.toProcessTemplateDTO(copied));
