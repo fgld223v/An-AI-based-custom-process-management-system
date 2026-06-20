@@ -14,6 +14,7 @@ import com.aiflow.service.ProcessTemplateService;
 import com.aiflow.common.BusinessException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -216,12 +218,25 @@ public class ProcessTemplateServiceImpl implements ProcessTemplateService {
                 .orElseThrow(() -> new IllegalArgumentException("template not found"));
     }
 
+    /**
+     * 校验顶层绑定的表单是否已发布。
+     * 仅记录警告，不抛出异常 —— 草稿阶段的模板允许绑定未发布的表单。
+     * 发布模板时（publishTemplate）仍会严格校验。
+     */
     private void validatePublishedForm(Long formId) {
         if (formId != null) {
-            getPublishedForm(formId);
+            try {
+                getPublishedForm(formId);
+            } catch (IllegalStateException e) {
+                log.warn("模板顶层绑定的表单尚未发布 (formId={})，草稿阶段容忍此状态", formId);
+            }
         }
     }
 
+    /**
+     * 校验节点级别的表单绑定配置。
+     * 草稿阶段仅记录警告，不阻塞保存；发布时 publishTemplate 会再次严格校验。
+     */
     private void validateFormBindConfig(String formBindConfigJson) {
         if (formBindConfigJson == null || formBindConfigJson.isBlank()) return;
 
@@ -237,8 +252,15 @@ public class ProcessTemplateServiceImpl implements ProcessTemplateService {
         if (standardMap != null) {
             for (Map.Entry<String, Map<String, Object>> entry : standardMap.entrySet()) {
                 Object formIdObj = entry.getValue().get("formId");
-                if (formIdObj instanceof Number) {
-                    getPublishedForm(((Number) formIdObj).longValue());
+                if (formIdObj != null) {
+                    Long formId = formIdObj instanceof Integer
+                        ? ((Integer) formIdObj).longValue()
+                        : (Long) formIdObj;
+                    try {
+                        getPublishedForm(formId);
+                    } catch (IllegalStateException e) {
+                        log.warn("节点 [{}] 绑定的表单尚未发布 (formId={})，草稿阶段容忍此状态", entry.getKey(), formId);
+                    }
                 }
             }
             return;

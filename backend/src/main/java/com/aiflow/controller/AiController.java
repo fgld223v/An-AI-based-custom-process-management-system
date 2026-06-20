@@ -10,6 +10,8 @@ import com.aiflow.dto.*;
 import com.aiflow.service.AiFormService;
 import com.aiflow.service.AiOptimizationService;
 import com.aiflow.dto.AiGenerateFormResponse;
+import com.aiflow.dto.AiGenerateProcessResponse;
+import com.aiflow.dto.AiGenerateRequest;
 import com.aiflow.service.AiApprovalService;
 import com.aiflow.service.AiFormService;
 import com.aiflow.service.AiProcessService;
@@ -46,12 +48,13 @@ public class AiController {
                 aiFormService.generateForm(request.getDescription()));
     }
 
-    @AuditLog("AI_SUGGEST_APPROVAL")
+    /** AI 审批建议 — 分析表单数据和流程上下文，给出审批建议 */
     @PostMapping("/suggest-approval")
     public ApiResponse<AiApprovalResponse> suggestApproval(
             @Valid @RequestBody AiApprovalRequest request) {
         return ApiResponse.success(aiApprovalService.suggest(request));
     }
+
     /** AI 流程优化 — 分析单个模板 */
     @AuditLog("AI_OPTIMIZE")
     @PostMapping("/optimize/{templateId}")

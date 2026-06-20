@@ -213,6 +213,8 @@ export interface TaskItem {
   endTime?: string | null
   status: string
   formId?: number | null
+  /** 节点业务类型：start / form_fill / approval / notify / condition / end */
+  businessType?: string | null
   /** 审批方式：SINGLE（单人）、ALL（会签）、ANY（或签） */
   approvalMode?: string | null
   /** 多实例总数（会签/或签时有值） */

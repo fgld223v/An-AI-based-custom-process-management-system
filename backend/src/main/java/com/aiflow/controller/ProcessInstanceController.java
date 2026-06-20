@@ -6,6 +6,7 @@ import com.aiflow.dto.NotificationDTO;
 import com.aiflow.dto.ProcessInstanceDTO;
 import com.aiflow.dto.RuntimeStateDTO;
 import com.aiflow.dto.SaveNodeFormRequest;
+import com.aiflow.dto.TimelineDTO;
 import com.aiflow.dto.StartProcessPreviewRequest;
 import com.aiflow.service.ProcessInstanceService;
 import com.aiflow.service.TaskUrgeService;
@@ -64,6 +65,11 @@ public class ProcessInstanceController {
     @GetMapping("/{id}/runtime-state")
     public ApiResponse<RuntimeStateDTO> getRuntimeState(@PathVariable Long id) {
         return ApiResponse.success(processInstanceService.getRuntimeState(id));
+    }
+
+    @GetMapping("/{id}/timeline")
+    public ApiResponse<TimelineDTO> getTimeline(@PathVariable Long id) {
+        return ApiResponse.success(processInstanceService.getTimeline(id));
     }
 
     @PostMapping("/{id}/urge")

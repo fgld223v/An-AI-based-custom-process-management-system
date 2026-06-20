@@ -5,6 +5,7 @@ import com.aiflow.dto.ProcessInstanceDTO;
 import com.aiflow.dto.RuntimeStateDTO;
 import com.aiflow.dto.SaveNodeFormRequest;
 import com.aiflow.dto.StartProcessPreviewRequest;
+import com.aiflow.dto.TimelineDTO;
 import com.aiflow.model.FormSubmission;
 import com.aiflow.model.ProcessInstance;
 import com.aiflow.model.ProcessTemplate;
@@ -12,20 +13,29 @@ import com.aiflow.repository.FormSubmissionRepository;
 import com.aiflow.repository.ProcessInstanceRepository;
 import com.aiflow.repository.ProcessTemplateRepository;
 import com.aiflow.security.SecurityUtils;
+import com.aiflow.entity.UserEntity;
+import com.aiflow.mapper.SysUserMapper;
+import com.aiflow.service.ApproverResolverService;
 import com.aiflow.service.FlowableRuntimeService;
 import com.aiflow.service.ProcessInstanceService;
 import com.aiflow.service.RuleEvaluatorService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.flowable.engine.TaskService;
 import org.flowable.task.api.Task;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import jakarta.persistence.EntityManager;
+import java.sql.Timestamp;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -41,9 +51,13 @@ public class ProcessInstanceServiceImpl implements ProcessInstanceService {
     private final ProcessTemplateRepository processTemplateRepository;
     private final FlowableRuntimeService flowableRuntimeService;
     private final RuleEvaluatorService ruleEvaluatorService;
+    private final ApproverResolverService approverResolverService;
+    private final SysUserMapper sysUserMapper;
     private final TaskService taskService;
     private final ObjectMapper objectMapper;
     private final FormBindConfigParser formBindConfigParser;
+    private final EntityManager entityManager;
+    private final NodeConfigParser nodeConfigParser;
 
     @Override
     @Transactional(readOnly = true)
@@ -97,7 +111,7 @@ public class ProcessInstanceServiceImpl implements ProcessInstanceService {
                 .instanceCode("PI_" + now.format(CODE_TIME_FORMATTER))
                 .templateId(template.getId())
                 .formId(request.getFormId())
-                .applicantId(1L)
+                .applicantId(SecurityUtils.currentUserId() != null ? SecurityUtils.currentUserId() : 1L)
                 .bizTypeId(template.getBizTypeId())
                 .title(request.getInstanceTitle().trim())
                 .status(STATUS_DRAFT)
@@ -130,25 +144,34 @@ public class ProcessInstanceServiceImpl implements ProcessInstanceService {
         requireText(request.getNodeKey(), "nodeKey must not be blank");
 
         ProcessInstance instance = getRequiredInstance(request.getProcessInstanceId());
-        if (STATUS_SUBMITTED.equals(instance.getStatus()) || STATUS_RUNNING.equals(instance.getStatus())) {
-            throw new IllegalStateException("当前实例已提交或已启动流程，仅支持查看，不支持继续保存。");
+        boolean isRunning = STATUS_SUBMITTED.equals(instance.getStatus()) || STATUS_RUNNING.equals(instance.getStatus());
+
+        // running 状态下只允许保存 form_fill 节点的表单（流程中间节点的数据采集），
+        // start 节点和其他类型仅允许在 draft 阶段保存。
+        if (isRunning && !"form_fill".equals(request.getBusinessType())) {
+            throw new IllegalStateException("当前实例已启动流程，仅支持填写表单节点（form_fill），不支持修改启动配置。");
         }
         if (!request.getTemplateId().equals(instance.getTemplateId())) {
             throw new IllegalArgumentException("templateId does not match current process instance");
         }
 
         LocalDateTime now = LocalDateTime.now();
+        // running 状态下表单数据标记为 submitted（已提交），draft 阶段仍保持 draft
+        String submissionStatus = isRunning ? STATUS_SUBMITTED : normalizeStatus(request.getStatus(), STATUS_DRAFT);
         FormSubmission submission = saveSubmission(instance, request.getTemplateId(), request.getNodeKey(),
                 request.getNodeName(), request.getBusinessType(), request.getFormId(), request.getFormDataJson(),
-                normalizeStatus(request.getStatus(), STATUS_DRAFT), now);
+                submissionStatus, now);
 
-        instance.setFormId(request.getFormId());
-        instance.setFormData(request.getFormDataJson());
-        instance.setCurrentNodeKey(request.getNodeKey());
-        instance.setCurrentNodeName(request.getNodeName());
-        instance.setCurrentBusinessType(request.getBusinessType());
-        instance.setUpdatedAt(now);
-        processInstanceRepository.save(instance);
+        // 仅 draft 阶段更新实例元数据，running 阶段不覆盖（由 Flowable 任务完成时更新）
+        if (!isRunning) {
+            instance.setFormId(request.getFormId());
+            instance.setFormData(request.getFormDataJson());
+            instance.setCurrentNodeKey(request.getNodeKey());
+            instance.setCurrentNodeName(request.getNodeName());
+            instance.setCurrentBusinessType(request.getBusinessType());
+            instance.setUpdatedAt(now);
+            processInstanceRepository.save(instance);
+        }
 
         return toDto(submission);
     }
@@ -186,6 +209,19 @@ public class ProcessInstanceServiceImpl implements ProcessInstanceService {
                 processInstanceRepository.save(instance);
             } else {
                 ruleEvaluatorService.evaluateAndAutoComplete(instance);
+
+                // 如果第一个任务是审批节点（无 form_fill 前置），立即分配审批人
+                if (activeTask.getAssignee() == null) {
+                    ProcessTemplate tpl = processTemplateRepository
+                            .findByIdAndDeleted(instance.getTemplateId(), 0).orElse(null);
+                    if (tpl != null) {
+                        String businessType = nodeConfigParser.getStringField(
+                                tpl.getNodeConfig(), activeTask.getTaskDefinitionKey(), "businessType");
+                        if ("approval".equals(businessType)) {
+                            assignFirstApprovalTask(activeTask, tpl, instance);
+                        }
+                    }
+                }
             }
         }
 
@@ -317,6 +353,28 @@ public class ProcessInstanceServiceImpl implements ProcessInstanceService {
         return hasText(value) ? value.trim() : null;
     }
 
+    /**
+     * 流程启动后第一个任务即为审批节点时，解析并分配审批人。
+     */
+    private void assignFirstApprovalTask(Task task, ProcessTemplate template, ProcessInstance instance) {
+        String nodeKey = task.getTaskDefinitionKey();
+        String strategy = nodeConfigParser.getStringField(template.getNodeConfig(), nodeKey, "assignStrategy");
+        String assignValue = nodeConfigParser.getStringField(template.getNodeConfig(), nodeKey, "assignValue");
+        if (strategy == null || strategy.isBlank()) {
+            strategy = "DEPARTMENT_MANAGER"; // 兜底
+        }
+        List<Long> approverIds = approverResolverService.resolveApprovers(
+                instance.getId(), nodeKey, strategy, assignValue);
+        if (!approverIds.isEmpty()) {
+            UserEntity approver = sysUserMapper.selectById(approverIds.get(0));
+            if (approver != null) {
+                taskService.setAssignee(task.getId(), String.valueOf(approver.getId()));
+                log.info("启动时分配审批人：task={}, assignee={}(id={})",
+                        task.getName(), approver.getNickname(), approver.getId());
+            }
+        }
+    }
+
     private void requireId(Long id, String message) {
         if (id == null) {
             throw new IllegalArgumentException(message);
@@ -331,5 +389,97 @@ public class ProcessInstanceServiceImpl implements ProcessInstanceService {
 
     private boolean hasText(String value) {
         return value != null && !value.trim().isEmpty();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public TimelineDTO getTimeline(Long processInstanceId) {
+        ProcessInstance instance = getRequiredInstance(processInstanceId);
+        List<TimelineDTO.TimelineNode> nodes = new ArrayList<>();
+
+        // 1. 发起节点
+        nodes.add(TimelineDTO.TimelineNode.builder()
+                .type("start")
+                .nodeName("发起申请")
+                .operatorName("申请人")
+                .time(fmt(instance.getStartedAt() != null ? instance.getStartedAt() : instance.getCreatedAt()))
+                .duration(null)
+                .action("发起流程")
+                .comment(null)
+                .build());
+
+        LocalDateTime previousTime = instance.getStartedAt() != null
+                ? instance.getStartedAt() : instance.getCreatedAt();
+
+        // 2. 审批节点
+        @SuppressWarnings("unchecked")
+        List<Object[]> records = entityManager
+                .createNativeQuery("""
+                        SELECT ar.node_key, ar.action, ar.comment_text, ar.operated_at,
+                               COALESCE(su.nickname, CONCAT('用户#', ar.approver_id)) AS approver_name
+                        FROM approval_record ar
+                        LEFT JOIN sys_user su ON ar.approver_id = su.id
+                        WHERE ar.instance_id = :instanceId
+                        ORDER BY ar.operated_at ASC
+                        """)
+                .setParameter("instanceId", processInstanceId)
+                .getResultList();
+
+        String actionLabel;
+        for (Object[] r : records) {
+            String action = (String) r[1];
+            switch (action) {
+                case "approve": actionLabel = "通过"; break;
+                case "reject": actionLabel = "驳回"; break;
+                case "supplement": actionLabel = "补充材料"; break;
+                case "delegate": actionLabel = "转交"; break;
+                case "transfer": actionLabel = "移交"; break;
+                default: actionLabel = action;
+            }
+
+            LocalDateTime operatedAt = ((Timestamp) r[3]).toLocalDateTime();
+            String duration = calcDuration(previousTime, operatedAt);
+            previousTime = operatedAt;
+
+            nodes.add(TimelineDTO.TimelineNode.builder()
+                    .type("approval")
+                    .nodeName((String) r[0])
+                    .operatorName((String) r[4])
+                    .time(fmt(operatedAt))
+                    .duration(duration)
+                    .action(actionLabel)
+                    .comment((String) r[2])
+                    .build());
+        }
+
+        // 3. 结束节点
+        if (instance.getEndedAt() != null) {
+            nodes.add(TimelineDTO.TimelineNode.builder()
+                    .type("end")
+                    .nodeName("流程完成")
+                    .operatorName("系统")
+                    .time(fmt(instance.getEndedAt()))
+                    .duration(calcDuration(previousTime, instance.getEndedAt()))
+                    .action("流程结束".equals(instance.getStatus()) || "completed".equals(instance.getStatus()) ? "办结" : "终止")
+                    .comment(null)
+                    .build());
+        }
+
+        return TimelineDTO.builder().nodes(nodes).build();
+    }
+
+    private String fmt(LocalDateTime dt) {
+        return dt != null ? dt.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")) : "";
+    }
+
+    private String calcDuration(LocalDateTime from, LocalDateTime to) {
+        if (from == null || to == null) return null;
+        Duration d = Duration.between(from, to);
+        long hours = d.toHours();
+        long minutes = d.toMinutesPart();
+        if (hours > 0) {
+            return minutes > 0 ? hours + "h" + minutes + "m" : hours + "h";
+        }
+        return minutes + "m";
     }
 }
