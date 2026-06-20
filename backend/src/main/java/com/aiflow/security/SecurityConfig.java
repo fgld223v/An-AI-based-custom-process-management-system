@@ -42,7 +42,18 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/health").permitAll()
                         .requestMatchers("/error").permitAll()
+<<<<<<< Updated upstream
 
+=======
+                        .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
+                        .requestMatchers("/ws/notifications").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/process-templates").hasRole("SUPER_ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/api/process-templates/*").hasRole("SUPER_ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/process-templates/*/publish").hasRole("SUPER_ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/process-templates/*/unpublish").hasRole("SUPER_ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/template-market/publish-template").hasRole("SUPER_ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/template-market/*/withdraw").hasRole("SUPER_ADMIN")
+>>>>>>> Stashed changes
                         .requestMatchers("/api/admin/**").hasRole("SUPER_ADMIN")
 
                         .requestMatchers(HttpMethod.GET,

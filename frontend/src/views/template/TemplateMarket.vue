@@ -38,7 +38,7 @@
           </div>
           <div class="market-card-footer">
             <small>{{ formatTime(item.publishedAt) }}</small>
-            <el-button type="success" round size="small" @click.stop="copyMarketItem(item)">使用模板</el-button>
+            <el-button type="success" round size="small" @click.stop="copyMarketItem(item)">复制到我的流程</el-button>
           </div>
         </div>
       </article>
@@ -61,7 +61,7 @@
       </template>
       <template #footer>
         <el-button round @click="detailVisible = false">关闭</el-button>
-        <el-button v-if="selectedItem" round type="success" @click="copyMarketItem(selectedItem)">一键复制</el-button>
+        <el-button v-if="selectedItem" round type="success" @click="copyMarketItem(selectedItem)">复制到我的流程</el-button>
       </template>
     </el-dialog>
   </div>
@@ -117,11 +117,9 @@ async function copyMarketItem(item: TemplateMarketItem) {
     cancelButtonText: '取消'
   })
   await copyTemplateFromMarket(item.id, {
-    // TODO: 后续接入登录后替换为当前用户 ID。
-    userId: 1,
     newTemplateName: value
   })
-  ElMessage.success('模板已复制到你的模板库')
+  ElMessage.success('模板已复制到我的流程')
   detailVisible.value = false
   await loadData()
 }

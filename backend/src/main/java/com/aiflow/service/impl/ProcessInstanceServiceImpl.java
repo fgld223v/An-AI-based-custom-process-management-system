@@ -20,6 +20,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.flowable.engine.TaskService;
 import org.flowable.task.api.Task;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -52,13 +53,11 @@ public class ProcessInstanceServiceImpl implements ProcessInstanceService {
         List<ProcessInstance> instances = processInstanceRepository
                 .listInstances(templateId, normalize(status), normalize(keyword));
 
-        // 非超管只能看到自己发起的实例
-        if (!SecurityUtils.isSuperAdmin()) {
-            Long currentUserId = SecurityUtils.currentUserId();
-            instances = instances.stream()
-                    .filter(i -> i.getApplicantId() != null && i.getApplicantId().equals(currentUserId))
-                    .toList();
-        }
+        // “我的申请”接口只返回当前用户发起的实例。
+        Long currentUserId = requireCurrentUserId();
+        instances = instances.stream()
+                .filter(i -> i.getApplicantId() != null && i.getApplicantId().equals(currentUserId))
+                .toList();
 
         return instances.stream().map(this::toDto).toList();
     }
@@ -93,12 +92,13 @@ public class ProcessInstanceServiceImpl implements ProcessInstanceService {
         ProcessTemplate template = processTemplateRepository.findByIdAndDeleted(request.getTemplateId(), 0)
                 .orElseThrow(() -> new IllegalArgumentException("process template not found"));
 
+        Long currentUserId = requireCurrentUserId();
         LocalDateTime now = LocalDateTime.now();
         ProcessInstance instance = ProcessInstance.builder()
                 .instanceCode("PI_" + now.format(CODE_TIME_FORMATTER))
                 .templateId(template.getId())
                 .formId(request.getFormId())
-                .applicantId(1L)
+                .applicantId(currentUserId)
                 .bizTypeId(template.getBizTypeId())
                 .title(request.getInstanceTitle().trim())
                 .status(STATUS_DRAFT)
@@ -157,6 +157,7 @@ public class ProcessInstanceServiceImpl implements ProcessInstanceService {
     @Override
     public ProcessInstanceDTO submitInstance(Long id) {
         // 委托 FlowableRuntimeService 完成全部校验与启动
+        getRequiredInstance(id);
         flowableRuntimeService.startProcess(id);
 
         // 回写后重新查询，获取最新的 Flowable 关联信息
@@ -294,8 +295,25 @@ public class ProcessInstanceServiceImpl implements ProcessInstanceService {
 
     private ProcessInstance getRequiredInstance(Long id) {
         requireId(id, "id must not be null");
-        return processInstanceRepository.findByIdAndDeleted(id, 0)
+        ProcessInstance instance = processInstanceRepository.findByIdAndDeleted(id, 0)
                 .orElseThrow(() -> new IllegalArgumentException("process instance not found"));
+        ensureCurrentUserApplicant(instance);
+        return instance;
+    }
+
+    private Long requireCurrentUserId() {
+        Long currentUserId = SecurityUtils.currentUserId();
+        if (currentUserId == null) {
+            throw new AccessDeniedException("current user is required");
+        }
+        return currentUserId;
+    }
+
+    private void ensureCurrentUserApplicant(ProcessInstance instance) {
+        Long currentUserId = requireCurrentUserId();
+        if (instance.getApplicantId() == null || !instance.getApplicantId().equals(currentUserId)) {
+            throw new AccessDeniedException("no permission to access this process instance");
+        }
     }
 
     private ProcessInstanceDTO toDto(ProcessInstance entity) {
