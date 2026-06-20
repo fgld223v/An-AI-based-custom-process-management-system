@@ -388,15 +388,6 @@ public class AiOptimizationService {
                         "operator", "==", "value", true));
                 node.put("optimizedAt", now);
             }
-            case "duplicate_approval" -> {
-                // 重复审批 → 将会签改为单人审批
-                if (node.containsKey("approvalMode")) {
-                    node.put("approvalMode", "SINGLE");
-                }
-                node.put("mergedFromDuplicate", true);
-                node.put("mergedReason", suggestion);
-                node.put("mergedAt", now);
-            }
             case "permission_optimization" -> {
                 node.put("approvalMode", "ANY");
                 node.put("optimizedAt", now);

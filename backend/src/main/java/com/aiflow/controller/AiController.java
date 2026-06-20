@@ -1,5 +1,6 @@
 package com.aiflow.controller;
 
+import com.aiflow.annotation.AuditLog;
 import com.aiflow.common.ApiResponse;
 import com.aiflow.dto.AiApprovalRequest;
 import com.aiflow.dto.AiApprovalResponse;
@@ -29,6 +30,7 @@ public class AiController {
     private final AiApprovalService aiApprovalService;
     private final AiOptimizationService aiOptimizationService;
 
+    @AuditLog("AI_GENERATE_PROCESS")
     @PostMapping("/generate-process")
     public ApiResponse<AiGenerateProcessResponse> generateProcess(
             @Valid @RequestBody AiGenerateRequest request) {
@@ -36,6 +38,7 @@ public class AiController {
                 aiProcessService.generateProcess(request.getDescription()));
     }
 
+    @AuditLog("AI_GENERATE_FORM")
     @PostMapping("/generate-form")
     public ApiResponse<AiGenerateFormResponse> generateForm(
             @Valid @RequestBody AiGenerateRequest request) {
@@ -43,24 +46,28 @@ public class AiController {
                 aiFormService.generateForm(request.getDescription()));
     }
 
+    @AuditLog("AI_SUGGEST_APPROVAL")
     @PostMapping("/suggest-approval")
     public ApiResponse<AiApprovalResponse> suggestApproval(
             @Valid @RequestBody AiApprovalRequest request) {
         return ApiResponse.success(aiApprovalService.suggest(request));
     }
     /** AI 流程优化 — 分析单个模板 */
+    @AuditLog("AI_OPTIMIZE")
     @PostMapping("/optimize/{templateId}")
     public ApiResponse<OptimizationAnalysisDTO> optimizeTemplate(@PathVariable Long templateId) {
         return ApiResponse.success(aiOptimizationService.optimizeTemplate(templateId));
     }
 
     /** AI 流程优化 — 批量分析所有已完成流程的模板 */
+    @AuditLog("AI_OPTIMIZE_ALL")
     @PostMapping("/optimize-all")
     public ApiResponse<List<OptimizationAnalysisDTO>> optimizeAll() {
         return ApiResponse.success(aiOptimizationService.optimizeAll());
     }
 
     /** AI 优化 — 采纳单条建议，实际修改模板 nodeConfig */
+    @AuditLog("AI_ADOPT_OPTIMIZATION")
     @PostMapping("/optimize/{templateId}/adopt")
     public ApiResponse<java.util.Map<String, Object>> adoptOptimization(
             @PathVariable Long templateId,

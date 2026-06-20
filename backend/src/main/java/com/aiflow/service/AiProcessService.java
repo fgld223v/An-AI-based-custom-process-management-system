@@ -89,8 +89,13 @@ public class AiProcessService {
         1. 所有元素使用 bpmn: 前缀（如 bpmn:userTask、bpmn:startEvent、bpmn:exclusiveGateway、bpmn:serviceTask）
         2. 每个流元素必须有 <bpmn:incoming> 和 <bpmn:outgoing> 子元素
         3. 排他网关必须包含条件表达式，如 <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression"><![CDATA[${days <= 3}]]></bpmn:conditionExpression>
-        4. sequenceFlow 按从左到右编号：Flow_1、Flow_2...
-        5. DI 布局：节点从左到右排列，垂直间隔约 100px。开始和结束 y=160，用户任务 y=138
+        4. sequenceFlow 按从左到右顺序编号：Flow_1、Flow_2...
+        5. DI 布局规则（保证流程图整齐）：
+           - 节点从左到右水平排列，每个节点水平间距至少 150px
+           - 开始事件和结束事件 y 坐标固定为 160；用户任务 y=138；排他网关 y=148；服务任务 y=158
+           - 第一个节点 x=180，之后每个节点 x 递增 150~200px
+           - waypoint 必须与对应 BPMNShape 的 x/y 对齐，不要出现交叉连线
+           - 如果有分支路径（排他网关），主路径在上半部分（y 较小），分支路径在下半部分（y 较大），两条路径在汇聚点合并
         6. nodeConfig 的 nodeKey 必须与 BPMN 元素的 id 完全一致
         7. 审批节点必须设置 approvalMode（SINGLE/ALL/ANY）+ assignStrategy（DEPARTMENT_MANAGER/DIRECT_SUPERVISOR/SPECIFIC_USERS）
         8. 抄送节点使用 bpmn:serviceTask，businessType="notify"，设置 notifyTarget（APPLICANT/APPROVER/USER）、notifyChannel（in_app/email/both）
@@ -191,95 +196,4 @@ public class AiProcessService {
         return result;
     }
 
-    private static final String FORM_SYSTEM_PROMPT = """
-        你是一个智能表单设计专家。用户会用自然语言描述需要采集的数据，你需要将其转换为标准的表单字段配置 JSON。
-
-        输出必须是合法的 JSON 对象，不要包裹在 Markdown 代码块中。格式固定为：
-
-        {
-          "formName": "表单名称",
-          "formCode": "form_英文编码",
-          "fields": [
-            {
-              "field": "字段标识(英文驼峰)",
-              "label": "字段显示名称",
-              "type": "text|textarea|number|select|radio|checkbox|date|datetime|upload",
-              "required": true|false,
-              "placeholder": "占位提示文字",
-              "options": [{"label": "选项1", "value": "1"}]  仅 select/radio/checkbox 需要
-            }
-          ],
-          "summary": "表单用途的简要说明"
-        }
-
-        规则：
-        1. field 使用英文驼峰命名，如 leaveReason、startDate、leaveDays
-        2. type 取值严格限制：text(单行文本)、textarea(多行文本)、number(数字)、select(下拉单选)、radio(单选)、checkbox(多选)、date(日期)、datetime(日期时间)、upload(附件)
-        3. select/radio/checkbox 必须提供 options 数组
-        4. 合理的 required 判断：关键信息必填，备注类选填
-        5. 表单名称和编码要贴合业务场景
-        """;
-
-    public Map<String, Object> generateForm(String description) {
-        log.info("开始生成表单，用户输入长度：{}", description.length());
-
-        Map<String, Object> requestBody = Map.of(
-            "model", aiConfig.getModel(),
-            "messages", List.of(
-                Map.of("role", "system", "content", FORM_SYSTEM_PROMPT),
-                Map.of("role", "user", "content", description)
-            ),
-            "temperature", 0.3,
-            "max_tokens", 4096
-        );
-
-        String responseBody;
-        try {
-            responseBody = deepseekWebClient.post()
-                .uri("/chat/completions")
-                .bodyValue(requestBody)
-                .retrieve()
-                .onStatus(s -> s.is4xxClientError() || s.is5xxServerError(),
-                    r -> r.bodyToMono(String.class).map(b -> new RuntimeException("API调用失败：" + b)))
-                .bodyToMono(String.class)
-                .timeout(Duration.ofSeconds(aiConfig.getTimeoutSeconds()))
-                .block();
-        } catch (Exception e) {
-            log.error("DeepSeek API 调用异常", e);
-            throw new BusinessException("AI 服务调用失败：" + e.getMessage());
-        }
-
-        if (responseBody == null) throw new BusinessException("AI 服务返回为空");
-
-        String json;
-        try {
-            Map<String, Object> respMap = objectMapper.readValue(responseBody, new TypeReference<>() {});
-            @SuppressWarnings("unchecked")
-            List<Map<String, Object>> choices = (List<Map<String, Object>>) respMap.get("choices");
-            if (choices == null || choices.isEmpty()) throw new BusinessException("AI 返回格式异常");
-            @SuppressWarnings("unchecked")
-            Map<String, Object> msg = (Map<String, Object>) choices.get(0).get("message");
-            json = (String) msg.get("content");
-        } catch (BusinessException e) {
-            throw e;
-        } catch (Exception e) {
-            log.error("解析响应失败", e);
-            throw new BusinessException("AI 服务响应解析失败");
-        }
-
-        json = json.trim();
-        if (json.startsWith("```")) {
-            json = json.replaceFirst("```(?:json)?\\s*\\n?", "");
-            json = json.replaceFirst("\\n?```\\s*$", "");
-        }
-
-        try {
-            Map<String, Object> result = objectMapper.readValue(json, new TypeReference<>() {});
-            log.info("表单生成成功，字段数：{}", result.get("fields") instanceof List<?> l ? l.size() : 0);
-            return result;
-        } catch (Exception e) {
-            log.error("解析AI生成的表单JSON失败：{}", json);
-            throw new BusinessException("AI 生成的表单格式有误，请重试");
-        }
-    }
 }

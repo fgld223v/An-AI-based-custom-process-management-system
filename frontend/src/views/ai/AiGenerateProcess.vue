@@ -224,10 +224,7 @@ async function handleGenerate() {
     const { generateProcess } = await import('@/api/ai')
     const data = await generateProcess(text)
     result.value = data
-    ElMessage.success('流程生成成功，正在打开流程编辑器...')
-    // 自动跳转到流程编辑器
-    sessionStorage.setItem('ai-generated-bpmn', data.bpmnXml)
-    setTimeout(() => router.push('/process-designer?from=ai'), 800)
+    ElMessage.success('流程生成成功')
   } catch (e: any) {
     const msg = e?.response?.data?.message || e?.message || '生成失败，请检查后端服务是否启动'
     errorMessage.value = msg

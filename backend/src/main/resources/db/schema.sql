@@ -461,6 +461,13 @@ CREATE TABLE IF NOT EXISTS operation_log (
   KEY idx_operation_log_created_at (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Operation log';
 
+-- D9: 扩展 operation_type ENUM，新增 AI 操作类型
+ALTER TABLE operation_log
+  MODIFY COLUMN operation_type ENUM(
+    'login','logout','create','update','delete','approve','reject','publish','config_change',
+    'ai_generate','ai_suggest'
+  ) NOT NULL COMMENT '操作类型';
+
 CREATE TABLE IF NOT EXISTS system_config (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   config_key VARCHAR(128) NOT NULL,
