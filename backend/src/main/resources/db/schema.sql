@@ -447,7 +447,7 @@ CREATE TABLE IF NOT EXISTS ai_model_metric (
 CREATE TABLE IF NOT EXISTS operation_log (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   operator_id BIGINT UNSIGNED NULL,
-  operation_type ENUM('login','logout','create','update','delete','approve','reject','publish','config_change') NOT NULL,
+  operation_type VARCHAR(64) NOT NULL COMMENT '操作类型: login/logout/create/update/delete/approve/reject/publish/config_change/ai_generate_process/ai_generate_form/ai_suggest_approval/ai_optimize/ai_optimize_all/ai_adopt_optimization',
   target_type ENUM('template','instance','user','role','config','form','fragment','market') NULL,
   target_id BIGINT UNSIGNED NULL,
   operation_content TEXT NULL,
@@ -461,12 +461,9 @@ CREATE TABLE IF NOT EXISTS operation_log (
   KEY idx_operation_log_created_at (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Operation log';
 
--- D9: 扩展 operation_type ENUM，新增 AI 操作类型
+-- D9: 将 operation_type 从 ENUM 迁移为 VARCHAR(64)，避免新增操作类型时 ALTER ENUM 与已有数据冲突
 ALTER TABLE operation_log
-  MODIFY COLUMN operation_type ENUM(
-    'login','logout','create','update','delete','approve','reject','publish','config_change',
-    'ai_generate','ai_suggest'
-  ) NOT NULL COMMENT '操作类型';
+  MODIFY COLUMN operation_type VARCHAR(64) NOT NULL COMMENT '操作类型';
 
 CREATE TABLE IF NOT EXISTS system_config (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
