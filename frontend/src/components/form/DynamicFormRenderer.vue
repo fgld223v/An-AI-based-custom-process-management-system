@@ -84,9 +84,32 @@
           style="width: 100%"
           @update:model-value="updateValue(field.field, $event)"
         />
-        <div v-else-if="field.type === 'upload'" class="upload-placeholder">
-          <el-button plain disabled>上传占位</el-button>
-          <span>{{ field.placeholder || '当前阶段暂不上传附件' }}</span>
+        <div v-else-if="field.type === 'upload'" class="upload-field">
+          <el-upload
+            :model-value="uploadFileList(field.field)"
+            :disabled="disabled || readonly"
+            :auto-upload="false"
+            :multiple="field.multiple ?? false"
+            :accept="field.accept ?? undefined"
+            :limit="field.maxCount ?? undefined"
+            drag
+            action="#"
+            @change="(_file: any, files: any) => handleUploadChange(field.field, files)"
+            @remove="(_file: any, files: any) => handleUploadChange(field.field, files)"
+          >
+            <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
+            <div class="el-upload__text">
+              拖拽文件到此处或 <em>点击上传</em>
+            </div>
+            <template #tip>
+              <div class="el-upload__tip" v-if="field.placeholder">
+                {{ field.placeholder }}
+              </div>
+              <div class="el-upload__tip" v-else-if="field.maxCount">
+                最多上传 {{ field.maxCount }} 个文件
+              </div>
+            </template>
+          </el-upload>
         </div>
         <el-input
           v-else
@@ -104,6 +127,7 @@
 
 <script setup lang="ts">
 import { computed, reactive, watch } from 'vue'
+import { UploadFilled } from '@element-plus/icons-vue'
 
 type FieldType = 'input' | 'textarea' | 'number' | 'select' | 'radio' | 'checkbox' | 'date' | 'datetime' | 'upload'
 
@@ -119,6 +143,10 @@ interface DynamicField {
   required: boolean
   placeholder: string
   options: FieldOption[]
+  // upload-specific
+  multiple?: boolean
+  accept?: string
+  maxCount?: number
 }
 
 const props = withDefaults(defineProps<{
@@ -212,7 +240,10 @@ function normalizeField(raw: unknown): DynamicField | null {
     type: normalizeType(String(value.type || 'input')),
     required: Boolean(value.required),
     placeholder: String(value.placeholder || ''),
-    options: normalizeOptions(value.options)
+    options: normalizeOptions(value.options),
+    multiple: Boolean(value.multiple ?? false),
+    accept: value.accept ? String(value.accept) : undefined,
+    maxCount: value.maxCount ? Number(value.maxCount) : undefined
   }
 }
 
@@ -236,6 +267,38 @@ function normalizeOptions(options: unknown): FieldOption[] {
     }
     return { label: String(option), value: String(option) }
   })
+}
+
+// ================================================================
+// Upload helpers — files stored as JSON array in form data
+// ================================================================
+
+interface FileMeta {
+  name: string
+  size: number
+  type: string
+  lastModified: number
+}
+
+function uploadFileList(field: string) {
+  const raw = innerData[field]
+  if (!raw || typeof raw !== 'string') return []
+  try {
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+function handleUploadChange(field: string, files: any[]) {
+  const fileInfos: FileMeta[] = files.map((f: any) => ({
+    name: f.name,
+    size: f.size,
+    type: f.raw?.type || f.type || '',
+    lastModified: f.raw?.lastModified || Date.now()
+  }))
+  updateValue(field, JSON.stringify(fileInfos))
 }
 
 function updateValue(field: string, value: unknown) {
@@ -302,14 +365,6 @@ defineExpose({ validate })
   line-height: 1.4;
 }
 
-.readonly-value,
-.upload-placeholder {
-  min-height: 32px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
 .readonly-value {
   padding: 0 12px;
   border: 1px solid var(--el-border-color);
@@ -317,9 +372,16 @@ defineExpose({ validate })
   background: var(--el-fill-color-lighter);
 }
 
-.upload-placeholder span {
-  color: var(--el-text-color-secondary);
-  font-size: 13px;
+.upload-field {
+  width: 100%;
+}
+
+.upload-field :deep(.el-upload) {
+  width: 100%;
+}
+
+.upload-field :deep(.el-upload-dragger) {
+  width: 100%;
 }
 
 @media (max-width: 760px) {

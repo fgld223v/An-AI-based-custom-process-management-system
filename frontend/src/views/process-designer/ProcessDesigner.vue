@@ -1081,6 +1081,13 @@ async function submitTemplateSave() {
   if (!validateTemplateForFlowablePreparation()) return
   templateSaving.value = true
   try {
+    // Build formBindConfig from node-level bindings (standard format)
+    const formBindConfig: Record<string, any> = {}
+    for (const [key, cfg] of Object.entries(nodeConfigMap)) {
+      if (cfg.formId) {
+        formBindConfig[key] = { formId: cfg.formId }
+      }
+    }
     const payload = {
       templateCode: templateSaveForm.templateCode,
       templateName: templateSaveForm.templateName,
@@ -1089,7 +1096,9 @@ async function submitTemplateSave() {
       sourceType: 'manual',
       bpmnXml: currentXml.value,
       nodeConfig: JSON.stringify(buildPersistableNodeConfig()),
-      formBindConfig: JSON.stringify({ formId: templateSaveForm.formId }),
+      formBindConfig: Object.keys(formBindConfig).length > 0
+        ? JSON.stringify(formBindConfig)
+        : (templateSaveForm.formId != null ? JSON.stringify({ formId: templateSaveForm.formId }) : undefined),
       // TODO: 后续接入登录后替换为当前用户 ID。
       createdBy: 1
     }

@@ -522,6 +522,38 @@ CREATE TABLE IF NOT EXISTS ai_service_account (
   UNIQUE KEY uk_ai_service_account_api_key (api_key)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI服务账号表';
 
+-- AI Chat Session (对话会话)
+CREATE TABLE IF NOT EXISTS ai_chat_session (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id BIGINT UNSIGNED NOT NULL,
+  title VARCHAR(128) NOT NULL DEFAULT '新对话',
+  model VARCHAR(64) NOT NULL DEFAULT 'deepseek-chat',
+  message_count INT UNSIGNED NOT NULL DEFAULT 0,
+  last_message_at DATETIME NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  deleted TINYINT NOT NULL DEFAULT 0,
+  PRIMARY KEY (id),
+  KEY idx_acs_user_id (user_id),
+  KEY idx_acs_updated_at (updated_at),
+  KEY idx_acs_deleted (deleted)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI Chat Session';
+
+-- AI Chat Message (对话消息)
+CREATE TABLE IF NOT EXISTS ai_chat_message (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  session_id BIGINT UNSIGNED NOT NULL,
+  role VARCHAR(16) NOT NULL COMMENT 'user / assistant / system',
+  content LONGTEXT NOT NULL,
+  token_count INT UNSIGNED NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  deleted TINYINT NOT NULL DEFAULT 0,
+  PRIMARY KEY (id),
+  KEY idx_acm_session_id (session_id),
+  KEY idx_acm_created_at (created_at),
+  KEY idx_acm_deleted (deleted)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI Chat Message';
+
 SET FOREIGN_KEY_CHECKS = 1;
 
 INSERT INTO biz_type_dict (parent_id, type_code, type_name, description, sort_order, enabled, deleted)

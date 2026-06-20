@@ -45,6 +45,7 @@ public class TaskQueryServiceImpl implements TaskQueryService {
     private final ProcessInstanceRepository processInstanceRepository;
     private final ProcessTemplateRepository processTemplateRepository;
     private final ObjectMapper objectMapper;
+    private final FormBindConfigParser formBindConfigParser;
 
     // ========================================================================
     // 待办（ACT_RU_TASK）
@@ -305,25 +306,10 @@ public class TaskQueryServiceImpl implements TaskQueryService {
         ProcessTemplate template = processTemplateRepository
                 .findByIdAndDeleted(templateId, 0)
                 .orElse(null);
-        if (template == null || !hasText(template.getFormBindConfig())) {
+        if (template == null) {
             return null;
         }
-        try {
-            Map<String, Map<String, Object>> bindConfig = objectMapper.readValue(
-                    template.getFormBindConfig(),
-                    new TypeReference<Map<String, Map<String, Object>>>() {}
-            );
-            Map<String, Object> nodeBinding = bindConfig.get(taskDefinitionKey);
-            if (nodeBinding != null && nodeBinding.get("formId") != null) {
-                Object formIdObj = nodeBinding.get("formId");
-                if (formIdObj instanceof Number) {
-                    return ((Number) formIdObj).longValue();
-                }
-            }
-        } catch (Exception ignored) {
-            // formBindConfig 解析失败不阻塞任务列表
-        }
-        return null;
+        return formBindConfigParser.resolveFormId(template.getFormBindConfig(), taskDefinitionKey);
     }
 
     private boolean hasText(String value) {

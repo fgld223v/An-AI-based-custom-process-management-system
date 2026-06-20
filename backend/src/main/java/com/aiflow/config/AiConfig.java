@@ -10,6 +10,7 @@ public class AiConfig {
     private String baseUrl = "https://api.deepseek.com/v1";
     private String model = "deepseek-chat";
     private int timeoutSeconds = 60;
+    private int maxContextMessages = 20;
 
     public String getApiKey() { return apiKey; }
     public void setApiKey(String apiKey) { this.apiKey = apiKey; }
@@ -19,4 +20,6 @@ public class AiConfig {
     public void setModel(String model) { this.model = model; }
     public int getTimeoutSeconds() { return timeoutSeconds; }
     public void setTimeoutSeconds(int timeoutSeconds) { this.timeoutSeconds = timeoutSeconds; }
+    public int getMaxContextMessages() { return maxContextMessages; }
+    public void setMaxContextMessages(int maxContextMessages) { this.maxContextMessages = maxContextMessages; }
 }
