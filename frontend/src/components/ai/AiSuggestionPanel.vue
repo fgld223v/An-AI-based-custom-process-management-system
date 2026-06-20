@@ -1,9 +1,7 @@
 <template>
   <div class="ai-suggestion-panel">
-    <!-- 加载态 -->
     <el-skeleton v-if="loading" :rows="3" animated />
 
-    <!-- 结果 -->
     <div v-else-if="suggestion" class="suggestion-content">
       <div class="suggestion-header">
         <span class="suggestion-label">AI 辅助审批建议</span>
@@ -24,7 +22,6 @@
       </el-button>
     </div>
 
-    <!-- 错误/无建议 -->
     <div v-else-if="!loading && errorMessage" class="suggestion-empty">
       <span>{{ errorMessage }}</span>
       <el-button text type="primary" size="small" @click="fetchSuggestion">重试</el-button>
@@ -34,6 +31,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
+import type { AiApprovalSuggestion } from '@/api/ai'
 
 const props = defineProps<{
   instanceId: number
@@ -42,18 +40,11 @@ const props = defineProps<{
 }>()
 
 defineEmits<{
-  adopt: [suggestion: Suggestion]
+  adopt: [suggestion: AiApprovalSuggestion]
 }>()
 
-interface Suggestion {
-  suggestion: string   // approve / reject / supplement
-  reason: string
-  confidence: number
-  riskPoints?: string[]
-}
-
 const loading = ref(false)
-const suggestion = ref<Suggestion | null>(null)
+const suggestion = ref<AiApprovalSuggestion | null>(null)
 const errorMessage = ref('')
 
 const tagType = computed(() => {
@@ -81,8 +72,7 @@ async function fetchSuggestion() {
   suggestion.value = null
   try {
     const { suggestApproval } = await import('@/api/ai')
-    const data = await suggestApproval(props.instanceId, props.nodeKey)
-    suggestion.value = data
+    suggestion.value = await suggestApproval(props.instanceId, props.nodeKey)
   } catch (e: any) {
     const code = e?.response?.status
     if (code === 501) {
@@ -112,46 +102,56 @@ onMounted(() => {
   border-radius: 18px;
   background: var(--panel-soft);
 }
+
 .suggestion-content {
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
+
 .suggestion-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
+
 .suggestion-label {
   font-size: 14px;
   font-weight: 700;
   color: var(--text);
 }
+
 .suggestion-reason {
   margin: 0;
   color: var(--muted);
   line-height: 1.7;
 }
+
 .suggestion-meta {
   font-size: 12px;
   color: var(--muted);
 }
+
 .confidence {
   font-family: var(--fm);
 }
+
 .risk-list {
   display: flex;
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
 }
+
 .risk-label {
   font-size: 12px;
   color: #9e7530;
 }
+
 .risk-tag {
   margin: 0;
 }
+
 .suggestion-empty {
   display: flex;
   align-items: center;

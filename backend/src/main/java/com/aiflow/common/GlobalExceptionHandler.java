@@ -1,5 +1,6 @@
 package com.aiflow.common;
 
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.ConstraintViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
@@ -13,8 +14,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(BusinessException.class)
-    @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public ApiResponse<Void> handleBusinessException(BusinessException e) {
+    public ApiResponse<Void> handleBusinessException(BusinessException e, HttpServletResponse response) {
+        response.setStatus(e.getCode() != null ? e.getCode() : 500);
         return ApiResponse.fail(e.getCode(), e.getMessage());
     }
 
