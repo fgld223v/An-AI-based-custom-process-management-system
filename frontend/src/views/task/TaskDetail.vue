@@ -105,10 +105,31 @@
       @adopt="handleAdoptSuggestion"
     />
 
-    <!-- 审批表单（仅 active 状态） -->
-    <section v-if="task?.status === 'active'" class="form-panel">
+    <!-- 表单填写节点（form_fill） — 仅 active 状态 -->
+    <section v-if="task?.status === 'active' && isFormFill" class="form-panel">
+      <div class="section-title">
+        <h2>填写表单</h2>
+        <span class="section-hint">{{ task?.taskName }}</span>
+      </div>
+      <DynamicFormRenderer
+        v-if="formFields.length > 0"
+        v-model="formData"
+        :field-list="formFields"
+      />
+      <el-empty v-else-if="formLoaded" description="表单无字段配置" />
+      <div class="form-actions">
+        <el-button type="primary" size="large" :loading="submitting" round @click="handleFormFillSubmit">
+          提交表单
+        </el-button>
+        <el-button size="large" round @click="router.push('/tasks/todo')">取消</el-button>
+      </div>
+    </section>
+
+    <!-- 审批节点（approval） — 仅 active 状态 -->
+    <section v-if="task?.status === 'active' && isApproval" class="form-panel">
       <div class="section-title">
         <h2>审批处理</h2>
+        <span class="section-hint">{{ task?.taskName }}</span>
       </div>
       <el-form :model="form" label-width="100px" label-position="top">
         <el-form-item label="审批结果">
@@ -146,11 +167,13 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AiSuggestionPanel from '@/components/ai/AiSuggestionPanel.vue'
+import DynamicFormRenderer from '@/components/form/DynamicFormRenderer.vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { completeTask, getTask, rejectTask as rejectTaskApi } from '@/api/task'
+import { getFormDetail } from '@/api/formDefinition'
 import type { TaskItem } from '@/types/workflow'
 
 const route = useRoute()
@@ -167,6 +190,36 @@ const form = reactive({
   rejectReason: ''
 })
 
+// ---- 表单填写模式 ----
+const formData = ref<Record<string, unknown>>({})
+const formFields = ref<any[]>([])
+const formLoaded = ref(false)
+
+const isFormFill = computed(() => task.value?.businessType === 'form_fill')
+const isApproval = computed(() => !task.value?.businessType || task.value.businessType === 'approval')
+
+async function loadFormDefinition() {
+  if (!task.value?.formId) {
+    formLoaded.value = true
+    return
+  }
+  try {
+    const def = await getFormDetail(task.value.formId)
+    // 解析 fieldList
+    const raw = def.fieldList
+    if (typeof raw === 'string') {
+      formFields.value = JSON.parse(raw)
+    } else if (Array.isArray(raw)) {
+      formFields.value = raw
+    }
+  } catch { /* ignore */ }
+  formLoaded.value = true
+}
+
+watch(() => task.value?.formId, () => {
+  if (isFormFill.value) loadFormDefinition()
+})
+
 onMounted(() => loadTask())
 
 async function loadTask() {
@@ -178,10 +231,32 @@ async function loadTask() {
   loading.value = true
   try {
     task.value = await getTask(taskId)
+    if (isFormFill.value) await loadFormDefinition()
   } catch (error) {
     message.value = normalizeError(error, '任务详情加载失败。')
   } finally {
     loading.value = false
+  }
+}
+
+async function handleFormFillSubmit() {
+  if (!task.value) return
+  submitting.value = true
+  message.value = ''
+  successMsg.value = ''
+  try {
+    await completeTask(task.value.taskId, {
+      instanceId: task.value.businessInstanceId,
+      nodeKey: task.value.taskDefinitionKey,
+      formId: task.value.formId ?? null,
+      formData: formData.value
+    })
+    successMsg.value = '表单已提交！流程已流转。'
+    setTimeout(() => router.push('/tasks/done'), 1200)
+  } catch (error) {
+    message.value = normalizeError(error, '表单提交失败。')
+  } finally {
+    submitting.value = false
   }
 }
 
@@ -295,6 +370,8 @@ function normalizeError(error: unknown, fallback: string) {
 .info-card strong { display: block; overflow-wrap: anywhere; }
 .section-title { justify-content: space-between; margin-bottom: 14px; }
 .section-title h2 { margin: 0; font-size: 18px; }
+.section-hint { color: var(--muted); font-size: 13px; }
+.form-actions { display: flex; gap: 12px; margin-top: 20px; }
 .progress-panel {
   border: 1px solid var(--line);
   border-radius: 18px;

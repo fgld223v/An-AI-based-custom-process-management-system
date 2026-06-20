@@ -169,6 +169,7 @@ public class TaskQueryServiceImpl implements TaskQueryService {
                 .endTime(null)
                 .status(STATUS_ACTIVE)
                 .formId(formId)
+                .businessType(resolveBusinessType(instance.getTemplateId(), task.getTaskDefinitionKey()))
                 .build();
 
         // 填充多实例（会签/或签）相关信息
@@ -190,6 +191,7 @@ public class TaskQueryServiceImpl implements TaskQueryService {
                 .instanceCode(instance.getInstanceCode())
                 .instanceTitle(instance.getTitle())
                 .assignee(historicTask.getAssignee())
+                .businessType(resolveBusinessType(instance.getTemplateId(), historicTask.getTaskDefinitionKey()))
                 .createTime(historicTask.getCreateTime() != null
                         ? historicTask.getCreateTime().toInstant()
                             .atZone(java.time.ZoneId.systemDefault())
@@ -297,6 +299,50 @@ public class TaskQueryServiceImpl implements TaskQueryService {
         return value == null ? null : value.toString().trim();
     }
 
+    /**
+     * 从模板 nodeConfig 解析指定节点的 businessType。兼容 Map 和 Array 两种格式。
+     */
+    private String resolveBusinessType(Long templateId, String nodeKey) {
+        ProcessTemplate template = processTemplateRepository
+                .findByIdAndDeleted(templateId, 0)
+                .orElse(null);
+        if (template == null || !hasText(template.getNodeConfig())) {
+            return null;
+        }
+        try {
+            // 先尝试 Map 格式：{ "NodeId": {...}, ... }
+            Map<String, Map<String, Object>> map = objectMapper.readValue(
+                    template.getNodeConfig(),
+                    new TypeReference<Map<String, Map<String, Object>>>() {});
+            Map<String, Object> config = map.get(nodeKey);
+            if (config != null) {
+                return stringValue(config.get("businessType"));
+            }
+            for (Map.Entry<String, Map<String, Object>> entry : map.entrySet()) {
+                Object nk = entry.getValue().get("nodeKey");
+                Object nid = entry.getValue().get("nodeId");
+                if (nodeKey.equals(stringValue(nk)) || nodeKey.equals(stringValue(nid))) {
+                    return stringValue(entry.getValue().get("businessType"));
+                }
+            }
+        } catch (Exception e) {
+            // Map 格式失败，尝试 Array 格式：[{ "nodeKey": "...", ... }, ...]
+            try {
+                List<Map<String, Object>> list = objectMapper.readValue(
+                        template.getNodeConfig(),
+                        new TypeReference<List<Map<String, Object>>>() {});
+                for (Map<String, Object> item : list) {
+                    Object nk = item.get("nodeKey");
+                    Object nid = item.get("nodeId");
+                    if (nodeKey.equals(stringValue(nk)) || nodeKey.equals(stringValue(nid))) {
+                        return stringValue(item.get("businessType"));
+                    }
+                }
+            } catch (Exception ignored) { /* ignore */ }
+        }
+        return null;
+    }
+
     // ========================================================================
     // 辅助方法
     // ========================================================================
@@ -305,25 +351,29 @@ public class TaskQueryServiceImpl implements TaskQueryService {
         ProcessTemplate template = processTemplateRepository
                 .findByIdAndDeleted(templateId, 0)
                 .orElse(null);
-        if (template == null || !hasText(template.getFormBindConfig())) {
+        if (template == null) {
             return null;
         }
-        try {
-            Map<String, Map<String, Object>> bindConfig = objectMapper.readValue(
-                    template.getFormBindConfig(),
-                    new TypeReference<Map<String, Map<String, Object>>>() {}
-            );
-            Map<String, Object> nodeBinding = bindConfig.get(taskDefinitionKey);
-            if (nodeBinding != null && nodeBinding.get("formId") != null) {
-                Object formIdObj = nodeBinding.get("formId");
-                if (formIdObj instanceof Number) {
-                    return ((Number) formIdObj).longValue();
+        // 1. 先尝试节点级别绑定（formBindConfig）
+        if (hasText(template.getFormBindConfig())) {
+            try {
+                Map<String, Map<String, Object>> bindConfig = objectMapper.readValue(
+                        template.getFormBindConfig(),
+                        new TypeReference<Map<String, Map<String, Object>>>() {}
+                );
+                Map<String, Object> nodeBinding = bindConfig.get(taskDefinitionKey);
+                if (nodeBinding != null && nodeBinding.get("formId") != null) {
+                    Object formIdObj = nodeBinding.get("formId");
+                    if (formIdObj instanceof Number) {
+                        return ((Number) formIdObj).longValue();
+                    }
                 }
+            } catch (Exception ignored) {
+                // formBindConfig 解析失败不阻塞任务列表
             }
-        } catch (Exception ignored) {
-            // formBindConfig 解析失败不阻塞任务列表
         }
-        return null;
+        // 2. 回退到模板顶层 formId
+        return template.getFormId();
     }
 
     private boolean hasText(String value) {

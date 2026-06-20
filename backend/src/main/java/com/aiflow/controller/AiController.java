@@ -50,24 +50,11 @@ public class AiController {
 
     /** AI 审批建议 — 分析表单数据和流程上下文，给出审批建议 */
     @PostMapping("/suggest-approval")
-    public ApiResponse<AiApprovalSuggestionDTO> suggestApproval(
-            @RequestBody SuggestApprovalRequest request) {
-        return ApiResponse.success(
-                aiApprovalService.suggest(request.getInstanceId(), request.getNodeKey()));
-    }
-
-    @Data
-    public static class SuggestApprovalRequest {
-        private Long instanceId;
-        private String nodeKey;
-    }
-
-    @AuditLog("AI_SUGGEST_APPROVAL")
-    @PostMapping("/suggest-approval")
     public ApiResponse<AiApprovalResponse> suggestApproval(
             @Valid @RequestBody AiApprovalRequest request) {
         return ApiResponse.success(aiApprovalService.suggest(request));
     }
+
     /** AI 流程优化 — 分析单个模板 */
     @AuditLog("AI_OPTIMIZE")
     @PostMapping("/optimize/{templateId}")

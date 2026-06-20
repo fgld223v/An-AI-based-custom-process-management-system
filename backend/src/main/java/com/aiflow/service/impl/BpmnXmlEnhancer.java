@@ -100,9 +100,9 @@ public class BpmnXmlEnhancer {
                     // 会签/或签 → 注入多实例特性
                     injectMultiInstance(doc, nodeId, "ALL".equals(approvalMode), config);
                 } else if ("approval".equals(businessType)) {
-                    // SINGLE 审批 → 先设置 initiator 占位 assignee，
-                    // 实际审批人在前一个任务完成时由 TaskRuntimeServiceImpl 动态分配
-                    injectInitiatorAssignee(doc, nodeId);
+                    // SINGLE 审批 → 不设 assignee，任务无候选人暂不可见。
+                    // 上一节点完成时由 TaskRuntimeServiceImpl.completeTask() 动态分配审批人。
+                    log.info("SINGLE 审批节点 {} 不注入 assignee，将在上一节点完成时动态分配", nodeId);
                 } else if ("notify".equals(businessType)) {
                     injectCcDelegate(doc, nodeId, config);
                 }

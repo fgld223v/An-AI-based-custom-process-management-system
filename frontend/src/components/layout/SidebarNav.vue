@@ -100,7 +100,6 @@ const allMenuGroups: MenuGroup[] = [
     items: [
       { label: 'AI 生成流程', path: '/ai/generate-process', icon: MagicStick, available: true, roles: adminRoles },
       { label: 'AI 生成表单', path: '/ai/generate-form', icon: MagicStick, available: true, roles: adminRoles },
-      { label: 'AI 审批建议', path: '/tasks/todo', icon: MagicStick, available: true, roles: adminRoles },
       { label: 'AI 流程优化', path: '/ai/optimize', icon: TrendCharts, available: true, roles: adminRoles }
     ]
   },
