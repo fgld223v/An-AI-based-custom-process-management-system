@@ -767,8 +767,8 @@ onMounted(async () => {
   }
 
   // 确保 XML 非空且合法后再导入
-  const xmlToImport = currentXml.value?.trim()
-  if (xmlToImport && xmlToImport.startsWith('<?xml')) {
+  const xmlToImport = ensureBpmnDi(currentXml.value?.trim() || '')
+  if (xmlToImport && xmlToImport.includes('<bpmn:definitions')) {
     try {
       await modeler.value.importXML(xmlToImport)
     } catch (importErr) {
@@ -1588,6 +1588,67 @@ function findPaletteTooltip(entry: HTMLElement) {
     }
   }
   return 'BPMN 建模工具'
+}
+
+/**
+ * 确保 BPMN XML 包含 DI（Diagram Interchange）部分。
+ * AI 生成的 BPMN 有时缺少 bpmndi:BPMNDiagram，导致 bpmn-js 报 "no diagram to display"。
+ * 此时自动生成一个最小 DI 布局，让流程能正常渲染。
+ */
+function ensureBpmnDi(xml: string): string {
+  if (!xml || xml.includes('<bpmndi:BPMNDiagram') || xml.includes('BPMNDiagram')) {
+    return xml
+  }
+  // 提取所有流元素 ID，自动生成 DI 布局
+  const idRegex = /<(?:bpmn:)?(startEvent|userTask|endEvent|exclusiveGateway|parallelGateway|serviceTask|sendTask|task)\s[^>]*\bid\s*=\s*"([^"]*)"/gi
+  const ids: string[] = []
+  let match
+  while ((match = idRegex.exec(xml)) !== null) {
+    ids.push(match[2])
+  }
+  if (ids.length === 0) return xml
+
+  // 从定义元素提取 process id 和 targetNamespace
+  const nsMatch = xml.match(/targetNamespace\s*=\s*"([^"]*)"/i)
+  const ns = nsMatch ? nsMatch[1] : 'http://ai-flow/process'
+  const processMatch = xml.match(/<(?:bpmn:)?process\s[^>]*\bid\s*=\s*"([^"]*)"/i)
+  const processId = processMatch ? processMatch[1] : 'Process_Main'
+
+  // 自动布局：水平排列，间距 130px
+  let shapes = ''
+  let edges = ''
+  const startX = 180
+  const y = 160
+  for (let i = 0; i < ids.length; i++) {
+    const x = startX + i * 130
+    const w = ids[i].toLowerCase().includes('gateway') ? 50 : ids[i].toLowerCase().includes('event') ? 36 : 120
+    const h = ids[i].toLowerCase().includes('gateway') ? 50 : ids[i].toLowerCase().includes('event') ? 36 : 80
+    shapes += `\n      <bpmndi:BPMNShape id="${ids[i]}_di" bpmnElement="${ids[i]}">`
+    shapes += `\n        <dc:Bounds x="${x}" y="${y}" width="${w}" height="${h}" />`
+    shapes += `\n      </bpmndi:BPMNShape>`
+  }
+  // 生成连线
+  for (let i = 0; i < ids.length - 1; i++) {
+    const flowId = `Flow_${i + 1}`
+    const x1 = startX + i * 130 + 36
+    const x2 = startX + (i + 1) * 130
+    edges += `\n      <bpmndi:BPMNEdge id="${flowId}_di" bpmnElement="${flowId}">`
+    edges += `\n        <di:waypoint x="${x1}" y="${y + 18}" />`
+    edges += `\n        <di:waypoint x="${x2}" y="${y + 18}" />`
+    edges += `\n      </bpmndi:BPMNEdge>`
+  }
+
+  const diSection = `
+  <bpmndi:BPMNDiagram id="BPMNDiagram_Auto">
+    <bpmndi:BPMNPlane id="BPMNPlane_Auto" bpmnElement="${processId}">${shapes}${edges}
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>`
+
+  // 替换 </bpmn:definitions> 为 DI + 闭合标签
+  const result = xml.replace(/<\/bpmn:definitions>\s*$/i, diSection)
+  console.log('[ProcessDesigner] 自动补全 BPMN DI 布局，节点数:', ids.length)
+  return result
 }
 
 function defaultBpmnXml() {

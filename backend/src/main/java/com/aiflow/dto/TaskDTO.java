@@ -68,6 +68,9 @@ public class TaskDTO {
     /** 当前任务对应的表单 ID（来自 ProcessTemplate.formBindConfig） */
     private Long formId;
 
+    /** 节点业务类型：start / form_fill / approval / notify / condition / end 等 */
+    private String businessType;
+
     // ================================================================
     // 多实例（会签/或签）相关字段
     // ================================================================

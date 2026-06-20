@@ -13,12 +13,16 @@ import com.aiflow.repository.FormSubmissionRepository;
 import com.aiflow.repository.ProcessInstanceRepository;
 import com.aiflow.repository.ProcessTemplateRepository;
 import com.aiflow.security.SecurityUtils;
+import com.aiflow.entity.UserEntity;
+import com.aiflow.mapper.SysUserMapper;
+import com.aiflow.service.ApproverResolverService;
 import com.aiflow.service.FlowableRuntimeService;
 import com.aiflow.service.ProcessInstanceService;
 import com.aiflow.service.RuleEvaluatorService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.flowable.engine.TaskService;
 import org.flowable.task.api.Task;
 import org.springframework.stereotype.Service;
@@ -33,6 +37,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -48,9 +53,12 @@ public class ProcessInstanceServiceImpl implements ProcessInstanceService {
     private final ProcessTemplateRepository processTemplateRepository;
     private final FlowableRuntimeService flowableRuntimeService;
     private final RuleEvaluatorService ruleEvaluatorService;
+    private final ApproverResolverService approverResolverService;
+    private final SysUserMapper sysUserMapper;
     private final TaskService taskService;
     private final ObjectMapper objectMapper;
     private final EntityManager entityManager;
+    private final NodeConfigParser nodeConfigParser;
 
     @Override
     @Transactional(readOnly = true)
@@ -202,6 +210,19 @@ public class ProcessInstanceServiceImpl implements ProcessInstanceService {
                 processInstanceRepository.save(instance);
             } else {
                 ruleEvaluatorService.evaluateAndAutoComplete(instance);
+
+                // 如果第一个任务是审批节点（无 form_fill 前置），立即分配审批人
+                if (activeTask.getAssignee() == null) {
+                    ProcessTemplate tpl = processTemplateRepository
+                            .findByIdAndDeleted(instance.getTemplateId(), 0).orElse(null);
+                    if (tpl != null) {
+                        String businessType = nodeConfigParser.getStringField(
+                                tpl.getNodeConfig(), activeTask.getTaskDefinitionKey(), "businessType");
+                        if ("approval".equals(businessType)) {
+                            assignFirstApprovalTask(activeTask, tpl, instance);
+                        }
+                    }
+                }
             }
         }
 
@@ -354,6 +375,28 @@ public class ProcessInstanceServiceImpl implements ProcessInstanceService {
 
     private String normalize(String value) {
         return hasText(value) ? value.trim() : null;
+    }
+
+    /**
+     * 流程启动后第一个任务即为审批节点时，解析并分配审批人。
+     */
+    private void assignFirstApprovalTask(Task task, ProcessTemplate template, ProcessInstance instance) {
+        String nodeKey = task.getTaskDefinitionKey();
+        String strategy = nodeConfigParser.getStringField(template.getNodeConfig(), nodeKey, "assignStrategy");
+        String assignValue = nodeConfigParser.getStringField(template.getNodeConfig(), nodeKey, "assignValue");
+        if (strategy == null || strategy.isBlank()) {
+            strategy = "DEPARTMENT_MANAGER"; // 兜底
+        }
+        List<Long> approverIds = approverResolverService.resolveApprovers(
+                instance.getId(), nodeKey, strategy, assignValue);
+        if (!approverIds.isEmpty()) {
+            UserEntity approver = sysUserMapper.selectById(approverIds.get(0));
+            if (approver != null) {
+                taskService.setAssignee(task.getId(), String.valueOf(approver.getId()));
+                log.info("启动时分配审批人：task={}, assignee={}(id={})",
+                        task.getName(), approver.getNickname(), approver.getId());
+            }
+        }
     }
 
     private void requireId(Long id, String message) {
