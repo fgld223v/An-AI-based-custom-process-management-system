@@ -172,13 +172,31 @@ public class TaskRuntimeServiceImpl implements TaskRuntimeService {
                 if (nextIsMultiInstance) {
                     // 下一个节点是多实例 → 由 MultiInstanceAssigneeListener 分配
                     // 不在此处手动分配
-                } else if (strategy != null && !strategy.isBlank()) {
-                    List<Long> approverIds = approverResolverService.resolveApprovers(
-                            instance.getId(), nextTask.getTaskDefinitionKey(), strategy, assignValue);
-                    if (!approverIds.isEmpty()) {
-                        UserEntity approver = sysUserMapper.selectById(approverIds.get(0));
-                        if (approver != null) {
-                            taskService.setAssignee(nextTask.getId(), String.valueOf(approver.getId()));
+                } else {
+                    // 对于审批节点，如果未配置 assignStrategy，默认使用 DEPARTMENT_MANAGER
+                    if (strategy == null || strategy.isBlank()) {
+                        String nextBusinessType = resolveBusinessType(
+                                instance.getTemplateId(), nextTask.getTaskDefinitionKey());
+                        if ("approval".equals(nextBusinessType)) {
+                            strategy = "DEPARTMENT_MANAGER";
+                            log.info("审批节点 {} 未配置审批策略，默认使用 DEPARTMENT_MANAGER",
+                                    nextTask.getTaskDefinitionKey());
+                        }
+                    }
+
+                    if (strategy != null && !strategy.isBlank()) {
+                        List<Long> approverIds = approverResolverService.resolveApprovers(
+                                instance.getId(), nextTask.getTaskDefinitionKey(), strategy, assignValue);
+                        if (!approverIds.isEmpty()) {
+                            UserEntity approver = sysUserMapper.selectById(approverIds.get(0));
+                            if (approver != null) {
+                                taskService.setAssignee(nextTask.getId(), String.valueOf(approver.getId()));
+                                log.info("已为审批任务 {} 分配审批人: {} (id={})",
+                                        nextTask.getName(), approver.getNickname(), approver.getId());
+                            }
+                        } else {
+                            log.warn("审批节点 {} 的审批人解析为空，流程可能卡死",
+                                    nextTask.getTaskDefinitionKey());
                         }
                     }
                 }

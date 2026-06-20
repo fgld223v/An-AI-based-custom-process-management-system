@@ -27,6 +27,10 @@ import java.util.Map;
  *
  * <p>处理的业务节点类型：</p>
  * <ul>
+ *   <li><b>表单填写 (form_fill)</b> — 注入 {@code flowable:assignee="${initiator}"}，
+ *       任务自动分配给流程发起人。</li>
+ *   <li><b>单人审批 (approvalMode=SINGLE)</b> — 注入 {@code flowable:taskListener}（event=create），
+ *       在任务创建时动态解析审批人并分配。</li>
  *   <li><b>会签 (approvalMode=ALL)</b> — 注入 {@code multiInstanceLoopCharacteristics}（并行多实例），
  *       所有审批人完成后流程继续。</li>
  *   <li><b>或签 (approvalMode=ANY)</b> — 注入 {@code multiInstanceLoopCharacteristics} +
@@ -89,8 +93,16 @@ public class BpmnXmlEnhancer {
                 String businessType = stringValue(config.get("businessType"));
                 String approvalMode = stringValue(config.get("approvalMode"));
 
-                if ("approval".equals(businessType) && ("ALL".equals(approvalMode) || "ANY".equals(approvalMode))) {
+                if ("form_fill".equals(businessType)) {
+                    // 表单填写节点 → 分配给流程发起人
+                    injectInitiatorAssignee(doc, nodeId);
+                } else if ("approval".equals(businessType) && ("ALL".equals(approvalMode) || "ANY".equals(approvalMode))) {
+                    // 会签/或签 → 注入多实例特性
                     injectMultiInstance(doc, nodeId, "ALL".equals(approvalMode), config);
+                } else if ("approval".equals(businessType)) {
+                    // SINGLE 审批 → 先设置 initiator 占位 assignee，
+                    // 实际审批人在前一个任务完成时由 TaskRuntimeServiceImpl 动态分配
+                    injectInitiatorAssignee(doc, nodeId);
                 } else if ("notify".equals(businessType)) {
                     injectCcDelegate(doc, nodeId, config);
                 }
@@ -173,6 +185,78 @@ public class BpmnXmlEnhancer {
                 "${ccNotificationDelegate}");
 
         log.info("已为抄送节点 {} 注入 CC 通知委托", nodeId);
+    }
+
+    /**
+     * 为 form_fill 节点注入 {@code flowable:assignee="${initiator}"}，
+     * 使任务自动分配给流程发起人（即申请人）。
+     */
+    private void injectInitiatorAssignee(Document doc, String nodeId) {
+        Element userTask = findElementById(doc, "userTask", nodeId);
+        if (userTask == null) {
+            log.warn("未找到 form_fill 节点 {}，跳过 initiator assignee 注入", nodeId);
+            return;
+        }
+        userTask.setAttributeNS(FLOWABLE_NS, FLOWABLE_PREFIX + ":assignee", "${initiator}");
+        log.info("已为 form_fill 节点 {} 注入 initiator assignee", nodeId);
+    }
+
+    /**
+     * 为 SINGLE 审批节点注入 TaskListener（event=create），
+     * 在任务创建时通过 {@code singleAssigneeListener} 动态解析审批人并分配。
+     *
+     * <p>TaskListener 必须包裹在 {@code bpmn:extensionElements} 中，
+     * 否则 Flowable 部署时的 XSD 校验会失败。</p>
+     */
+    private void injectSingleApprovalListener(Document doc, String nodeId,
+                                               Map<String, Object> config) {
+        Element userTask = findElementById(doc, "userTask", nodeId);
+        if (userTask == null) {
+            log.warn("未找到审批节点 {}，跳过 TaskListener 注入", nodeId);
+            return;
+        }
+
+        // 先设置一个占位 assignee，确保 Flowable 能创建任务
+        userTask.setAttributeNS(FLOWABLE_NS, FLOWABLE_PREFIX + ":assignee", "${initiator}");
+
+        // 查找或创建 bpmn:extensionElements 容器
+        Element extElements = findExtensionElements(doc, userTask);
+        if (extElements == null) {
+            extElements = doc.createElementNS(BPMN_NS, "bpmn:extensionElements");
+            // extensionElements 必须是 userTask 的第一个子元素（在 outgoing 等之前）
+            org.w3c.dom.Node firstChild = userTask.getFirstChild();
+            if (firstChild != null) {
+                userTask.insertBefore(extElements, firstChild);
+            } else {
+                userTask.appendChild(extElements);
+            }
+        }
+
+        // 注入 TaskListener — create 事件触发时由 singleAssigneeListener 重新分配
+        Element taskListener = doc.createElementNS(FLOWABLE_NS,
+                FLOWABLE_PREFIX + ":taskListener");
+        taskListener.setAttribute("event", "create");
+        taskListener.setAttributeNS(FLOWABLE_NS, FLOWABLE_PREFIX + ":delegateExpression",
+                "${singleAssigneeListener}");
+        extElements.appendChild(taskListener);
+
+        log.info("已为 SINGLE 审批节点 {} 注入 TaskListener（assignStrategy={}）",
+                nodeId, stringValue(config.get("assignStrategy")));
+    }
+
+    /**
+     * 查找或创建 userTask 下的 bpmn:extensionElements 子元素。
+     */
+    private Element findExtensionElements(Document doc, Element userTask) {
+        org.w3c.dom.NodeList children = userTask.getChildNodes();
+        for (int i = 0; i < children.getLength(); i++) {
+            org.w3c.dom.Node child = children.item(i);
+            if (child instanceof Element elem
+                    && "extensionElements".equals(elem.getLocalName())) {
+                return elem;
+            }
+        }
+        return null;
     }
 
     // ================================================================

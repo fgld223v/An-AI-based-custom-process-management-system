@@ -1081,6 +1081,13 @@ async function submitTemplateSave() {
   if (!validateTemplateForFlowablePreparation()) return
   templateSaving.value = true
   try {
+    // 构建符合后端格式的 formBindConfig: { nodeId: { formId: X } }
+    const formBindConfig: Record<string, any> = {}
+    for (const [key, cfg] of Object.entries(nodeConfigMap)) {
+      if (cfg.formId) {
+        formBindConfig[key] = { formId: cfg.formId }
+      }
+    }
     const payload = {
       templateCode: templateSaveForm.templateCode,
       templateName: templateSaveForm.templateName,
@@ -1089,7 +1096,7 @@ async function submitTemplateSave() {
       sourceType: 'manual',
       bpmnXml: currentXml.value,
       nodeConfig: JSON.stringify(buildPersistableNodeConfig()),
-      formBindConfig: JSON.stringify({ formId: templateSaveForm.formId }),
+      formBindConfig: JSON.stringify(formBindConfig),
       // TODO: 后续接入登录后替换为当前用户 ID。
       createdBy: 1
     }
@@ -1157,9 +1164,10 @@ function ensureNodeConfig(element: BpmnElement, defaultName?: string, businessTy
     const inferredBusinessType = businessType || inferBusinessType(element)
     const nodeName = defaultName || element.businessObject?.name || getDefaultNodeName(inferredBusinessType, element.type)
     nodeConfigMap[element.id] = createDefaultNodeConfig(element, inferredBusinessType, nodeName)
-  } else {
-    nodeConfigMap[element.id] = normalizeNodeFormConfig(nodeConfigMap[element.id])
   }
+  // NOTE: 不要在 computed 中对已存在配置调用 normalizeNodeFormConfig，
+  // 否则会修改 reactive 对象触发 Vue 递归更新检测。
+  // 配置在 createDefaultNodeConfig 时已规范化，加载/恢复时也会单独规范化。
   return nodeConfigMap[element.id]
 }
 
@@ -1251,7 +1259,7 @@ function createDefaultNodeConfig(element: BpmnElement, businessType: BusinessTyp
 function inferBusinessType(element: BpmnElement): BusinessType {
   const typeMap: Record<string, BusinessType> = {
     'bpmn:StartEvent': 'start',
-    'bpmn:UserTask': 'approval',
+    'bpmn:UserTask': 'form_fill',
     'bpmn:Task': 'generic_task',
     'bpmn:ServiceTask': 'system_action',
     'bpmn:SendTask': 'notify',

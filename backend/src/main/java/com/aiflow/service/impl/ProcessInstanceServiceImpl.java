@@ -98,7 +98,7 @@ public class ProcessInstanceServiceImpl implements ProcessInstanceService {
                 .instanceCode("PI_" + now.format(CODE_TIME_FORMATTER))
                 .templateId(template.getId())
                 .formId(request.getFormId())
-                .applicantId(1L)
+                .applicantId(SecurityUtils.currentUserId() != null ? SecurityUtils.currentUserId() : 1L)
                 .bizTypeId(template.getBizTypeId())
                 .title(request.getInstanceTitle().trim())
                 .status(STATUS_DRAFT)
@@ -131,25 +131,34 @@ public class ProcessInstanceServiceImpl implements ProcessInstanceService {
         requireText(request.getNodeKey(), "nodeKey must not be blank");
 
         ProcessInstance instance = getRequiredInstance(request.getProcessInstanceId());
-        if (STATUS_SUBMITTED.equals(instance.getStatus()) || STATUS_RUNNING.equals(instance.getStatus())) {
-            throw new IllegalStateException("当前实例已提交或已启动流程，仅支持查看，不支持继续保存。");
+        boolean isRunning = STATUS_SUBMITTED.equals(instance.getStatus()) || STATUS_RUNNING.equals(instance.getStatus());
+
+        // running 状态下只允许保存 form_fill 节点的表单（流程中间节点的数据采集），
+        // start 节点和其他类型仅允许在 draft 阶段保存。
+        if (isRunning && !"form_fill".equals(request.getBusinessType())) {
+            throw new IllegalStateException("当前实例已启动流程，仅支持填写表单节点（form_fill），不支持修改启动配置。");
         }
         if (!request.getTemplateId().equals(instance.getTemplateId())) {
             throw new IllegalArgumentException("templateId does not match current process instance");
         }
 
         LocalDateTime now = LocalDateTime.now();
+        // running 状态下表单数据标记为 submitted（已提交），draft 阶段仍保持 draft
+        String submissionStatus = isRunning ? STATUS_SUBMITTED : normalizeStatus(request.getStatus(), STATUS_DRAFT);
         FormSubmission submission = saveSubmission(instance, request.getTemplateId(), request.getNodeKey(),
                 request.getNodeName(), request.getBusinessType(), request.getFormId(), request.getFormDataJson(),
-                normalizeStatus(request.getStatus(), STATUS_DRAFT), now);
+                submissionStatus, now);
 
-        instance.setFormId(request.getFormId());
-        instance.setFormData(request.getFormDataJson());
-        instance.setCurrentNodeKey(request.getNodeKey());
-        instance.setCurrentNodeName(request.getNodeName());
-        instance.setCurrentBusinessType(request.getBusinessType());
-        instance.setUpdatedAt(now);
-        processInstanceRepository.save(instance);
+        // 仅 draft 阶段更新实例元数据，running 阶段不覆盖（由 Flowable 任务完成时更新）
+        if (!isRunning) {
+            instance.setFormId(request.getFormId());
+            instance.setFormData(request.getFormDataJson());
+            instance.setCurrentNodeKey(request.getNodeKey());
+            instance.setCurrentNodeName(request.getNodeName());
+            instance.setCurrentBusinessType(request.getBusinessType());
+            instance.setUpdatedAt(now);
+            processInstanceRepository.save(instance);
+        }
 
         return toDto(submission);
     }

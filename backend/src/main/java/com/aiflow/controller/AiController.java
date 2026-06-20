@@ -9,6 +9,7 @@ import com.aiflow.service.AiOptimizationService;
 import com.aiflow.dto.AiGenerateFormResponse;
 import com.aiflow.dto.AiGenerateProcessResponse;
 import com.aiflow.dto.AiGenerateRequest;
+import com.aiflow.service.AiApprovalService;
 import com.aiflow.service.AiFormService;
 import com.aiflow.service.AiProcessService;
 import jakarta.validation.Valid;
@@ -26,7 +27,7 @@ public class AiController {
     private final AiProcessService aiProcessService;
     private final AiFormService aiFormService;
     private final AiOptimizationService aiOptimizationService;
-    private final AiFormService aiFormService;
+    private final AiApprovalService aiApprovalService;
 
     @PostMapping("/generate-process")
     public ApiResponse<AiGenerateProcessResponse> generateProcess(
@@ -40,6 +41,20 @@ public class AiController {
             @Valid @RequestBody AiGenerateRequest request) {
         return ApiResponse.success(
                 aiFormService.generateForm(request.getDescription()));
+    }
+
+    /** AI 审批建议 — 分析表单数据和流程上下文，给出审批建议 */
+    @PostMapping("/suggest-approval")
+    public ApiResponse<AiApprovalSuggestionDTO> suggestApproval(
+            @RequestBody SuggestApprovalRequest request) {
+        return ApiResponse.success(
+                aiApprovalService.suggest(request.getInstanceId(), request.getNodeKey()));
+    }
+
+    @Data
+    public static class SuggestApprovalRequest {
+        private Long instanceId;
+        private String nodeKey;
     }
 
     /** AI 流程优化 — 分析单个模板 */

@@ -199,6 +199,7 @@ import {
   Plus,
   Refresh,
   Tickets,
+  UploadFilled,
   View
 } from '@element-plus/icons-vue'
 import DynamicFormRenderer from '@/components/form/DynamicFormRenderer.vue'
@@ -651,7 +652,12 @@ const PreviewInput = defineComponent({
         return h(ElCheckboxGroup, {}, () => field.options.map((option) => h(ElCheckbox, { value: option.value }, () => option.label)))
       }
       if (field.type === 'upload') {
-        return h(ElButton, { plain: true }, () => field.placeholder)
+        const ElIcon = resolveComponent('ElIcon')
+        const UploadFilledIcon = resolveComponent('UploadFilled')
+        return h('div', { style: 'display:flex;align-items:center;gap:8px;padding:8px 12px;border:1px dashed var(--el-border-color);border-radius:6px;background:var(--el-fill-color-lighter);color:var(--el-text-color-secondary);font-size:13px;cursor:default;' }, [
+          h(ElIcon, {}, () => h(UploadFilledIcon)),
+          h('span', field.placeholder || '点击或拖拽上传')
+        ])
       }
       if (field.type === 'textarea') {
         return h(ElInput, { type: 'textarea', rows: 3, placeholder: field.placeholder })
