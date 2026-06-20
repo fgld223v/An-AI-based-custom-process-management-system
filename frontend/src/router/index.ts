@@ -20,6 +20,12 @@ const routes: RouteRecordRaw[] = [
     meta: { public: true, title: '登录' }
   },
   {
+    path: '/register',
+    name: 'Register',
+    component: () => import('@/views/login/Register.vue'),
+    meta: { public: true, title: '注册' }
+  },
+  {
     path: '/403',
     name: 'Forbidden',
     component: () => import('@/views/error/Forbidden.vue'),
