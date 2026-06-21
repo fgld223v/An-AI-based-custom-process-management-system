@@ -619,6 +619,27 @@ const BUSINESS_NODE_CONFIGS: BusinessNodeConfig[] = [
   { label: '系统动作', businessType: 'system_action', bpmnType: 'bpmn:ServiceTask', defaultName: '系统处理', icon: Operation },
   { label: '流程结束', businessType: 'end', bpmnType: 'bpmn:EndEvent', defaultName: '流程结束', icon: Finished }
 ]
+const MANAGED_BPMN_TYPES = new Set<string>([
+  'bpmn:StartEvent',
+  'bpmn:UserTask',
+  'bpmn:Task',
+  'bpmn:ServiceTask',
+  'bpmn:SendTask',
+  'bpmn:ExclusiveGateway',
+  'bpmn:ParallelGateway',
+  'bpmn:EndEvent'
+])
+const BUSINESS_TYPE_VALUES = new Set<BusinessType>([
+  'start',
+  'form_fill',
+  'approval',
+  'condition',
+  'parallel',
+  'notify',
+  'system_action',
+  'end',
+  'generic_task'
+])
 const FLOWABLE_NODE_TYPE_MAP: Record<BusinessType, string> = {
   start: 'bpmn:StartEvent',
   form_fill: 'bpmn:UserTask',
@@ -807,6 +828,7 @@ onMounted(async () => {
   // 导入成功后的后处理
   const canvas = modeler.value.get('canvas')
   canvas.zoom('fit-viewport', 'auto')
+  hydrateNodeConfigMapFromCanvas()
 
   // 把 AI 返回的 nodeConfig 灌进 nodeConfigMap（array 或 map 格式都兼容）
   const aiNodeConfigRaw = window.sessionStorage.getItem('ai-generated-nodeconfig')
@@ -857,6 +879,18 @@ onMounted(async () => {
           existing.useTemplateFallback = cfg.useTemplateFallback ?? existing.useTemplateFallback
         }
       }
+    } catch { /* ignore */ }
+  }
+
+  if (aiNodeConfigRaw) {
+    try {
+      mergeStoredNodeConfig(JSON.parse(aiNodeConfigRaw))
+    } catch { /* ignore */ }
+  }
+
+  if (savedConfig) {
+    try {
+      mergeStoredNodeConfig(JSON.parse(savedConfig))
     } catch { /* ignore */ }
   }
 
@@ -1250,6 +1284,56 @@ function ensureNodeConfig(element: BpmnElement, defaultName?: string, businessTy
   return nodeConfigMap[element.id]
 }
 
+function isManagedBpmnElement(element?: BpmnElement | null) {
+  return Boolean(element && MANAGED_BPMN_TYPES.has(element.type))
+}
+
+function normalizeBusinessType(value: unknown): BusinessType | null {
+  if (typeof value !== 'string') return null
+  return BUSINESS_TYPE_VALUES.has(value as BusinessType) ? (value as BusinessType) : null
+}
+
+function resolveStoredNodeConfigEntries(raw: unknown): Array<[string, any]> {
+  if (Array.isArray(raw)) {
+    return raw
+      .map((item) => {
+        const nodeId = item?.nodeKey || item?.nodeId
+        return typeof nodeId === 'string' && nodeId ? [nodeId, item] as [string, any] : null
+      })
+      .filter((entry): entry is [string, any] => Boolean(entry))
+  }
+  if (raw && typeof raw === 'object') {
+    return Object.entries(raw as Record<string, unknown>)
+      .filter(([nodeId]) => Boolean(nodeId))
+      .map(([nodeId, item]) => [nodeId, item] as [string, any])
+  }
+  return []
+}
+
+function ensureNodeConfigById(nodeId: string, fallbackName?: string, businessType?: BusinessType) {
+  if (nodeConfigMap[nodeId]) {
+    return nodeConfigMap[nodeId]
+  }
+  if (!modeler.value) {
+    return null
+  }
+  const elementRegistry = modeler.value.get('elementRegistry')
+  const element = elementRegistry.get(nodeId) as BpmnElement | undefined
+  if (!element || !isManagedBpmnElement(element)) {
+    return null
+  }
+  return ensureNodeConfig(element, fallbackName, businessType)
+}
+
+function hydrateNodeConfigMapFromCanvas() {
+  if (!modeler.value) return
+  const elementRegistry = modeler.value.get('elementRegistry')
+  const elements = elementRegistry.filter((element: BpmnElement) => isManagedBpmnElement(element))
+  elements.forEach((element: BpmnElement) => {
+    ensureNodeConfig(element)
+  })
+}
+
 function createDefaultNodeConfig(element: BpmnElement, businessType: BusinessType, nodeName: string): NodeBusinessConfig {
   const base: NodeBusinessConfig = {
     nodeId: element.id,
@@ -1319,21 +1403,28 @@ function createDefaultNodeConfig(element: BpmnElement, businessType: BusinessTyp
     remark: ''
   }
 
-  applyDefaultFormBinding(base, businessType)
+  applyBusinessTypeDefaults(base, businessType)
+  return base
+}
+
+function applyBusinessTypeDefaults(config: NodeBusinessConfig, businessType: BusinessType) {
+  config.businessType = businessType
+  applyDefaultFormBinding(config, businessType)
 
   if (businessType === 'approval') {
-    base.assigneeType = 'MANAGER'
+    config.assigneeType = 'MANAGER'
+    return
   }
   if (businessType === 'notify') {
-    base.actionType = 'NOTIFY'
-    base.notifyTiming = 'ON_COMPLETE'
+    config.actionType = 'NOTIFY'
+    config.notifyTiming = 'ON_COMPLETE'
+    return
   }
   if (businessType === 'system_action') {
-    base.actionType = 'HTTP'
-    base.failureStrategy = 'RETRY'
-    base.retryCount = 3
+    config.actionType = 'HTTP'
+    config.failureStrategy = 'RETRY'
+    config.retryCount = 3
   }
-  return base
 }
 
 function inferBusinessType(element: BpmnElement): BusinessType {
@@ -1371,6 +1462,47 @@ function getBusinessLabel(businessType: BusinessType) {
 
 function isFormBindableNode(config?: NodeBusinessConfig | null) {
   return Boolean(config && FORM_BINDABLE_BUSINESS_TYPES.includes(config.businessType))
+}
+
+function mergeStoredNodeConfig(raw: unknown) {
+  const strategyToAssignee: Record<string, string> = {
+    DIRECT_SUPERVISOR: 'MANAGER',
+    DEPARTMENT_MANAGER: 'DEPT_LEADER',
+    SPECIFIC_USERS: 'USER',
+    ROLE: 'ROLE'
+  }
+
+  for (const [nodeId, item] of resolveStoredNodeConfigEntries(raw)) {
+    const incoming = item as Partial<NodeBusinessConfig> & Record<string, any>
+    const incomingBusinessType = normalizeBusinessType(incoming.businessType)
+    const config = ensureNodeConfigById(nodeId, incoming.nodeName, incomingBusinessType || undefined)
+    if (!config) continue
+
+    if (incoming.nodeName) {
+      config.nodeName = incoming.nodeName
+    }
+    if (incomingBusinessType && incomingBusinessType !== config.businessType) {
+      applyBusinessTypeDefaults(config, incomingBusinessType)
+    }
+    if (incoming.approvalMode) config.approvalMode = incoming.approvalMode
+    if (incoming.assignStrategy) {
+      config.assignStrategy = incoming.assignStrategy
+      config.assigneeType = strategyToAssignee[incoming.assignStrategy] || config.assigneeType
+    }
+    if (incoming.assignValue) {
+      config.assignValue = incoming.assignValue
+      config.assigneeValue = incoming.assignValue
+    }
+    if (incoming.assigneeValue) {
+      config.assigneeValue = incoming.assigneeValue
+      config.assignValue = incoming.assigneeValue
+    }
+    if (incoming.notifyTarget) config.notifyTarget = incoming.notifyTarget
+    if (incoming.notifyChannel) config.notifyChannel = String(incoming.notifyChannel).toUpperCase()
+    if (incoming.formBindingMode) config.formBindingMode = incoming.formBindingMode
+    if ('formId' in incoming) config.formId = incoming.formId ? Number(incoming.formId) : null
+    if ('useTemplateFallback' in incoming) config.useTemplateFallback = Boolean(incoming.useTemplateFallback)
+  }
 }
 
 async function handleFormBindingModeChange() {
