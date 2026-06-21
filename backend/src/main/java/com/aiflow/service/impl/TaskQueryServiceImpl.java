@@ -45,6 +45,7 @@ public class TaskQueryServiceImpl implements TaskQueryService {
     private final ProcessInstanceRepository processInstanceRepository;
     private final ProcessTemplateRepository processTemplateRepository;
     private final ObjectMapper objectMapper;
+    private final FormBindConfigParser formBindConfigParser;
 
     // ========================================================================
     // 待办（ACT_RU_TASK）

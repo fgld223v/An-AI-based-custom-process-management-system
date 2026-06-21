@@ -12,7 +12,7 @@
     <section class="template-stats">
       <div class="stat-card">
         <span>{{ templates.length }}</span>
-        <p>流程模板数</p>
+        <p>模板版本数</p>
       </div>
       <div class="stat-card">
         <span>{{ publishedCount }}</span>
@@ -32,7 +32,7 @@
       <div class="panel-title-row">
         <div>
           <h2>模板列表</h2>
-          <p>数据来自后端 GET /api/process-templates</p>
+          <p>已发布版本保持只读，修改时创建下一版草稿。</p>
         </div>
         <el-button round :icon="Refresh" @click="loadPageData">刷新</el-button>
       </div>
@@ -46,7 +46,9 @@
         <el-table-column label="绑定表单" min-width="150">
           <template #default="{ row }">{{ formName(row.formId) }}</template>
         </el-table-column>
-        <el-table-column prop="version" label="版本" width="90" />
+        <el-table-column label="版本" width="90">
+          <template #default="{ row }">v{{ row.version || 1 }}</template>
+        </el-table-column>
         <el-table-column label="状态" width="110">
           <template #default="{ row }">
             <el-tag :type="statusTagType(row.status)" effect="plain">{{ templateStatusLabel(row.status) }}</el-tag>
@@ -76,15 +78,16 @@
             <span v-else style="color:var(--muted);font-size:12px">-</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="420" fixed="right">
+        <el-table-column label="操作" width="480" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" :disabled="!canEdit(row.status)" @click="openEditDialog(row)">编辑</el-button>
+            <el-button v-if="canCreateVersion(row.status)" link type="primary" @click="handleCreateVersion(row)">新版本</el-button>
             <el-button link type="success" :disabled="!canPublish(row.status)" @click="handlePublish(row)">发布</el-button>
-            <el-button link type="danger" :disabled="normalizeStatus(row.status) !== 'published'" @click="handleUnpublish(row)">撤回</el-button>
+            <el-button link type="danger" :disabled="normalizeStatus(row.status) !== 'published'" @click="handleUnpublish(row)">停用</el-button>
             <el-button link type="primary" @click="openPreviewDialog(row)">预览</el-button>
             <el-button link type="warning" :disabled="normalizeStatus(row.status) !== 'published' || Boolean(getMarketItem(row.id))" @click="openMarketDialog(row)">上架</el-button>
             <el-button v-if="getMarketItem(row.id)" link type="danger" @click="handleWithdraw(row)">下架</el-button>
-            <el-button link type="primary" @click="goToDesigner(row)">流程图</el-button>
+            <el-button link type="primary" :disabled="!canEdit(row.status)" @click="goToDesigner(row)">流程图</el-button>
           </template>
         </el-table-column>
         <template #empty>
@@ -188,6 +191,7 @@ import { getBizTypes } from '@/api/bizType'
 import { getPublishedForms } from '@/api/formDefinition'
 import {
   createProcessTemplate,
+  createProcessTemplateVersion,
   getProcessTemplateBoundForm,
   getProcessTemplates,
   publishProcessTemplate,
@@ -399,13 +403,26 @@ function getMarketItem(templateId: number): TemplateMarketItem | undefined {
 
 async function handleUnpublish(row: ProcessTemplate) {
   try {
-    await ElMessageBox.confirm(`确认撤回「${row.templateName}」吗？模板将回到草稿状态，Flowable 部署信息将被清除。`, '撤回模板', { type: 'warning' })
+    await ElMessageBox.confirm(`确认停用「${row.templateName}」v${row.version || 1}吗？历史引用和部署信息将继续保留。`, '停用模板版本', { type: 'warning' })
     await unpublishProcessTemplate(row.id)
-    ElMessage.success('模板已撤回为草稿')
+    ElMessage.success('模板版本已停用')
     await loadPageData()
   } catch (error) {
     if (error === 'cancel' || error === 'close') return
-    ElMessage.error(error instanceof Error ? error.message : '撤回失败')
+    ElMessage.error(error instanceof Error ? error.message : '停用失败')
+  }
+}
+
+async function handleCreateVersion(row: ProcessTemplate) {
+  try {
+    await ElMessageBox.confirm(`将基于「${row.templateName}」创建下一版草稿，是否继续？`, '创建新版本', { type: 'info' })
+    const draft = await createProcessTemplateVersion(row.id)
+    ElMessage.success(`已准备 v${draft.version || 1} 草稿`)
+    await loadPageData()
+    router.push(`/process-designer?templateId=${draft.id}`)
+  } catch (error) {
+    if (error === 'cancel' || error === 'close') return
+    ElMessage.error(error instanceof Error ? error.message : '创建新版本失败')
   }
 }
 
@@ -446,6 +463,10 @@ function canEdit(status?: string) {
 
 function canPublish(status?: string) {
   return ['draft', 'reviewing'].includes(normalizeStatus(status))
+}
+
+function canCreateVersion(status?: string) {
+  return ['published', 'disabled'].includes(normalizeStatus(status))
 }
 
 function templateStatusLabel(status?: string) {

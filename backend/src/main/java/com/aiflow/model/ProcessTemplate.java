@@ -2,6 +2,8 @@ package com.aiflow.model;
 
 import com.aiflow.enums.TemplateSourceType;
 import com.aiflow.enums.TemplateSourceTypeConverter;
+import com.aiflow.enums.ProcessResourceType;
+import com.aiflow.enums.ProcessResourceTypeConverter;
 import com.aiflow.enums.TemplateStatus;
 import com.aiflow.enums.TemplateStatusConverter;
 import jakarta.persistence.Column;
@@ -53,6 +55,10 @@ public class ProcessTemplate {
     @Convert(converter = TemplateSourceTypeConverter.class)
     @Column(name = "source_type", columnDefinition = "ENUM('ai_generated','manual','market_copy','fragment_combo')")
     private TemplateSourceType sourceType;
+
+    @Convert(converter = ProcessResourceTypeConverter.class)
+    @Column(name = "resource_type", columnDefinition = "ENUM('system_template','business_process')")
+    private ProcessResourceType resourceType;
 
     @Column(name = "bpmn_xml", columnDefinition = "LONGTEXT")
     private String bpmnXml;

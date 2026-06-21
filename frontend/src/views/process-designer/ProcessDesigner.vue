@@ -12,10 +12,10 @@
           <p>使用 bpmn.js 原生工具栏绘制流程，也可以点击常用业务节点快速创建。</p>
         </div>
         <div class="process-actions">
-          <el-button round :icon="Refresh" @click="loadDefaultDiagram">默认流程</el-button>
-          <el-button round :icon="Upload" @click="importVisible = true">回显 XML</el-button>
-          <el-button round :icon="Download" @click="exportXml">导出 XML</el-button>
+          <el-button round :icon="ArrowLeft" @click="goBack">返回</el-button>
           <el-button round type="success" :icon="Check" @click="saveXml">保存</el-button>
+          <el-button round type="primary" :icon="Promotion" @click="publishCurrent">发布</el-button>
+          <el-button round :icon="CopyDocument" @click="openSaveAsDialog">另存为</el-button>
         </div>
       </section>
 
@@ -161,11 +161,21 @@
             </el-select>
           </el-form-item>
           <el-form-item label="发起权限">
-            <el-select v-model="selectedConfig.startPermission" @change="syncNodeConfig">
+            <el-select v-model="selectedConfig.startPermission" @change="handleStartPermissionChange">
               <el-option label="所有人" value="ALL" />
               <el-option label="指定角色" value="ROLE" />
               <el-option label="指定部门" value="DEPARTMENT" />
             </el-select>
+          </el-form-item>
+          <el-form-item v-if="selectedConfig.startPermission === 'ROLE'" label="允许发起的角色">
+            <el-select v-model="selectedConfig.startPermissionValue" placeholder="请选择角色" @change="syncNodeConfig">
+              <el-option label="普通用户" value="normal_user" />
+              <el-option label="业务管理员" value="biz_admin" />
+              <el-option label="超级管理员" value="super_admin" />
+            </el-select>
+          </el-form-item>
+          <el-form-item v-if="selectedConfig.startPermission === 'DEPARTMENT'" label="允许发起的部门">
+            <el-input v-model="selectedConfig.startPermissionValue" placeholder="请输入部门 ID，多个用逗号分隔" @change="syncNodeConfig" />
           </el-form-item>
           <el-form-item label="是否需要登录">
             <el-switch v-model="selectedConfig.loginRequired" active-text="需要" inactive-text="不需要" @change="syncNodeConfig" />
@@ -422,12 +432,18 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="templateSaveVisible" title="保存为流程模板" width="620px">
+    <el-dialog v-model="templateSaveVisible" :title="saveDialogTitle" width="620px">
       <el-form label-position="top">
-        <el-form-item label="模板编码">
-          <el-input v-model="templateSaveForm.templateCode" :disabled="Boolean(savedTemplateId)" placeholder="例如 leave_approval_v1" />
+        <el-form-item v-if="canChooseSaveTarget" label="保存目标">
+          <el-radio-group v-model="saveTarget">
+            <el-radio-button label="template">流程模板</el-radio-button>
+            <el-radio-button label="process">业务流程</el-radio-button>
+          </el-radio-group>
         </el-form-item>
-        <el-form-item label="模板名称">
+        <el-form-item :label="`${saveTargetLabel}编码`">
+          <el-input v-model="templateSaveForm.templateCode" :disabled="Boolean(savedTemplateId) && saveDialogMode !== 'saveAs'" placeholder="例如 leave_approval_v1" />
+        </el-form-item>
+        <el-form-item :label="`${saveTargetLabel}名称`">
           <el-input v-model="templateSaveForm.templateName" placeholder="例如 请假审批流程" />
         </el-form-item>
         <el-form-item label="业务类型">
@@ -444,7 +460,7 @@
       </el-form>
       <template #footer>
         <el-button round @click="templateSaveVisible = false">取消</el-button>
-        <el-button round type="success" :loading="templateSaving" @click="submitTemplateSave">保存模板</el-button>
+        <el-button round type="success" :loading="templateSaving" @click="submitTemplateSave">{{ saveDialogActionText }}</el-button>
       </template>
     </el-dialog>
 
@@ -471,17 +487,17 @@ import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } 
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
+  ArrowLeft,
   Bell,
   Check,
-  Download,
+  CopyDocument,
   EditPen,
   Finished,
   View,
   Operation,
-  Refresh,
+  Promotion,
   Share,
   Switch,
-  Upload,
   VideoPlay,
   MagicStick
 } from '@element-plus/icons-vue'
@@ -491,10 +507,12 @@ import 'bpmn-js/dist/assets/bpmn-js.css'
 import 'bpmn-js/dist/assets/bpmn-font/css/bpmn.css'
 import { showComingSoon } from '@/utils/feedback'
 import { getBizTypes } from '@/api/bizType'
-import { createForm, getForms } from '@/api/formDefinition'
-import { createProcessTemplate, getProcessTemplateDetail, updateProcessTemplate } from '@/api/processTemplate'
+import { getPublishedForms } from '@/api/formDefinition'
+import { createProcessTemplate, getProcessTemplateDetail, publishProcessTemplate, updateProcessTemplate } from '@/api/processTemplate'
+import { createMyProcess, getMyProcessDetail, publishMyProcess, updateMyProcess } from '@/api/myProcess'
 import { useTemplateStore } from '@/stores/template'
-import type { BizType, FormDefinition } from '@/types/workflow'
+import { useAuthStore } from '@/stores/auth'
+import type { BizType, FormDefinition, ProcessTemplate } from '@/types/workflow'
 
 type BusinessType =
   | 'start'
@@ -560,6 +578,7 @@ interface NodeBusinessConfig {
   endStatus: string
   startMode: string
   startPermission: string
+  startPermissionValue: string
   loginRequired: boolean
   attachmentAllowed: boolean
   draftAllowed: boolean
@@ -665,10 +684,25 @@ const nodeConfigMap = reactive<Record<string, NodeBusinessConfig>>({})
 const route = useRoute()
 const router = useRouter()
 const templateStore = useTemplateStore()
+const authStore = useAuthStore()
+const isMyProcessScope = computed(() => route.query.scope === 'my')
+const saveTarget = ref<'template' | 'process'>(isMyProcessScope.value || authStore.user?.systemRole === 'biz_admin' ? 'process' : 'template')
+const saveDialogMode = ref<'create' | 'saveAs'>('create')
+const hasCurrentResource = computed(() => Boolean(savedTemplateId.value))
+const canChooseSaveTarget = computed(() => authStore.user?.systemRole === 'super_admin' && (saveDialogMode.value === 'saveAs' || (!isMyProcessScope.value && !hasCurrentResource.value)))
+const isProcessSaveTarget = computed(() => {
+  if (saveDialogMode.value === 'saveAs') return saveTarget.value === 'process'
+  if (isMyProcessScope.value) return true
+  if (hasCurrentResource.value) return false
+  return saveTarget.value === 'process'
+})
+const saveTargetLabel = computed(() => isProcessSaveTarget.value ? '流程' : '模板')
+const saveDialogTitle = computed(() => saveDialogMode.value === 'saveAs' ? `另存为${saveTargetLabel.value}` : `保存${saveTargetLabel.value}`)
+const saveDialogActionText = computed(() => saveDialogMode.value === 'saveAs' ? `另存为${saveTargetLabel.value}` : `保存${saveTargetLabel.value}`)
 const currentXml = ref(props.modelValue || defaultBpmnXml())
 const templateSaveForm = reactive({
   templateCode: '',
-  templateName: '未命名流程模板',
+  templateName: '未命名流程',
   bizTypeId: null as number | null,
   formId: null as number | null
 })
@@ -692,45 +726,17 @@ onMounted(async () => {
     container: canvasRef.value
   })
   bindModelerEvents()
+  void loadPublishedFormOptions(true)
 
   // 从查询参数加载模板 BPMN（「查看流程图」入口）
   const templateId = route.query.templateId
   if (templateId && typeof templateId === 'string') {
     try {
-      const template = await getProcessTemplateDetail(Number(templateId))
-      if (template?.bpmnXml) {
-        currentXml.value = template.bpmnXml
-        savedTemplateId.value = template.id
-        templateSaveForm.templateCode = template.templateCode || ''
-        templateSaveForm.templateName = template.templateName || templateSaveForm.templateName
-        templateSaveForm.bizTypeId = template.bizTypeId ?? null
-        templateSaveForm.formId = template.formId ?? null
-        // 同步设置模板 store，使 TopBar 显示当前模板名
-        templateStore.setCurrentTemplate({
-          id: template.id,
-          templateCode: template.templateCode,
-          templateName: template.templateName,
-          bizTypeId: template.bizTypeId ?? undefined,
-          formId: template.formId ?? undefined,
-          version: template.version,
-          status: template.status ?? '',
-          sourceType: template.sourceType,
-          bpmnXml: template.bpmnXml,
-          nodeConfig: template.nodeConfig,
-          formBindConfig: template.formBindConfig
-        } as any)
-        if (template.nodeConfig) {
-          try {
-            const parsedNodeConfig = JSON.parse(template.nodeConfig)
-            if (parsedNodeConfig && typeof parsedNodeConfig === 'object') {
-              for (const [nodeId, config] of Object.entries(parsedNodeConfig)) {
-                nodeConfigMap[nodeId] = normalizeNodeFormConfig(config as NodeBusinessConfig)
-              }
-            }
-          } catch { /* ignore */ }
-        }
-      } else {
-        console.warn('[ProcessDesigner] 模板无 BPMN XML，使用默认流程图')
+      const template = isMyProcessScope.value
+        ? await getMyProcessDetail(Number(templateId))
+        : await getProcessTemplateDetail(Number(templateId))
+      if (template) {
+        applyLoadedTemplate(template)
       }
     } catch (err) {
       console.error('[ProcessDesigner] 模板加载失败:', err)
@@ -967,6 +973,40 @@ async function loadDefaultDiagram() {
   await importDiagram(defaultBpmnXml())
 }
 
+function applyLoadedTemplate(template: ProcessTemplate) {
+  savedTemplateId.value = template.id
+  saveTarget.value = isMyProcessScope.value ? 'process' : 'template'
+  currentXml.value = template.bpmnXml?.trim() || defaultBpmnXml()
+  templateSaveForm.templateCode = template.templateCode || ''
+  templateSaveForm.templateName = template.templateName || templateSaveForm.templateName
+  templateSaveForm.bizTypeId = template.bizTypeId ?? null
+  templateSaveForm.formId = template.formId ?? null
+  templateStore.setCurrentTemplate({
+    id: template.id,
+    templateCode: template.templateCode,
+    templateName: template.templateName,
+    bizTypeId: template.bizTypeId ?? undefined,
+    formId: template.formId ?? undefined,
+    version: template.version,
+    status: template.status ?? '',
+    sourceType: template.sourceType,
+    bpmnXml: currentXml.value,
+    nodeConfig: template.nodeConfig,
+    formBindConfig: template.formBindConfig
+  } as any)
+  if (template.nodeConfig) {
+    try {
+      const parsedNodeConfig = JSON.parse(template.nodeConfig)
+      if (parsedNodeConfig && typeof parsedNodeConfig === 'object') {
+        Object.keys(nodeConfigMap).forEach(key => delete nodeConfigMap[key])
+        for (const [nodeId, config] of Object.entries(parsedNodeConfig)) {
+          nodeConfigMap[nodeId] = normalizeNodeFormConfig(config as NodeBusinessConfig)
+        }
+      }
+    } catch { /* ignore invalid nodeConfig */ }
+  }
+}
+
 async function exportXml() {
   await syncXml(false)
   xmlText.value = currentXml.value
@@ -974,11 +1014,50 @@ async function exportXml() {
 }
 
 async function saveXml() {
+  saveDialogMode.value = 'create'
   await syncXml(true)
   if (!validateTemplateForFlowablePreparation()) return
   emit('save', currentXml.value)
+  if (savedTemplateId.value) {
+    await submitTemplateSave()
+    return
+  }
   await ensureTemplateOptionsLoaded()
+  saveTarget.value = isMyProcessScope.value || authStore.user?.systemRole === 'biz_admin' ? 'process' : saveTarget.value
   templateSaveVisible.value = true
+}
+
+async function openSaveAsDialog() {
+  await syncXml(true)
+  if (!validateTemplateForFlowablePreparation()) return
+  await ensureTemplateOptionsLoaded()
+  saveDialogMode.value = 'saveAs'
+  saveTarget.value = authStore.user?.systemRole === 'super_admin' ? saveTarget.value : 'process'
+  const baseCode = templateSaveForm.templateCode.trim() || (saveTarget.value === 'process' ? 'process' : 'template')
+  templateSaveForm.templateCode = `${baseCode}_copy_${Date.now()}`
+  templateSaveVisible.value = true
+}
+
+async function publishCurrent() {
+  saveDialogMode.value = 'create'
+  if (!savedTemplateId.value) {
+    ElMessage.warning('请先保存当前流程，再发布。')
+    await saveXml()
+    return
+  }
+  await submitTemplateSave()
+  if (!savedTemplateId.value) return
+  const publishApi = isProcessSaveTarget.value ? publishMyProcess : publishProcessTemplate
+  await publishApi(savedTemplateId.value)
+  ElMessage.success(`${saveTargetLabel.value}已发布`)
+}
+
+function goBack() {
+  if (isMyProcessScope.value || authStore.user?.systemRole === 'biz_admin') {
+    router.push('/my-processes')
+    return
+  }
+  router.push('/templates')
 }
 
 async function ensureTemplateOptionsLoaded() {
@@ -998,7 +1077,7 @@ async function loadPublishedFormOptions(force = false) {
   if (!force && forms.value.length > 0) return
   formsLoading.value = true
   try {
-    forms.value = await getForms()
+    forms.value = await getPublishedForms()
   } catch {
     ElMessage.warning('已发布表单加载失败，请检查后端服务。')
   } finally {
@@ -1017,21 +1096,17 @@ async function saveTemplateSilently() {
       nodeConfigMap2[key] = { ...c }
     }
     const nodeConfig = JSON.stringify(nodeConfigMap2)
-    // formBindConfig: map 格式 { nodeId -> { formId } }
-    const formBindConfig: Record<string, any> = {}
-    for (const [key, cfg] of Object.entries(nodeConfigMap)) {
-      if (cfg.formId) {
-        formBindConfig[key] = { formId: cfg.formId }
-      }
-    }
+    const formBindConfig = buildFormBindConfig()
     if (templateStore.currentTemplate?.id && templateStore.currentTemplate.id > 0) {
-      await updateProcessTemplate(templateStore.currentTemplate.id, {
+      const updateApi = isProcessSaveTarget.value ? updateMyProcess : updateProcessTemplate
+      await updateApi(templateStore.currentTemplate.id, {
         bpmnXml: xml,
         nodeConfig,
         formBindConfig: JSON.stringify(formBindConfig)
       } as any)
     } else {
-      const created = await createProcessTemplate({
+      const createApi = isProcessSaveTarget.value ? createMyProcess : createProcessTemplate
+      const created = await createApi({
         templateName: templateSaveForm.templateName || 'AI生成流程',
         templateCode: templateSaveForm.templateCode || ('ai-' + Date.now()),
         bizTypeId: templateSaveForm.bizTypeId || undefined,
@@ -1044,7 +1119,7 @@ async function saveTemplateSilently() {
       templateStore.setCurrentTemplate({ id: created.id, templateName: created.templateName } as any)
       // sessionStorage 也存 map 格式
       window.sessionStorage.setItem('ai-generated-nodeconfig', JSON.stringify(nodeConfigMap2))
-      void router.replace(`/process-designer?templateId=${created.id}`)
+      void router.replace(`/process-designer?templateId=${created.id}${isProcessSaveTarget.value ? '&scope=my' : ''}`)
     }
   } catch (e) {
     console.error('自动保存模板失败:', e)
@@ -1063,17 +1138,18 @@ async function refreshPublishedForms() {
 
 function handleFormSelectVisibleChange(visible: boolean) {
   if (visible) {
-    void loadPublishedFormOptions()
+    void loadPublishedFormOptions(true)
   }
 }
 
 async function submitTemplateSave() {
   if (!templateSaveForm.templateName.trim()) {
-    ElMessage.warning('请输入模板名称')
+    ElMessage.warning(`请输入${saveTargetLabel.value}名称`)
     return
   }
-  if (!savedTemplateId.value && !templateSaveForm.templateCode.trim()) {
-    ElMessage.warning('请输入模板编码')
+  const shouldCreate = !savedTemplateId.value || saveDialogMode.value === 'saveAs'
+  if (shouldCreate && !templateSaveForm.templateCode.trim()) {
+    ElMessage.warning(`请输入${saveTargetLabel.value}编码`)
     return
   }
 
@@ -1081,6 +1157,7 @@ async function submitTemplateSave() {
   if (!validateTemplateForFlowablePreparation()) return
   templateSaving.value = true
   try {
+    // Build formBindConfig from node-level bindings (standard format)
     // 构建符合后端格式的 formBindConfig: { nodeId: { formId: X } }
     const formBindConfig: Record<string, any> = {}
     for (const [key, cfg] of Object.entries(nodeConfigMap)) {
@@ -1096,19 +1173,21 @@ async function submitTemplateSave() {
       sourceType: 'manual',
       bpmnXml: currentXml.value,
       nodeConfig: JSON.stringify(buildPersistableNodeConfig()),
-      formBindConfig: JSON.stringify(formBindConfig),
-      // TODO: 后续接入登录后替换为当前用户 ID。
-      createdBy: 1
+      formBindConfig: JSON.stringify(buildFormBindConfig())
     }
-    if (savedTemplateId.value) {
-      await updateProcessTemplate(savedTemplateId.value, payload)
-      ElMessage.success('流程模板已更新')
+    if (!shouldCreate && savedTemplateId.value) {
+      const updateApi = isProcessSaveTarget.value ? updateMyProcess : updateProcessTemplate
+      await updateApi(savedTemplateId.value, payload)
+      ElMessage.success(`${saveTargetLabel.value}已更新`)
     } else {
-      const saved = await createProcessTemplate(payload)
+      const createApi = isProcessSaveTarget.value ? createMyProcess : createProcessTemplate
+      const saved = await createApi(payload)
       savedTemplateId.value = saved.id
-      ElMessage.success('流程模板已保存')
+      void router.replace(`/process-designer?templateId=${saved.id}${isProcessSaveTarget.value ? '&scope=my' : ''}`)
+      ElMessage.success(`${saveTargetLabel.value}已保存`)
     }
     templateSaveVisible.value = false
+    saveDialogMode.value = 'create'
   } finally {
     templateSaving.value = false
   }
@@ -1218,6 +1297,7 @@ function createDefaultNodeConfig(element: BpmnElement, businessType: BusinessTyp
     endStatus: 'COMPLETED',
     startMode: 'MANUAL',
     startPermission: 'ALL',
+    startPermissionValue: '',
     loginRequired: true,
     formMode: 'edit',
     attachmentAllowed: true,
@@ -1470,6 +1550,16 @@ function buildPersistableNodeConfig() {
   )
 }
 
+function buildFormBindConfig() {
+  const formBindConfig: Record<string, { formId: number }> = {}
+  for (const [nodeId, config] of Object.entries(nodeConfigMap)) {
+    if (config.formBindingMode === 'node_form' && config.formId) {
+      formBindConfig[nodeId] = { formId: config.formId }
+    }
+  }
+  return formBindConfig
+}
+
 function validateTemplateForFlowablePreparation() {
   if (!validateBpmnXmlReady()) return false
   if (!validateNodeConfigAlignment()) return false
@@ -1554,6 +1644,12 @@ function syncNodeConfig() {
     }
   }
   void syncXml(false)
+}
+
+function handleStartPermissionChange() {
+  if (!selectedConfig.value) return
+  selectedConfig.value.startPermissionValue = ''
+  syncNodeConfig()
 }
 
 function deleteSelected() {

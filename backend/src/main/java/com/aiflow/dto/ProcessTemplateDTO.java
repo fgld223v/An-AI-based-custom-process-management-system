@@ -21,6 +21,7 @@ public class ProcessTemplateDTO {
     private Integer version;
     private String status;
     private String sourceType;
+    private String resourceType;
     private String bpmnXml;
     private String nodeConfig;
     private String formBindConfig;

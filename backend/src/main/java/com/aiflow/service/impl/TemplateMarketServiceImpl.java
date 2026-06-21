@@ -1,6 +1,7 @@
 package com.aiflow.service.impl;
 
 import com.aiflow.enums.MarketType;
+import com.aiflow.enums.ProcessResourceType;
 import com.aiflow.enums.TemplateStatus;
 import com.aiflow.model.ProcessTemplate;
 import com.aiflow.model.TemplateMarket;
@@ -40,6 +41,9 @@ public class TemplateMarketServiceImpl implements TemplateMarketService {
                 .orElseThrow(() -> new IllegalArgumentException("template not found"));
         if (template.getStatus() != TemplateStatus.PUBLISHED) {
             throw new IllegalStateException("only published template can be listed in market");
+        }
+        if (template.getResourceType() != ProcessResourceType.SYSTEM_TEMPLATE) {
+            throw new IllegalStateException("only system template can be listed in market");
         }
 
         LocalDateTime now = LocalDateTime.now();

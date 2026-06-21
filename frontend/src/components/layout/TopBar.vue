@@ -13,7 +13,7 @@
     </div>
 
     <div class="topbar-actions">
-      <el-button round :icon="MagicStick" @click="showComingSoon">AI 助手</el-button>
+      <el-button round :icon="MagicStick" @click="chatStore.togglePanel()">AI 助手</el-button>
       <el-popover
         placement="bottom-end"
         trigger="click"
@@ -73,7 +73,7 @@ import { Bell, MagicStick } from '@element-plus/icons-vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useTemplateStore } from '@/stores/template'
-import { showComingSoon } from '@/utils/feedback'
+import { useChatStore } from '@/stores/chat'
 import { getNotifications, getUnreadNotificationCount, markNotificationRead } from '@/api/notification'
 import type { NotificationItem } from '@/types/workflow'
 
@@ -81,6 +81,7 @@ const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 const templateStore = useTemplateStore()
+const chatStore = useChatStore()
 const unreadCount = ref(0)
 const notificationLoading = ref(false)
 const latestNotifications = ref<NotificationItem[]>([])

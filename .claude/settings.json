@@ -7,7 +7,18 @@
       "PowerShell(netstat -ano)",
       "Bash(mvn spring-boot:run -Dspring-boot.run.profiles=local)",
       "Bash(echo \"PID: $!\")",
-      "Bash(mvn compile *)"
+      "Bash(mvn compile *)",
+      "Bash(git config *)",
+      "Bash(mvn -q spring-boot:run -Dspring-boot.run.profiles=local)",
+      "PowerShell(mysql -u root -p123456 -e \"SHOW COLUMNS FROM aiflow.operation_log LIKE 'operation_type'\\\\G\" 2>$null)",
+      "PowerShell(& \"C:\\\\Program Files\\\\MySQL\\\\MySQL Shell 8.0\\\\bin\\\\mysqlsh.exe\" --sql -u root -p20041004 -e \"SHOW COLUMNS FROM aiflow.operation_log LIKE 'operation_type';\" 2>$null)",
+      "PowerShell(mvn -q compile)",
+      "PowerShell($pid = \\(Get-NetTCPConnection -LocalPort 8080 -ErrorAction SilentlyContinue | Select-Object -First 1\\).OwningProcess; if \\($pid\\) { Stop-Process -Id $pid -Force; \"Killed process $pid on port 8080\" } else { \"No process on port 8080\" })",
+      "PowerShell($owner = \\(Get-NetTCPConnection -LocalPort 8080 -ErrorAction SilentlyContinue | Select-Object -First 1\\).OwningProcess; if \\($owner\\) { Stop-Process -Id $owner -Force; Write-Host \"Killed process $owner on port 8080\" } else { Write-Host \"No process on port 8080\" })",
+      "PowerShell(mvn -q compile -f backend/pom.xml)",
+      "PowerShell($conn = Get-NetTCPConnection -LocalPort 8080 -ErrorAction SilentlyContinue | Select-Object -First 1; if \\($conn\\) { Write-Host \"Backend is running \\(PID: $\\($conn.OwningProcess\\)\\)\" } else { Write-Host \"Backend is NOT running - port 8080 is free\" })",
+      "PowerShell(try { $r = Invoke-WebRequest -Uri \"http://localhost:8080/api/statistics/overview\" -UseBasicParsing -TimeoutSec 5; Write-Host \"OK: $\\($r.StatusCode\\)\" } catch { Write-Host \"FAIL: $\\($_.Exception.Message\\)\" })",
+      "PowerShell(Stop-Process -Id 44604 -Force)"
     ]
   }
 }

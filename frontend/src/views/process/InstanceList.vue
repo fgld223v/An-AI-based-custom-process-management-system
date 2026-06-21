@@ -2,9 +2,9 @@
   <div class="instance-page">
     <section class="page-head">
       <div>
-        <el-tag type="success" effect="plain">轻量实例</el-tag>
-        <h1>流程实例</h1>
-        <p>查看通过发起预览创建的草稿、已提交与运行中实例。当前阶段仅启动 Flowable 流程实例，任务处理将在后续版本开放。</p>
+        <el-tag type="success" effect="plain">我的申请</el-tag>
+        <h1>我的申请</h1>
+        <p>查看我发起的流程草稿、已提交、运行中与已完成申请，可继续编辑草稿或进入详情追踪处理进度。</p>
       </div>
       <el-button round type="success" :icon="Refresh" :loading="loading" @click="loadInstances">刷新</el-button>
     </section>
@@ -36,7 +36,7 @@
 
     <section class="table-panel">
       <el-alert v-if="message" class="stage-alert" type="warning" :closable="false" show-icon :title="message" />
-      <el-table v-loading="loading" :data="instances" border empty-text="暂无流程实例">
+      <el-table v-loading="loading" :data="instances" border empty-text="暂无申请记录">
         <el-table-column prop="instanceCode" label="实例编号" min-width="180" />
         <el-table-column prop="instanceTitle" label="实例标题" min-width="220" />
         <el-table-column label="流程模板" min-width="180">
