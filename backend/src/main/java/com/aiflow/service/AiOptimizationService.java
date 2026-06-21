@@ -305,12 +305,16 @@ public class AiOptimizationService {
         String configJson = template.getNodeConfig();
         if (!hasText(configJson)) throw new BusinessException("模板无 nodeConfig");
 
+        // 保存优化前快照，支持回滚
+        String snapshot = template.getNodeConfig();
         try {
             String updated = applyOptimization(configJson, type, nodeKey, suggestion);
             template.setNodeConfig(updated);
             template.setUpdatedAt(java.time.LocalDateTime.now());
+            // 将快照存入 formBindConfig 的 _snapshots 字段（不覆盖现有 formBindConfig）
+            template.setFormBindConfig(appendSnapshot(template.getFormBindConfig(), snapshot, type, nodeKey));
             processTemplateRepository.save(template);
-            log.info("已采纳优化建议: templateId={}, type={}, nodeKey={}", templateId, type, nodeKey);
+            log.info("已采纳优化建议并保存快照: templateId={}, type={}, nodeKey={}", templateId, type, nodeKey);
         } catch (BusinessException e) { throw e;
         } catch (Exception e) { throw new BusinessException("采纳优化建议失败：" + e.getMessage()); }
     }
@@ -441,5 +445,24 @@ public class AiOptimizationService {
     }
 
     private String str(Object v) { return v != null ? v.toString() : null; }
+    /** 将优化前的 nodeConfig 快照追加到 formBindConfig 的 _snapshots 数组中 */
+    private String appendSnapshot(String formBindConfig, String snapshot, String type, String nodeKey) {
+        try {
+            Map<String, Object> bind = (formBindConfig != null && !formBindConfig.isBlank())
+                    ? objectMapper.readValue(formBindConfig, new TypeReference<Map<String, Object>>() {})
+                    : new java.util.LinkedHashMap<>();
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> snapshots = (List<Map<String, Object>>) bind.get("_snapshots");
+            if (snapshots == null) { snapshots = new java.util.ArrayList<>(); bind.put("_snapshots", snapshots); }
+            Map<String, Object> entry = new java.util.LinkedHashMap<>();
+            entry.put("time", java.time.LocalDateTime.now().toString());
+            entry.put("type", type); entry.put("nodeKey", nodeKey);
+            entry.put("nodeConfig", snapshot);
+            snapshots.add(entry);
+            if (snapshots.size() > 10) snapshots.remove(0); // 保留最近 10 个
+            return objectMapper.writeValueAsString(bind);
+        } catch (Exception e) { log.warn("保存优化快照失败: {}", e.getMessage()); return formBindConfig; }
+    }
+
     private boolean hasText(String s) { return s != null && !s.isBlank(); }
 }

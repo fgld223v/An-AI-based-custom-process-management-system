@@ -40,8 +40,19 @@
 
     <!-- 加载态 -->
     <div v-if="generating" class="loading-card">
-      <el-skeleton :rows="8" animated />
-      <p class="loading-text">AI 正在分析您的需求并生成 BPMN 流程图，请稍候...</p>
+      <div class="loading-header">
+        <el-icon class="loading-spin" :size="32"><MagicStick /></el-icon>
+        <h3>AI 正在生成流程</h3>
+      </div>
+      <el-steps :active="currentStep" align-center finish-status="success" class="loading-steps">
+        <el-step title="解析需求" description="分析业务场景" />
+        <el-step title="生成 BPMN" description="构建流程模型" />
+        <el-step title="配置节点" description="生成审批规则" />
+        <el-step title="渲染预览" description="准备可视化展示" />
+      </el-steps>
+      <p class="loading-text">
+        已等待 <strong>{{ elapsedSeconds }}</strong> 秒 · {{ stageMessages[currentStep] || '正在处理...' }}
+      </p>
     </div>
 
     <!-- 生成结果 -->
@@ -163,6 +174,10 @@ const description = ref('')
 const generating = ref(false)
 const result = ref<AiGenerateProcessResult | null>(null)
 const errorMessage = ref('')
+const currentStep = ref(0)
+const elapsedSeconds = ref(0)
+let progressTimer: ReturnType<typeof setInterval> | null = null
+const stageMessages = ['正在分析您的业务需求...', '正在构建 BPMN 流程图...', '正在配置节点审批规则...', '即将完成，准备渲染预览...']
 const createDialogVisible = ref(false)
 const creating = ref(false)
 const bizTypeList = ref<BizType[]>([])
@@ -222,16 +237,28 @@ async function handleGenerate() {
   generating.value = true
   errorMessage.value = ''
   result.value = null
+  currentStep.value = 0
+  elapsedSeconds.value = 0
+
+  // 进度模拟：每 3~6 秒推进一个步骤
+  progressTimer = setInterval(() => {
+    elapsedSeconds.value++
+    if (elapsedSeconds.value >= 4 && currentStep.value === 0) currentStep.value = 1
+    if (elapsedSeconds.value >= 8 && currentStep.value === 1) currentStep.value = 2
+    if (elapsedSeconds.value >= 12 && currentStep.value === 2) currentStep.value = 3
+  }, 1000)
 
   try {
     const { generateProcess } = await import('@/api/ai')
     const data = await generateProcess(text)
     result.value = data
+    currentStep.value = 4 // 全部完成
     ElMessage.success('流程生成成功')
   } catch (e: any) {
     const msg = e?.response?.data?.message || e?.message || '生成失败，请检查后端服务是否启动'
     errorMessage.value = msg
   } finally {
+    if (progressTimer) { clearInterval(progressTimer); progressTimer = null }
     generating.value = false
   }
 }
@@ -346,12 +373,23 @@ function handleClear() {
   box-shadow: var(--shadow);
 }
 
+.loading-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 24px;
+  justify-content: center;
+}
+.loading-header h3 { margin: 0; font-size: 18px; }
+.loading-spin { color: var(--el-color-success); animation: spin 1.5s linear infinite; }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.loading-steps { margin-bottom: 20px; }
 .loading-text {
-  margin: 20px 0 0;
   text-align: center;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 14px;
 }
+.loading-text strong { color: var(--el-color-success); font-family: var(--fm, monospace); }
 
 .result-section {
   margin-top: 22px;

@@ -86,41 +86,27 @@
         />
         <div v-else-if="field.type === 'upload'" class="upload-field">
           <el-upload
-            :model-value="uploadFileList(field.field)"
-            :disabled="disabled || readonly"
-            :auto-upload="false"
-            :multiple="field.multiple ?? false"
-            :accept="field.accept ?? undefined"
-            :limit="field.maxCount ?? undefined"
-            drag
-            action="#"
-            @change="(_file: any, files: any) => handleUploadChange(field.field, files)"
-            @remove="(_file: any, files: any) => handleUploadChange(field.field, files)"
-          >
-            <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
             v-model:file-list="uploadFileLists[field.field]"
             :action="uploadAction"
             :headers="uploadHeaders"
             :multiple="field.multiple ?? true"
-            :limit="field.limit ?? 5"
-            :disabled="disabled"
+            :limit="field.maxCount ?? 5"
+            :accept="field.accept ?? undefined"
+            :disabled="disabled || readonly"
+            :auto-upload="true"
             :on-success="(res: any) => onUploadSuccess(field.field, res)"
             :on-error="onUploadError"
             :on-exceed="onUploadExceed"
             :before-upload="beforeUpload"
-            :auto-upload="true"
             drag
           >
-            <el-icon class="el-icon--upload"><component :is="resolveUploadIcon()" /></el-icon>
+            <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
             <div class="el-upload__text">
               拖拽文件到此处或 <em>点击上传</em>
             </div>
             <template #tip>
-              <div class="el-upload__tip" v-if="field.placeholder">
-                {{ field.placeholder }}
-              </div>
-              <div class="el-upload__tip" v-else-if="field.maxCount">
-                最多上传 {{ field.maxCount }} 个文件
+              <div class="el-upload__tip">
+                {{ field.placeholder || '支持 jpg/png/pdf/doc 等格式，单文件不超过 20MB' }}
               </div>
             </template>
           </el-upload>
@@ -165,6 +151,19 @@ interface DynamicField {
   multiple?: boolean
   accept?: string
   maxCount?: number
+  // cross-field validation
+  rules?: FieldRule[]
+}
+
+interface FieldRule {
+  /** gte: >= targetField, lte: <= targetField, gt: >, lt: <, eq: == */
+  op: 'gte' | 'lte' | 'gt' | 'lt' | 'eq'
+  /** 目标字段名 */
+  targetField: string
+  /** 目标字段的显示名称 */
+  targetLabel?: string
+  /** 自定义错误信息 */
+  message?: string
 }
 
 const props = withDefaults(defineProps<{
@@ -405,6 +404,33 @@ function validate() {
     }
     if (field.type === 'number' && !isEmpty(value) && Number.isNaN(Number(value))) {
       errors[field.field] = `${field.label}必须为数字`
+    }
+    // 跨字段校验规则
+    if (field.rules && !isEmpty(value)) {
+      for (const rule of field.rules) {
+        const targetValue = innerData[rule.targetField]
+        if (isEmpty(targetValue)) continue // 目标字段为空时跳过
+        const myVal = field.type === 'number' || field.type === 'date' || field.type === 'datetime'
+          ? new Date(value as string).getTime()
+          : Number(value)
+        const tgtVal = field.type === 'number' || field.type === 'date' || field.type === 'datetime'
+          ? new Date(targetValue as string).getTime()
+          : Number(targetValue)
+        if (Number.isNaN(myVal) || Number.isNaN(tgtVal)) continue
+
+        const targetLabel = rule.targetLabel || rule.targetField
+        let failed = false
+        switch (rule.op) {
+          case 'gte': failed = myVal < tgtVal; break
+          case 'lte': failed = myVal > tgtVal; break
+          case 'gt':  failed = myVal <= tgtVal; break
+          case 'lt':  failed = myVal >= tgtVal; break
+          case 'eq':  failed = myVal !== tgtVal; break
+        }
+        if (failed) {
+          errors[field.field] = rule.message || `${field.label}必须${rule.op === 'gte' ? '≥' : rule.op === 'lte' ? '≤' : rule.op === 'gt' ? '>' : rule.op === 'lt' ? '<' : '='}${targetLabel}`
+        }
+      }
     }
   })
   return Object.keys(errors).length === 0

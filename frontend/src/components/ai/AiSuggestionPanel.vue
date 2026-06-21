@@ -17,9 +17,10 @@
           {{ point }}
         </el-tag>
       </div>
-      <el-button type="primary" size="small" :disabled="disabled" @click="$emit('adopt', suggestion)">
-        采纳建议
-      </el-button>
+      <div class="suggestion-actions">
+        <el-button type="primary" size="small" :disabled="disabled" @click="$emit('adopt', suggestion)">采纳建议</el-button>
+        <el-button text size="small" :loading="loading" @click="fetchSuggestion">重新分析</el-button>
+      </div>
     </div>
 
     <div v-else-if="!loading && errorMessage" class="suggestion-empty">

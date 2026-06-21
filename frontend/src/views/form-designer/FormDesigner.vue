@@ -42,6 +42,8 @@
           <p>保存并发布表单后，流程模板即可在绑定表单下拉框中选择它。</p>
         </div>
         <div class="canvas-actions">
+          <el-button round :icon="RefreshLeft" :disabled="undoStack.length === 0" @click="undo">撤销</el-button>
+          <el-button round :icon="RefreshRight" :disabled="redoStack.length === 0" @click="redo">重做</el-button>
           <el-button round :icon="Refresh" @click="loadForms">刷新</el-button>
           <el-button round :icon="View" @click="previewVisible = true">预览表单</el-button>
           <el-button round type="primary" :loading="saving" @click="saveDraft">保存草稿</el-button>
@@ -198,6 +200,8 @@ import {
   List,
   Plus,
   Refresh,
+  RefreshLeft,
+  RefreshRight,
   Tickets,
   UploadFilled,
   View
@@ -260,6 +264,11 @@ const currentFormId = ref<number | null>(null)
 const currentStatus = ref('draft')
 const selectedFieldId = ref('')
 const previewData = ref<Record<string, unknown>>({})
+
+// 撤销/重做栈
+const undoStack = ref<FormField[][]>([])
+const redoStack = ref<FormField[][]>([])
+let undoRecording = true  // 批量操作时暂停记录
 
 const formMeta = reactive({
   formCode: '',
@@ -446,6 +455,32 @@ function buildPayload(): FormDefinitionPayload {
   }
 }
 
+// ====== 撤销/重做 ======
+function pushUndo() {
+  if (!undoRecording) return
+  undoStack.value.push(structuredClone(formJson.fields))
+  redoStack.value = []
+  if (undoStack.value.length > 30) undoStack.value.shift()
+}
+function undo() {
+  const prev = undoStack.value.pop()
+  if (!prev) return
+  undoRecording = false
+  redoStack.value.push(structuredClone(formJson.fields))
+  formJson.fields.splice(0, formJson.fields.length, ...structuredClone(prev))
+  selectedFieldId.value = formJson.fields[0]?.fieldId || ''
+  undoRecording = true
+}
+function redo() {
+  const next = redoStack.value.pop()
+  if (!next) return
+  undoRecording = false
+  undoStack.value.push(structuredClone(formJson.fields))
+  formJson.fields.splice(0, formJson.fields.length, ...structuredClone(next))
+  selectedFieldId.value = formJson.fields[0]?.fieldId || ''
+  undoRecording = true
+}
+
 function addField(type: FieldType) {
   const index = formJson.fields.length + 1
   const meta = getFieldMeta(type)
@@ -459,6 +494,7 @@ function addField(type: FieldType) {
   }
   formJson.fields.push(field)
   selectedFieldId.value = field.fieldId
+  pushUndo()
 }
 
 function selectField(fieldId: string) {
@@ -513,6 +549,7 @@ function duplicateField() {
   cloned.label = `${cloned.label} 副本`
   formJson.fields.push(cloned)
   selectedFieldId.value = cloned.fieldId
+  pushUndo()
 }
 
 function deleteSelectedField() {
@@ -520,6 +557,7 @@ function deleteSelectedField() {
   const index = formJson.fields.findIndex((field) => field.fieldId === selectedField.value?.fieldId)
   formJson.fields.splice(index, 1)
   selectedFieldId.value = formJson.fields[Math.max(0, index - 1)]?.fieldId || ''
+  pushUndo()
 }
 
 function syncJson() {

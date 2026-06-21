@@ -48,15 +48,10 @@ public class AuthController {
         CurrentUser currentUser = (CurrentUser) authentication.getPrincipal();
         String token = jwtTokenProvider.createToken(currentUser);
         LoginResponse response = new LoginResponse(
-                token,
-                "Bearer",
-                currentUser.getId(),
-                currentUser.getUsername(),
-                currentUser.getNickname(),
-                currentUser.getRole(),
-                currentUser.getSystemRole(),
-                currentUser.getDepartmentId(),
-                currentUser.getSupervisorId(),
+                token, "Bearer",
+                currentUser.getId(), currentUser.getUsername(), currentUser.getNickname(),
+                currentUser.getRole(), currentUser.getSystemRole(),
+                currentUser.getDepartmentId(), currentUser.getSupervisorId(),
                 currentUser.getManagedBizTypeIds()
         );
         return ApiResponse.success(response);
@@ -72,12 +67,9 @@ public class AuthController {
                 .username(request.getUsername().trim())
                 .nickname(request.getNickname() != null ? request.getNickname().trim() : request.getUsername().trim())
                 .password(passwordEncoder.encode(request.getPassword()))
-                .role("USER")
-                .systemRole("normal_user")
-                .enabled(1)
-                .deleted(0)
-                .createdTime(now)
-                .updatedTime(now)
+                .role("USER").systemRole("normal_user")
+                .enabled(1).deleted(0)
+                .createdTime(now).updatedTime(now)
                 .build();
         sysUserRepository.save(user);
         return ApiResponse.success(Map.of("id", user.getId(), "username", user.getUsername()));
