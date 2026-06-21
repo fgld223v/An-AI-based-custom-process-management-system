@@ -162,7 +162,7 @@ public class AiFormService {
             formSchemaStr = "{\"layout\":\"vertical\",\"sections\":[]}";
         }
 
-        // 8. 校验 fieldList 非空且为有效 JSON
+        // 8. 校验 fieldList 非空且为有效 JSON，并注入跨字段校验规则
         if (fieldListStr.isBlank()) {
             throw new BusinessException("AI 未生成有效的字段列表，请重试");
         }
@@ -173,10 +173,111 @@ public class AiFormService {
             throw new BusinessException("AI 生成的字段列表格式异常，请重试");
         }
 
+        // 9. 后处理：确保审批相关字段存在，注入跨字段校验规则
+        fieldListStr = ensureApprovalFields(fieldListStr, objectMapper);
+        fieldListStr = injectDateRangeRules(fieldListStr, objectMapper);
+
         AiGenerateFormResponse result = new AiGenerateFormResponse(fieldListStr, formSchemaStr);
         log.info("表单生成成功，fieldList 长度：{}，字段数：{}",
                 fieldListStr.length(),
                 fieldListObj instanceof List<?> l ? l.size() : "?");
         return result;
+    }
+
+    /**
+     * 确保 AI 生成的字段列表中包含审批必须字段（approvalResult + approvalComment）。
+     * 如果 AI 未生成，自动补入。
+     */
+    private String ensureApprovalFields(String fieldListJson, ObjectMapper mapper) {
+        try {
+            List<Map<String, Object>> fields = mapper.readValue(fieldListJson,
+                    new TypeReference<List<Map<String, Object>>>() {});
+            boolean hasResult = fields.stream().anyMatch(f ->
+                    "approvalResult".equals(f.get("field")) || "approval_result".equals(f.get("field")));
+            boolean hasComment = fields.stream().anyMatch(f ->
+                    "approvalComment".equals(f.get("field")) || "approval_comment".equals(f.get("field")));
+
+            boolean changed = false;
+            if (!hasResult) {
+                Map<String, Object> resultField = new java.util.LinkedHashMap<>();
+                resultField.put("field", "approvalResult");
+                resultField.put("label", "审批结果");
+                resultField.put("type", "select");
+                resultField.put("required", true);
+                resultField.put("placeholder", "请选择审批结果");
+                resultField.put("options", List.of(
+                        Map.of("label", "同意", "value", "agree"),
+                        Map.of("label", "驳回", "value", "reject"),
+                        Map.of("label", "需修改", "value", "modify")
+                ));
+                fields.add(resultField);
+                changed = true;
+                log.info("AI 未生成审批结果字段，已自动补入");
+            }
+            if (!hasComment) {
+                Map<String, Object> commentField = new java.util.LinkedHashMap<>();
+                commentField.put("field", "approvalComment");
+                commentField.put("label", "审批意见");
+                commentField.put("type", "textarea");
+                commentField.put("required", true);
+                commentField.put("placeholder", "请输入审批意见");
+                fields.add(commentField);
+                changed = true;
+                log.info("AI 未生成审批意见字段，已自动补入");
+            }
+            return changed ? mapper.writeValueAsString(fields) : fieldListJson;
+        } catch (Exception e) {
+            log.warn("审批字段兜底检查失败，使用原始 fieldList: {}", e.getMessage());
+            return fieldListJson;
+        }
+    }
+
+    /**
+     * 自动为日期范围字段注入跨字段校验规则。
+     * 识别 endDate/startDate 配对，为 endDate 添加 >=startDate 规则。
+     */
+    private String injectDateRangeRules(String fieldListJson, ObjectMapper mapper) {
+        try {
+            List<Map<String, Object>> fields = mapper.readValue(fieldListJson,
+                    new TypeReference<List<Map<String, Object>>>() {});
+            // 查找 startDate / endDate 配对
+            Map<String, Object> startField = null;
+            Map<String, Object> endField = null;
+            for (Map<String, Object> f : fields) {
+                String fieldName = String.valueOf(f.get("field")).toLowerCase();
+                if (fieldName.contains("start") && (fieldName.contains("date") || fieldName.contains("time"))) {
+                    startField = f;
+                }
+                if (fieldName.contains("end") && (fieldName.contains("date") || fieldName.contains("time"))) {
+                    endField = f;
+                }
+            }
+            if (startField != null && endField != null) {
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> rules = (List<Map<String, Object>>) endField.get("rules");
+                if (rules == null) {
+                    rules = new java.util.ArrayList<>();
+                    endField.put("rules", rules);
+                }
+                final String sfField = String.valueOf(startField.get("field"));
+                boolean hasGteRule = rules.stream().anyMatch(r ->
+                        "gte".equals(r.get("op")) && sfField.equals(r.get("targetField")));
+                if (!hasGteRule) {
+                    Map<String, Object> rule = new java.util.LinkedHashMap<>();
+                    rule.put("op", "gte");
+                    rule.put("targetField", String.valueOf(startField.get("field")));
+                    rule.put("targetLabel", String.valueOf(startField.get("label")));
+                    rule.put("message", String.valueOf(endField.get("label")) + "必须≥" + String.valueOf(startField.get("label")));
+                    rules.add(rule);
+                    log.info("已为 {} 注入跨字段校验规则：{} >= {}",
+                            endField.get("field"), endField.get("field"), startField.get("field"));
+                }
+                return mapper.writeValueAsString(fields);
+            }
+            return fieldListJson;
+        } catch (Exception e) {
+            log.warn("日期范围规则注入失败: {}", e.getMessage());
+            return fieldListJson;
+        }
     }
 }

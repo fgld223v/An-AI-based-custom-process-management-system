@@ -3,6 +3,7 @@ package com.aiflow.controller;
 import com.aiflow.common.ApiResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
 import org.springframework.http.HttpHeaders;
@@ -123,6 +124,27 @@ public class FileUploadController {
                     .body(resource);
         } catch (IOException e) {
             return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    /**
+     * 定时清理超过 7 天的孤立上传文件（每天凌晨 3 点执行）。
+     */
+    @Scheduled(cron = "0 0 3 * * ?")
+    public void cleanOrphanFiles() {
+        try {
+            long cutoff = System.currentTimeMillis() - 7 * 24 * 60 * 60 * 1000L;
+            java.io.File[] files = uploadDir.toFile().listFiles();
+            if (files == null) return;
+            int cleaned = 0;
+            for (java.io.File file : files) {
+                if (file.isFile() && file.lastModified() < cutoff) {
+                    if (file.delete()) cleaned++;
+                }
+            }
+            if (cleaned > 0) log.info("文件清理完成，删除 {} 个超过 7 天的文件", cleaned);
+        } catch (Exception e) {
+            log.warn("文件清理异常: {}", e.getMessage());
         }
     }
 

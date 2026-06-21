@@ -203,15 +203,16 @@ public class AiProcessService {
             result = objectMapper.readValue(json, AiGenerateProcessResponse.class);
         } catch (Exception e) {
             log.error("解析 AI 生成的 JSON 失败，原始内容：{}", json);
-            throw new BusinessException("AI 生成的格式有误，请重试");
+            throw new BusinessException("AI 生成的格式有误，请重试。原始输出: " + truncate(json, 300));
         }
 
         // 6. 校验 BPMN XML 合法性
         String bpmnXml = result.getBpmnXml();
-        // 兼容 bpmn:definitions 和 definitions 两种写法
-        boolean hasDefinitions = bpmnXml.contains("<definitions") || bpmnXml.contains("<bpmn:definitions");
-        boolean hasProcess = bpmnXml.contains("<process") || bpmnXml.contains("<bpmn:process");
-        if (bpmnXml == null || !hasDefinitions || !hasProcess) {
+        boolean hasDefinitions = bpmnXml != null &&
+                (bpmnXml.contains("<definitions") || bpmnXml.contains("<bpmn:definitions"));
+        boolean hasProcess = bpmnXml != null &&
+                (bpmnXml.contains("<process") || bpmnXml.contains("<bpmn:process"));
+        if (!hasDefinitions || !hasProcess) {
             log.error("AI 生成的 BPMN XML 不合法：{}", bpmnXml);
             throw new BusinessException("AI 生成的 BPMN XML 不合法，缺少 definitions 或 process 标签，请重试");
         }
@@ -222,8 +223,119 @@ public class AiProcessService {
             result.setBpmnXml(bpmnXml);
         }
 
-        log.info("流程生成成功，节点数：{}", result.getNodeConfig() != null ? result.getNodeConfig().size() : 0);
+        // ====== 7. 后处理：规范化 nodeConfig ======
+        List<NodeConfigItem> nodes = result.getNodeConfig();
+        if (nodes == null || nodes.isEmpty()) {
+            throw new BusinessException("AI 未生成节点配置，请重试");
+        }
+
+        // 7a. 提取 BPMN XML 中所有元素 ID
+        java.util.Set<String> bpmnIds = extractBpmnElementIds(bpmnXml);
+        log.info("BPMN 元素 ID 集合：{}", bpmnIds);
+
+        // 7b. 交叉校验 nodeConfig.nodeKey ↔ BPMN element id
+        for (NodeConfigItem node : nodes) {
+            if (node.getNodeKey() == null || node.getNodeKey().isBlank()) {
+                throw new BusinessException("nodeConfig 中存在空 nodeKey，请重试");
+            }
+            if (!bpmnIds.contains(node.getNodeKey())) {
+                // 尝试按节点名称模糊匹配
+                String matchedId = findBpmnIdByName(bpmnXml, node.getNodeName());
+                if (matchedId != null && bpmnIds.contains(matchedId)) {
+                    log.warn("nodeKey={} 在 BPMN 中不存在，已按节点名自动修正为 {}", node.getNodeKey(), matchedId);
+                    node.setNodeKey(matchedId);
+                } else {
+                    log.warn("nodeKey={} 在 BPMN XML 中找不到对应元素，流程可能发布失败", node.getNodeKey());
+                }
+            }
+        }
+
+        // 7c. 审批节点兜底：缺少 assignStrategy 时默认 DEPARTMENT_MANAGER
+        for (NodeConfigItem node : nodes) {
+            if ("approval".equals(node.getBusinessType())) {
+                if (node.getApprovalMode() == null || node.getApprovalMode().isBlank()) {
+                    node.setApprovalMode("SINGLE");
+                    log.info("审批节点 {} 未设置 approvalMode，默认 SINGLE", node.getNodeKey());
+                }
+                if (node.getAssignStrategy() == null || node.getAssignStrategy().isBlank()) {
+                    node.setAssignStrategy("DEPARTMENT_MANAGER");
+                    log.info("审批节点 {} 未设置 assignStrategy，默认 DEPARTMENT_MANAGER", node.getNodeKey());
+                }
+            }
+        }
+
+        // 7d. 校验 sequenceFlow 连通性
+        validateSequenceFlowConnectivity(bpmnXml, bpmnIds);
+
+        // 7e. 确保 nodeConfig 中的 nodeKey 唯一
+        java.util.Set<String> seenKeys = new java.util.HashSet<>();
+        for (NodeConfigItem node : nodes) {
+            if (!seenKeys.add(node.getNodeKey())) {
+                log.warn("nodeConfig 中存在重复 nodeKey: {}", node.getNodeKey());
+            }
+        }
+
+        log.info("流程生成成功，节点数：{}（校验通过）", nodes.size());
         return result;
+    }
+
+    // ====== 辅助方法 ======
+
+    /** 提取 BPMN XML 中所有带 id 属性的元素 ID */
+    private java.util.Set<String> extractBpmnElementIds(String xml) {
+        java.util.Set<String> ids = new java.util.HashSet<>();
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\sid\\s*=\\s*\"([^\"]+)\"")
+                .matcher(xml);
+        while (m.find()) {
+            ids.add(m.group(1));
+        }
+        return ids;
+    }
+
+    /** 按节点名称在 BPMN XML 中查找匹配的元素 ID */
+    private String findBpmnIdByName(String xml, String nodeName) {
+        if (nodeName == null || nodeName.isBlank()) return null;
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile(
+                "<(?:bpmn:)?(?:userTask|startEvent|endEvent|serviceTask|sendTask|exclusiveGateway|parallelGateway)\\s[^>]*\\bid\\s*=\\s*\"([^\"]+)\"[^>]*\\bname\\s*=\\s*\"" +
+                        java.util.regex.Pattern.quote(nodeName) + "\"",
+                java.util.regex.Pattern.CASE_INSENSITIVE).matcher(xml);
+        if (m.find()) {
+            return m.group(1);
+        }
+        return null;
+    }
+
+    /** 校验 sequenceFlow 的 sourceRef 和 targetRef 指向存在的元素 */
+    private void validateSequenceFlowConnectivity(String xml, java.util.Set<String> knownIds) {
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile(
+                "<(?:bpmn:)?sequenceFlow\\s[^>]*\\bsourceRef\\s*=\\s*\"([^\"]+)\"[^>]*\\btargetRef\\s*=\\s*\"([^\"]+)\""
+        ).matcher(xml);
+        int flowCount = 0;
+        int brokenCount = 0;
+        while (m.find()) {
+            flowCount++;
+            String src = m.group(1);
+            String tgt = m.group(2);
+            if (!knownIds.contains(src)) {
+                log.warn("sequenceFlow sourceRef=\"{}\" 在 BPMN 中找不到对应元素", src);
+                brokenCount++;
+            }
+            if (!knownIds.contains(tgt)) {
+                log.warn("sequenceFlow targetRef=\"{}\" 在 BPMN 中找不到对应元素", tgt);
+                brokenCount++;
+            }
+        }
+        if (flowCount == 0) {
+            log.warn("BPMN XML 中未找到任何 sequenceFlow 元素，流程可能无法流转");
+        }
+        if (brokenCount > 0) {
+            log.warn("BPMN sequenceFlow 连通性校验：{} 条连线中有 {} 条引用了不存在的元素", flowCount, brokenCount);
+        }
+    }
+
+    private String truncate(String s, int maxLen) {
+        if (s == null) return "null";
+        return s.length() <= maxLen ? s : s.substring(0, maxLen) + "...";
     }
 
 }

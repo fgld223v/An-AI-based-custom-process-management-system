@@ -3,16 +3,23 @@ package com.aiflow.controller;
 import com.aiflow.common.ApiResponse;
 import com.aiflow.dto.LoginRequest;
 import com.aiflow.dto.LoginResponse;
+import com.aiflow.model.SysUser;
+import com.aiflow.repository.SysUserRepository;
 import com.aiflow.security.CurrentUser;
 import com.aiflow.security.JwtTokenProvider;
 import jakarta.validation.Valid;
+import lombok.Data;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.time.LocalDateTime;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -20,11 +27,17 @@ public class AuthController {
 
     private final AuthenticationManager authenticationManager;
     private final JwtTokenProvider jwtTokenProvider;
+    private final SysUserRepository sysUserRepository;
+    private final PasswordEncoder passwordEncoder;
 
     public AuthController(AuthenticationManager authenticationManager,
-                          JwtTokenProvider jwtTokenProvider) {
+                          JwtTokenProvider jwtTokenProvider,
+                          SysUserRepository sysUserRepository,
+                          PasswordEncoder passwordEncoder) {
         this.authenticationManager = authenticationManager;
         this.jwtTokenProvider = jwtTokenProvider;
+        this.sysUserRepository = sysUserRepository;
+        this.passwordEncoder = passwordEncoder;
     }
 
     @PostMapping("/login")
@@ -35,17 +48,39 @@ public class AuthController {
         CurrentUser currentUser = (CurrentUser) authentication.getPrincipal();
         String token = jwtTokenProvider.createToken(currentUser);
         LoginResponse response = new LoginResponse(
-                token,
-                "Bearer",
-                currentUser.getId(),
-                currentUser.getUsername(),
-                currentUser.getNickname(),
-                currentUser.getRole(),
-                currentUser.getSystemRole(),
-                currentUser.getDepartmentId(),
-                currentUser.getSupervisorId(),
+                token, "Bearer",
+                currentUser.getId(), currentUser.getUsername(), currentUser.getNickname(),
+                currentUser.getRole(), currentUser.getSystemRole(),
+                currentUser.getDepartmentId(), currentUser.getSupervisorId(),
                 currentUser.getManagedBizTypeIds()
         );
         return ApiResponse.success(response);
+    }
+
+    @PostMapping("/register")
+    public ApiResponse<Map<String, Object>> register(@Valid @RequestBody RegisterRequest request) {
+        if (sysUserRepository.existsByUsername(request.getUsername().trim())) {
+            return ApiResponse.fail(400, "用户名已存在");
+        }
+        LocalDateTime now = LocalDateTime.now();
+        SysUser user = SysUser.builder()
+                .username(request.getUsername().trim())
+                .nickname(request.getNickname() != null ? request.getNickname().trim() : request.getUsername().trim())
+                .password(passwordEncoder.encode(request.getPassword()))
+                .role("USER").systemRole("normal_user")
+                .enabled(1).deleted(0)
+                .createdTime(now).updatedTime(now)
+                .build();
+        sysUserRepository.save(user);
+        return ApiResponse.success(Map.of("id", user.getId(), "username", user.getUsername()));
+    }
+
+    @Data
+    public static class RegisterRequest {
+        @jakarta.validation.constraints.NotBlank(message = "用户名不能为空")
+        private String username;
+        private String nickname;
+        @jakarta.validation.constraints.NotBlank(message = "密码不能为空")
+        private String password;
     }
 }
