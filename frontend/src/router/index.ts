@@ -82,10 +82,31 @@ const routes: RouteRecordRaw[] = [
         meta: { title: 'AI 流程优化', group: 'AI', roles: ADMIN_ROLES }
       },
       {
+<<<<<<< Updated upstream
         path: 'dashboard',
         name: 'Dashboard',
         component: () => import('@/views/dashboard/Dashboard.vue'),
         meta: { title: '运行监控', group: '运行' }
+=======
+        path: 'runtime-monitor',
+        name: 'RuntimeMonitor',
+        component: () => import('@/views/monitor/RuntimeMonitor.vue'),
+        props: { scope: 'global' },
+        meta: { title: '运行监控', group: '运行', roles: SUPER_ADMIN }
+      },
+      {
+        path: 'dashboard',
+        name: 'Dashboard',
+        component: () => import('@/views/dashboard/Dashboard.vue'),
+        meta: { title: '仪表盘', group: '运行', roles: ADMIN_ROLES }
+      },
+      {
+        path: 'business-monitor',
+        name: 'BusinessMonitor',
+        component: () => import('@/views/monitor/RuntimeMonitor.vue'),
+        props: { scope: 'business' },
+        meta: { title: '业务监控', group: '运行', roles: BIZ_ADMIN }
+>>>>>>> Stashed changes
       },
       {
         path: 'process/start-preview',

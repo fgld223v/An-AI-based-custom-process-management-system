@@ -106,13 +106,18 @@ const allMenuGroups: MenuGroup[] = [
   {
     title: '运行',
     items: [
+<<<<<<< Updated upstream
       { label: '运行监控', path: '/dashboard', icon: Monitor, available: true, roles: adminRoles },
+=======
+      { label: '业务监控', path: '/business-monitor', icon: Monitor, available: true, roles: bizAdminOnly },
+      { label: '运行监控', path: '/runtime-monitor', icon: Monitor, available: true, roles: superAdminOnly },
+>>>>>>> Stashed changes
       { label: '流程发起', path: '/process/start-preview', icon: CirclePlus, available: true },
       { label: '流程实例', path: '/process/instances', icon: Tickets, available: true, roles: adminRoles },
       { label: '待办任务', path: '/tasks/todo', icon: Tickets, available: true, badge: '' },
       { label: '已办任务', path: '/tasks/done', icon: Tickets, available: true },
       { label: '通知中心', path: '/notifications', icon: Bell, available: true },
-      { label: '执行追踪', path: '/placeholder/tracing', icon: TrendCharts, roles: adminRoles }
+      { label: '执行追踪', path: '/dashboard', icon: TrendCharts, available: true }
     ]
   },
   {
