@@ -95,11 +95,17 @@ const routes: RouteRecordRaw[] = [
         meta: { title: 'AI 流程优化', group: 'AI', roles: ADMIN_ROLES }
       },
       {
-        path: 'dashboard',
-        name: 'Dashboard',
+        path: 'runtime-monitor',
+        name: 'RuntimeMonitor',
         component: () => import('@/views/monitor/RuntimeMonitor.vue'),
         props: { scope: 'global' },
         meta: { title: '运行监控', group: '运行', roles: SUPER_ADMIN }
+      },
+      {
+        path: 'dashboard',
+        name: 'Dashboard',
+        component: () => import('@/views/dashboard/Dashboard.vue'),
+        meta: { title: '仪表盘', group: '运行', roles: ADMIN_ROLES }
       },
       {
         path: 'business-monitor',

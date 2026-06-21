@@ -1,6 +1,7 @@
 package com.aiflow.dto;
 
 import com.aiflow.entity.UserEntity;
+import com.aiflow.model.SysUser;
 import lombok.Data;
 
 @Data
@@ -16,15 +17,30 @@ public class UserMeResponse {
     private String managedBizTypeIds;
 
     public static UserMeResponse from(UserEntity user) {
+        return build(user.getId(), user.getUsername(), user.getNickname(),
+                user.getRole(), user.getSystemRole(), user.getDepartmentId(),
+                user.getSupervisorId(), user.getManagedBizTypeIds());
+    }
+
+    public static UserMeResponse fromEntity(SysUser user) {
+        return build(user.getId(), user.getUsername(), user.getNickname(),
+                user.getRole(), user.getSystemRole(), user.getDepartmentId(),
+                user.getSupervisorId(), user.getManagedBizTypeIds());
+    }
+
+    private static UserMeResponse build(Long id, String username, String nickname,
+                                         String role, String systemRole,
+                                         Long departmentId, Long supervisorId,
+                                         String managedBizTypeIds) {
         UserMeResponse response = new UserMeResponse();
-        response.setId(user.getId());
-        response.setUsername(user.getUsername());
-        response.setNickname(user.getNickname());
-        response.setRole(user.getRole());
-        response.setSystemRole(user.getSystemRole());
-        response.setDepartmentId(user.getDepartmentId());
-        response.setSupervisorId(user.getSupervisorId());
-        response.setManagedBizTypeIds(user.getManagedBizTypeIds());
+        response.setId(id);
+        response.setUsername(username);
+        response.setNickname(nickname);
+        response.setRole(role);
+        response.setSystemRole(systemRole);
+        response.setDepartmentId(departmentId);
+        response.setSupervisorId(supervisorId);
+        response.setManagedBizTypeIds(managedBizTypeIds);
         return response;
     }
 }

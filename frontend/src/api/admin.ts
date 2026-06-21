@@ -1,5 +1,30 @@
 import request from './request'
 
+export interface DepartmentItem {
+  id: number
+  deptCode: string
+  deptName: string
+  parentId?: number | null
+  sortOrder: number
+  leaderUserId?: number | null
+  status: number
+}
+
+export async function getDepartments() {
+  return await request.get<DepartmentItem[]>('/api/departments') || []
+}
+
+export async function getUserList() {
+  return await request.get<UserBrief[]>('/api/users') || []
+}
+
+export interface UserBrief {
+  id: number
+  username: string
+  nickname: string
+  role: string
+}
+
 export interface AdminUser {
   id: number
   username: string
