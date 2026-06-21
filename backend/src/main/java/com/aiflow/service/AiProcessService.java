@@ -237,7 +237,8 @@ public class AiProcessService {
             result = objectMapper.readValue(json, AiGenerateProcessResponse.class);
         } catch (Exception e) {
             log.error("解析 AI 生成的 JSON 失败，原始内容：{}", json);
-            throw new BusinessException("AI 生成的格式有误，请重试。原始输出: " + truncate(json, 300));
+            String snippet = json.length() > 300 ? json.substring(0, 300) + "..." : json;
+            throw new BusinessException("AI 生成的格式有误，请重试。原始输出: " + snippet);
         }
 
         // 6. 校验 BPMN XML 合法性
