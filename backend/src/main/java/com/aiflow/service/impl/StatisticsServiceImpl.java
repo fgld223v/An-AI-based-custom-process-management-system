@@ -3,6 +3,7 @@ package com.aiflow.service.impl;
 import com.aiflow.dto.NodeEfficiencyDTO;
 import com.aiflow.dto.StatisticsOverviewDTO;
 import com.aiflow.dto.StatisticsTrendDTO;
+import com.aiflow.security.SecurityUtils;
 import com.aiflow.service.StatisticsService;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
@@ -122,6 +123,22 @@ public class StatisticsServiceImpl implements StatisticsService {
                         .build())
                 .toList();
 
+        // 7. 今日新增实例数
+        Number todayNew = (Number) entityManager
+                .createNativeQuery("SELECT COUNT(*) FROM process_instance WHERE deleted=0 AND DATE(created_at)=CURDATE()")
+                .getSingleResult();
+
+        // 8. 待处理任务数（仅统计当前用户的任务）
+        Number pendingTasks = (Number) entityManager
+                .createNativeQuery("""
+                        SELECT COUNT(*) FROM task t
+                        JOIN sys_user su ON t.assignee_id = su.id
+                        WHERE t.deleted=0 AND t.status IN ('pending','processing')
+                          AND su.id = :userId
+                        """)
+                .setParameter("userId", getCurrentUserId())
+                .getSingleResult();
+
         return StatisticsOverviewDTO.builder()
                 .totalInstances(totalInstances)
                 .completionRate(completionRate)
@@ -129,6 +146,8 @@ public class StatisticsServiceImpl implements StatisticsService {
                 .anomalyCount(anomalyCount != null ? anomalyCount.longValue() : 0L)
                 .statusDistribution(statusDistribution)
                 .bizTypeDistribution(bizTypeDistribution)
+                .todayNewInstances(todayNew != null ? todayNew.longValue() : 0L)
+                .pendingTaskCount(pendingTasks != null ? pendingTasks.longValue() : 0L)
                 .build();
     }
 
@@ -305,6 +324,8 @@ public class StatisticsServiceImpl implements StatisticsService {
                 ORDER BY period, biz_type_id
                 """;
     }
+
+    private Long getCurrentUserId() { Long uid = SecurityUtils.currentUserId(); return uid != null ? uid : 1L; }
 
     private record TrendRow(String period, Long bizTypeId, String typeName, Long cnt) {}
 
