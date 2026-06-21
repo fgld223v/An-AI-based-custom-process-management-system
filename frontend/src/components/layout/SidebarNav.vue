@@ -86,7 +86,7 @@ const allMenuGroups: MenuGroup[] = [
   {
     title: '概览',
     items: [
-      { label: '工作台', path: '/workbench', icon: DataAnalysis, available: true }
+      { label: '工作台', path: '/workbench', icon: DataAnalysis, available: true ,roles: superAdminOnly }
     ]
   },
   {
@@ -115,7 +115,7 @@ const allMenuGroups: MenuGroup[] = [
       { label: '待办任务', path: '/tasks/todo', icon: Tickets, available: true, badge: '' },
       { label: '已办任务', path: '/tasks/done', icon: Tickets, available: true },
       { label: '通知中心', path: '/notifications', icon: Bell, available: true },
-      { label: '执行追踪', path: '/dashboard', icon: TrendCharts, available: true }
+      { label: '执行追踪', path: '/dashboard', icon: TrendCharts, available: true,roles: superAdminOnly  }
     ]
   },
   {
