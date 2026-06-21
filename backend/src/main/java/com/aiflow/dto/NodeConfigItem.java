@@ -27,5 +27,6 @@ public class NodeConfigItem {
     private String notifyTarget;
 
     /** 通知渠道：in_app / email / both，仅 notify 节点有效 */
+    private String assignValue;
     private String notifyChannel;
 }

@@ -237,15 +237,16 @@ public class AiProcessService {
             result = objectMapper.readValue(json, AiGenerateProcessResponse.class);
         } catch (Exception e) {
             log.error("解析 AI 生成的 JSON 失败，原始内容：{}", json);
-            throw new BusinessException("AI 生成的格式有误，请重试");
+            throw new BusinessException("AI 生成的格式有误，请重试。原始输出: " + truncate(json, 300));
         }
 
         // 6. 校验 BPMN XML 合法性
         String bpmnXml = result.getBpmnXml();
-        // 兼容 bpmn:definitions 和 definitions 两种写法
-        boolean hasDefinitions = bpmnXml.contains("<definitions") || bpmnXml.contains("<bpmn:definitions");
-        boolean hasProcess = bpmnXml.contains("<process") || bpmnXml.contains("<bpmn:process");
-        if (bpmnXml == null || !hasDefinitions || !hasProcess) {
+        boolean hasDefinitions = bpmnXml != null &&
+                (bpmnXml.contains("<definitions") || bpmnXml.contains("<bpmn:definitions"));
+        boolean hasProcess = bpmnXml != null &&
+                (bpmnXml.contains("<process") || bpmnXml.contains("<bpmn:process"));
+        if (!hasDefinitions || !hasProcess) {
             log.error("AI 生成的 BPMN XML 不合法：{}", bpmnXml);
             throw new BusinessException("AI 生成的 BPMN XML 不合法，缺少 definitions 或 process 标签，请重试");
         }

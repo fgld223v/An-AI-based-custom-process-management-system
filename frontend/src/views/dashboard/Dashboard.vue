@@ -262,12 +262,17 @@ function onResize() {
   trendChart?.resize()
 }
 
+let refreshTimer: ReturnType<typeof setInterval> | null = null
+
 onMounted(() => {
   loadData()
   window.addEventListener('resize', onResize)
+  // 每 60 秒自动刷新
+  refreshTimer = setInterval(() => loadData(), 60_000)
 })
 
 onUnmounted(() => {
+  if (refreshTimer) clearInterval(refreshTimer)
   window.removeEventListener('resize', onResize)
   gaugeChart?.dispose()
   barChart?.dispose()

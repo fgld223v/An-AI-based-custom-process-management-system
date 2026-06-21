@@ -10,7 +10,6 @@ import org.flowable.engine.repository.Deployment;
 import org.flowable.engine.repository.ProcessDefinition;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -26,7 +25,7 @@ public class FlowableDeploymentServiceImpl implements FlowableDeploymentService 
     private final ProcessAuthorizationService processAuthorizationService;
 
     @Override
-    public List<String> deployProcessTemplate(ProcessTemplate template) {
+    public ProcessTemplate deployProcessTemplate(ProcessTemplate template) {
         if (template == null || template.getId() == null) {
             throw new IllegalArgumentException("流程模板不存在。");
         }
@@ -36,13 +35,11 @@ public class FlowableDeploymentServiceImpl implements FlowableDeploymentService 
         validateBpmnXml(bpmnXml);
         bpmnXml = ensureExecutableProcess(bpmnXml);
 
-        // 注入多实例（会签/或签）和抄送扩展元素，同时转换未配置的 ServiceTask
-        List<String> warnings = List.of();
+        // 注入多实例（会签/或签）和抄送扩展元素
         String nodeConfigJson = normalizeText(template.getNodeConfig());
-        BpmnEnhancementResult enhancementResult = bpmnXmlEnhancer.enhance(bpmnXml,
-                nodeConfigJson != null ? nodeConfigJson : "");
-        bpmnXml = enhancementResult.bpmnXml();
-        warnings = enhancementResult.warnings();
+        if (hasText(nodeConfigJson)) {
+            bpmnXml = bpmnXmlEnhancer.enhance(bpmnXml, nodeConfigJson);
+        }
         template.setBpmnXml(bpmnXml);
 
         String deploymentName = buildDeploymentName(template);
@@ -64,7 +61,7 @@ public class FlowableDeploymentServiceImpl implements FlowableDeploymentService 
 
             template.setFlowableDeploymentId(deployment.getId());
             template.setFlowableProcessDefinitionId(processDefinition.getId());
-            return warnings;
+            return template;
         } catch (FlowableException ex) {
             throw new IllegalStateException("Flowable 流程定义部署失败：" + safeMessage(ex), ex);
         }

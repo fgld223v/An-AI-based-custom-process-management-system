@@ -59,7 +59,18 @@ public class ApproverResolverServiceImpl implements ApproverResolverService {
      * 部门经理 — 找到发起人所属部门的 leader_user_id。
      */
     private List<Long> resolveDeptManager(ProcessInstance instance) {
-        // department_id 字段在当前数据库中不存在，暂时返回默认审批人
+        Long applicantId = instance.getApplicantId();
+        if (applicantId == null) return defaultApprover();
+
+        // 查询发起人的用户记录获取 departmentId
+        UserEntity applicant = sysUserMapper.selectById(applicantId);
+        if (applicant == null || applicant.getDepartmentId() == null) return defaultApprover();
+
+        // 查询部门获取 leader
+        Department dept = departmentRepository.findByIdAndDeleted(applicant.getDepartmentId(), 0).orElse(null);
+        if (dept != null && dept.getLeaderUserId() != null) {
+            return List.of(dept.getLeaderUserId());
+        }
         return defaultApprover();
     }
 
@@ -84,10 +95,16 @@ public class ApproverResolverServiceImpl implements ApproverResolverService {
     }
 
     /**
-     * 直属上级 — 当前回退到部门经理。
+     * 直属上级 — 查询发起人的 supervisor_id。
      */
     private List<Long> resolveSupervisor(ProcessInstance instance) {
-        return resolveDeptManager(instance);
+        Long applicantId = instance.getApplicantId();
+        if (applicantId == null) return resolveDeptManager(instance);
+        UserEntity applicant = sysUserMapper.selectById(applicantId);
+        if (applicant != null && applicant.getSupervisorId() != null) {
+            return List.of(applicant.getSupervisorId());
+        }
+        return resolveDeptManager(instance); // 无上级时回退到部门经理
     }
 
     /**
