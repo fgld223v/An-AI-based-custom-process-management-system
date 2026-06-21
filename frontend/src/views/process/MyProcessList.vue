@@ -15,7 +15,7 @@
     <section class="stats-grid">
       <div class="stat-card">
         <span>{{ processes.length }}</span>
-        <p>全部流程</p>
+        <p>版本总数</p>
       </div>
       <div class="stat-card">
         <span>{{ publishedCount }}</span>
@@ -35,7 +35,7 @@
       <div class="panel-title-row">
         <div>
           <h2>流程列表</h2>
-          <p>仅展示当前账号创建的业务流程。</p>
+          <p>已发布版本保持只读，修改时创建下一版草稿。</p>
         </div>
         <el-input v-model="keyword" clearable placeholder="搜索流程名称 / 编码" class="search-input" />
       </div>
@@ -43,6 +43,9 @@
       <el-table v-loading="loading" :data="filteredProcesses" row-key="id" class="soft-table">
         <el-table-column prop="templateName" label="流程名称" min-width="180" />
         <el-table-column prop="templateCode" label="流程编码" min-width="170" />
+        <el-table-column label="版本" width="80">
+          <template #default="{ row }">v{{ row.version || 1 }}</template>
+        </el-table-column>
         <el-table-column label="业务类型" min-width="140">
           <template #default="{ row }">{{ bizTypeName(row.bizTypeId) }}</template>
         </el-table-column>
@@ -60,12 +63,13 @@
         <el-table-column label="更新时间" min-width="170">
           <template #default="{ row }">{{ formatTime(row.updatedAt) }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="360" fixed="right">
+        <el-table-column label="操作" width="430" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" :disabled="!canEdit(row.status)" @click="openEditDialog(row)">编辑</el-button>
-            <el-button link type="primary" @click="goToDesigner(row)">流程图</el-button>
+            <el-button link type="primary" :disabled="!canEdit(row.status)" @click="goToDesigner(row)">流程图</el-button>
+            <el-button v-if="canCreateVersion(row.status)" link type="primary" @click="handleCreateVersion(row)">新版本</el-button>
             <el-button link type="success" :disabled="!canPublish(row.status)" @click="handlePublish(row)">发布</el-button>
-            <el-button link type="danger" :disabled="normalizeStatus(row.status) !== 'published'" @click="handleUnpublish(row)">撤回</el-button>
+            <el-button link type="danger" :disabled="normalizeStatus(row.status) !== 'published'" @click="handleUnpublish(row)">停用</el-button>
             <el-button link type="primary" :disabled="normalizeStatus(row.status) !== 'published'" @click="startProcess(row)">发起</el-button>
           </template>
         </el-table-column>
@@ -110,7 +114,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Refresh } from '@element-plus/icons-vue'
 import { getBizTypes } from '@/api/bizType'
 import { getPublishedForms } from '@/api/formDefinition'
-import { createMyProcess, getMyProcesses, publishMyProcess, unpublishMyProcess, updateMyProcess } from '@/api/myProcess'
+import { createMyProcess, createMyProcessVersion, getMyProcesses, publishMyProcess, unpublishMyProcess, updateMyProcess } from '@/api/myProcess'
 import { useAuthStore } from '@/stores/auth'
 import type { BizType, FormDefinition, ProcessTemplate, ProcessTemplatePayload } from '@/types/workflow'
 
@@ -255,13 +259,26 @@ async function handlePublish(row: ProcessTemplate) {
 
 async function handleUnpublish(row: ProcessTemplate) {
   try {
-    await ElMessageBox.confirm(`确认撤回“${row.templateName}”吗？撤回后将回到草稿状态。`, '撤回流程', { type: 'warning' })
+    await ElMessageBox.confirm(`确认停用“${row.templateName}”v${row.version || 1}吗？历史实例仍保留该版本。`, '停用流程版本', { type: 'warning' })
     await unpublishMyProcess(row.id)
-    ElMessage.success('流程已撤回')
+    ElMessage.success('流程版本已停用')
     await loadPageData()
   } catch (error) {
     if (error === 'cancel' || error === 'close') return
-    ElMessage.error(error instanceof Error ? error.message : '撤回失败')
+    ElMessage.error(error instanceof Error ? error.message : '停用失败')
+  }
+}
+
+async function handleCreateVersion(row: ProcessTemplate) {
+  try {
+    await ElMessageBox.confirm(`将基于“${row.templateName}”创建下一版草稿，是否继续？`, '创建新版本', { type: 'info' })
+    const draft = await createMyProcessVersion(row.id)
+    ElMessage.success(`已准备 v${draft.version || 1} 草稿`)
+    await loadPageData()
+    router.push(`/process-designer?templateId=${draft.id}&scope=my`)
+  } catch (error) {
+    if (error === 'cancel' || error === 'close') return
+    ElMessage.error(error instanceof Error ? error.message : '创建新版本失败')
   }
 }
 
@@ -296,6 +313,10 @@ function canEdit(status?: string) {
 
 function canPublish(status?: string) {
   return ['draft', 'reviewing'].includes(normalizeStatus(status))
+}
+
+function canCreateVersion(status?: string) {
+  return ['published', 'disabled'].includes(normalizeStatus(status))
 }
 
 function statusLabel(status?: string) {

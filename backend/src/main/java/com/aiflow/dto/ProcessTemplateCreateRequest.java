@@ -10,6 +10,7 @@ public class ProcessTemplateCreateRequest {
     private Long bizTypeId;
     private Long formId;
     private String sourceType;
+    private String resourceType;
     private String bpmnXml;
     private String nodeConfig;
     private String formBindConfig;

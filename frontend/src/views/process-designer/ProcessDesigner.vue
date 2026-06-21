@@ -161,11 +161,21 @@
             </el-select>
           </el-form-item>
           <el-form-item label="发起权限">
-            <el-select v-model="selectedConfig.startPermission" @change="syncNodeConfig">
+            <el-select v-model="selectedConfig.startPermission" @change="handleStartPermissionChange">
               <el-option label="所有人" value="ALL" />
               <el-option label="指定角色" value="ROLE" />
               <el-option label="指定部门" value="DEPARTMENT" />
             </el-select>
+          </el-form-item>
+          <el-form-item v-if="selectedConfig.startPermission === 'ROLE'" label="允许发起的角色">
+            <el-select v-model="selectedConfig.startPermissionValue" placeholder="请选择角色" @change="syncNodeConfig">
+              <el-option label="普通用户" value="normal_user" />
+              <el-option label="业务管理员" value="biz_admin" />
+              <el-option label="超级管理员" value="super_admin" />
+            </el-select>
+          </el-form-item>
+          <el-form-item v-if="selectedConfig.startPermission === 'DEPARTMENT'" label="允许发起的部门">
+            <el-input v-model="selectedConfig.startPermissionValue" placeholder="请输入部门 ID，多个用逗号分隔" @change="syncNodeConfig" />
           </el-form-item>
           <el-form-item label="是否需要登录">
             <el-switch v-model="selectedConfig.loginRequired" active-text="需要" inactive-text="不需要" @change="syncNodeConfig" />
@@ -568,6 +578,7 @@ interface NodeBusinessConfig {
   endStatus: string
   startMode: string
   startPermission: string
+  startPermissionValue: string
   loginRequired: boolean
   attachmentAllowed: boolean
   draftAllowed: boolean
@@ -1286,6 +1297,7 @@ function createDefaultNodeConfig(element: BpmnElement, businessType: BusinessTyp
     endStatus: 'COMPLETED',
     startMode: 'MANUAL',
     startPermission: 'ALL',
+    startPermissionValue: '',
     loginRequired: true,
     formMode: 'edit',
     attachmentAllowed: true,
@@ -1632,6 +1644,12 @@ function syncNodeConfig() {
     }
   }
   void syncXml(false)
+}
+
+function handleStartPermissionChange() {
+  if (!selectedConfig.value) return
+  selectedConfig.value.startPermissionValue = ''
+  syncNodeConfig()
 }
 
 function deleteSelected() {

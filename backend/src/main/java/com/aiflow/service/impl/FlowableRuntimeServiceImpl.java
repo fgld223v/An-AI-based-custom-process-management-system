@@ -1,6 +1,5 @@
 package com.aiflow.service.impl;
 
-import com.aiflow.enums.TemplateStatus;
 import com.aiflow.model.FormSubmission;
 import com.aiflow.model.ProcessInstance;
 import com.aiflow.model.ProcessTemplate;
@@ -8,6 +7,7 @@ import com.aiflow.repository.FormSubmissionRepository;
 import com.aiflow.repository.ProcessInstanceRepository;
 import com.aiflow.repository.ProcessTemplateRepository;
 import com.aiflow.service.FlowableRuntimeService;
+import com.aiflow.service.ProcessAuthorizationService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -45,6 +45,7 @@ public class FlowableRuntimeServiceImpl implements FlowableRuntimeService {
     private final ProcessTemplateRepository processTemplateRepository;
     private final FormSubmissionRepository formSubmissionRepository;
     private final ObjectMapper objectMapper;
+    private final ProcessAuthorizationService processAuthorizationService;
 
     @Override
     public void startProcess(Long processInstanceId) {
@@ -70,15 +71,17 @@ public class FlowableRuntimeServiceImpl implements FlowableRuntimeService {
                 .findByIdAndDeleted(instance.getTemplateId(), 0)
                 .orElseThrow(() -> new IllegalArgumentException("流程模板不存在。"));
 
-        if (template.getStatus() != TemplateStatus.PUBLISHED) {
-            throw new IllegalStateException("当前流程模板未发布，不能启动流程实例。");
-        }
+        processAuthorizationService.assertCanStart(template);
 
         String definitionId = template.getFlowableProcessDefinitionId();
         String deploymentId = template.getFlowableDeploymentId();
         if (!hasText(definitionId) || !hasText(deploymentId)) {
             throw new IllegalStateException(
                     "当前流程模板尚未部署到 Flowable（缺少 flowableDefinitionId 或 flowableDeploymentId），请先发布模板。");
+        }
+        if (!definitionId.equals(instance.getFlowableDefinitionId())
+                || !deploymentId.equals(instance.getFlowableDeploymentId())) {
+            throw new IllegalStateException("流程发布版本已变化，请重新创建申请草稿后再提交。");
         }
 
         // 5. 聚合 FormSubmission

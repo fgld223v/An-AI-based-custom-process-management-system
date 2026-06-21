@@ -3,6 +3,7 @@ package com.aiflow.service.impl;
 import com.aiflow.dto.DtoMapper;
 import com.aiflow.dto.TemplateFormBindingDTO;
 import com.aiflow.enums.FormStatus;
+import com.aiflow.enums.ProcessResourceType;
 import com.aiflow.enums.TemplateSourceType;
 import com.aiflow.enums.TemplateStatus;
 import com.aiflow.model.FormDefinition;
@@ -10,6 +11,7 @@ import com.aiflow.model.ProcessTemplate;
 import com.aiflow.repository.FormDefinitionRepository;
 import com.aiflow.repository.ProcessTemplateRepository;
 import com.aiflow.service.FlowableDeploymentService;
+import com.aiflow.service.ProcessAuthorizationService;
 import com.aiflow.service.ProcessTemplateService;
 import com.aiflow.common.BusinessException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -35,6 +37,7 @@ public class ProcessTemplateServiceImpl implements ProcessTemplateService {
     private final ProcessTemplateRepository processTemplateRepository;
     private final FormDefinitionRepository formDefinitionRepository;
     private final FlowableDeploymentService flowableDeploymentService;
+    private final ProcessAuthorizationService processAuthorizationService;
     private final ObjectMapper objectMapper;
     private final FormBindConfigParser formBindConfigParser;
 
@@ -61,6 +64,9 @@ public class ProcessTemplateServiceImpl implements ProcessTemplateService {
         }
         if (template.getSourceType() == null) {
             template.setSourceType(TemplateSourceType.MANUAL);
+        }
+        if (template.getResourceType() == null) {
+            template.setResourceType(ProcessResourceType.SYSTEM_TEMPLATE);
         }
         template.setDeleted(0);
         template.setCreatedAt(now);
@@ -101,6 +107,7 @@ public class ProcessTemplateServiceImpl implements ProcessTemplateService {
             throw new IllegalStateException("only draft or reviewing template can be published");
         }
 
+        processAuthorizationService.assertCanPublish(existing);
         validateBpmnXmlForPublish(existing.getBpmnXml());
         validateNodeConfigForPublish(existing.getNodeConfig());
         validatePublishedForm(existing.getFormId());
@@ -108,6 +115,18 @@ public class ProcessTemplateServiceImpl implements ProcessTemplateService {
         flowableDeploymentService.deployProcessTemplate(existing);
 
         LocalDateTime now = LocalDateTime.now();
+        List<ProcessTemplate> previousPublishedVersions = processTemplateRepository
+                .findByTemplateCodeAndResourceTypeAndStatusAndDeleted(
+                        existing.getTemplateCode(), existing.getResourceType(), TemplateStatus.PUBLISHED, 0);
+        for (ProcessTemplate previous : previousPublishedVersions) {
+            if (!previous.getId().equals(existing.getId())) {
+                previous.setStatus(TemplateStatus.DISABLED);
+                previous.setUpdatedAt(now);
+            }
+        }
+        if (!previousPublishedVersions.isEmpty()) {
+            processTemplateRepository.saveAll(previousPublishedVersions);
+        }
         existing.setStatus(TemplateStatus.PUBLISHED);
         existing.setPublishedAt(now);
         existing.setUpdatedAt(now);
@@ -115,16 +134,85 @@ public class ProcessTemplateServiceImpl implements ProcessTemplateService {
     }
 
     @Override
+    public ProcessTemplate createNextVersion(Long id) {
+        requireId(id, "id must not be null");
+        ProcessTemplate requestedVersion = getRequiredTemplate(id);
+        if (requestedVersion.getStatus() != TemplateStatus.PUBLISHED
+                && requestedVersion.getStatus() != TemplateStatus.DISABLED) {
+            throw new IllegalStateException("only published or disabled version can create a new version");
+        }
+        processAuthorizationService.assertCanCreateVersion(requestedVersion);
+
+        List<ProcessTemplate> versions = processTemplateRepository
+                .findByTemplateCodeAndResourceTypeAndDeletedOrderByVersionDesc(
+                        requestedVersion.getTemplateCode(), requestedVersion.getResourceType(), 0);
+        if (!versions.isEmpty()) {
+            ProcessTemplate latest = versions.get(0);
+            if (latest.getStatus() == TemplateStatus.DRAFT || latest.getStatus() == TemplateStatus.REVIEWING) {
+                return latest;
+            }
+        }
+
+        ProcessTemplate baseVersion = versions.stream()
+                .filter(item -> item.getStatus() == TemplateStatus.PUBLISHED)
+                .findFirst()
+                .orElse(requestedVersion);
+        int nextVersion = versions.stream()
+                .map(ProcessTemplate::getVersion)
+                .filter(java.util.Objects::nonNull)
+                .max(Integer::compareTo)
+                .orElse(0) + 1;
+        LocalDateTime now = LocalDateTime.now();
+        ProcessTemplate draft = ProcessTemplate.builder()
+                .templateCode(baseVersion.getTemplateCode())
+                .templateName(baseVersion.getTemplateName())
+                .bizTypeId(baseVersion.getBizTypeId())
+                .formId(baseVersion.getFormId())
+                .version(nextVersion)
+                .status(TemplateStatus.DRAFT)
+                .sourceType(baseVersion.getSourceType())
+                .resourceType(baseVersion.getResourceType())
+                .bpmnXml(baseVersion.getBpmnXml())
+                .nodeConfig(baseVersion.getNodeConfig())
+                .formBindConfig(baseVersion.getFormBindConfig())
+                .createdBy(baseVersion.getCreatedBy())
+                .createdAt(now)
+                .updatedAt(now)
+                .deleted(0)
+                .build();
+        return processTemplateRepository.save(draft);
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public List<ProcessTemplate> listTemplates() {
-        return processTemplateRepository.findByDeletedOrderByUpdatedAtDesc(0);
+        return processTemplateRepository.findByResourceTypeAndDeletedOrderByUpdatedAtDesc(
+                ProcessResourceType.SYSTEM_TEMPLATE, 0);
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<ProcessTemplate> listTemplatesByCreatedBy(Long createdBy) {
         requireId(createdBy, "createdBy must not be null");
-        return processTemplateRepository.findByCreatedByAndDeletedOrderByUpdatedAtDesc(createdBy, 0);
+        return processTemplateRepository.findByCreatedByAndResourceTypeAndDeletedOrderByUpdatedAtDesc(
+                createdBy, ProcessResourceType.BUSINESS_PROCESS, 0);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ProcessTemplate> listPublishedBusinessProcesses() {
+        return processTemplateRepository
+                .findByResourceTypeAndStatusAndFlowableDeploymentIdIsNotNullAndFlowableProcessDefinitionIdIsNotNullAndDeletedOrderByUpdatedAtDesc(
+                        ProcessResourceType.BUSINESS_PROCESS, TemplateStatus.PUBLISHED, 0);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<ProcessTemplate> findPublishedBusinessProcessById(Long id) {
+        requireId(id, "id must not be null");
+        return processTemplateRepository
+                .findByIdAndResourceTypeAndStatusAndFlowableDeploymentIdIsNotNullAndFlowableProcessDefinitionIdIsNotNullAndDeleted(
+                        id, ProcessResourceType.BUSINESS_PROCESS, TemplateStatus.PUBLISHED, 0);
     }
 
     @Override
@@ -158,13 +246,11 @@ public class ProcessTemplateServiceImpl implements ProcessTemplateService {
         requireId(id, "id must not be null");
         ProcessTemplate existing = getRequiredTemplate(id);
         if (existing.getStatus() != TemplateStatus.PUBLISHED) {
-            throw new IllegalStateException("only published template can be unpublished");
+            throw new IllegalStateException("only published version can be disabled");
         }
+        processAuthorizationService.assertCanCreateVersion(existing);
         LocalDateTime now = LocalDateTime.now();
-        existing.setStatus(TemplateStatus.DRAFT);
-        existing.setFlowableDeploymentId(null);
-        existing.setFlowableProcessDefinitionId(null);
-        existing.setPublishedAt(null);
+        existing.setStatus(TemplateStatus.DISABLED);
         existing.setUpdatedAt(now);
         return processTemplateRepository.save(existing);
     }
@@ -186,6 +272,7 @@ public class ProcessTemplateServiceImpl implements ProcessTemplateService {
                 .version(1)
                 .status(TemplateStatus.DRAFT)
                 .sourceType(TemplateSourceType.MARKET_COPY)
+                .resourceType(ProcessResourceType.BUSINESS_PROCESS)
                 .bpmnXml(sourceTemplate.getBpmnXml())
                 .nodeConfig(sourceTemplate.getNodeConfig())
                 .formBindConfig(sourceTemplate.getFormBindConfig())

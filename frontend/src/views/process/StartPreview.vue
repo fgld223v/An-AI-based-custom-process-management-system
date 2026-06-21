@@ -2,29 +2,29 @@
   <div class="start-preview-page">
     <section class="preview-head">
       <div>
-        <el-tag type="success" effect="plain">运行时预览</el-tag>
-        <h1>节点表单运行预览</h1>
-        <p>选择流程模板和节点后，按“节点表单优先、模板默认表单兜底”的规则动态加载表单，并保存为轻量级流程实例草稿。</p>
+        <el-tag type="success" effect="plain">流程发起</el-tag>
+        <h1>发起业务流程</h1>
+        <p>选择已发布的业务流程，填写发起表单并提交运行。</p>
       </div>
-      <el-button round :icon="Refresh" :loading="loading" @click="loadTemplates">刷新模板</el-button>
+      <el-button round :icon="Refresh" :loading="loading" @click="loadTemplates">刷新流程</el-button>
     </section>
 
     <section class="preview-panel">
       <div class="panel-title-row">
         <div>
-          <h2>选择预览范围</h2>
-          <p>当前页面提交后会启动 Flowable 流程实例，任务处理与待办中心将在后续版本开发。</p>
+          <h2>选择可发起流程</h2>
+          <p>提交后将启动 Flowable 流程实例，并进入对应审批与任务处理环节。</p>
         </div>
         <el-tag effect="plain">ProcessTemplate.nodeConfig</el-tag>
       </div>
 
       <el-form label-position="top">
-        <el-form-item label="流程模板">
+        <el-form-item label="业务流程">
           <el-select
             v-model="selectedTemplateId"
             filterable
             clearable
-            placeholder="请选择流程模板"
+            placeholder="请选择已发布流程"
             :loading="loading"
             style="width: 100%"
             @change="handleTemplateChange"
@@ -79,24 +79,24 @@
         :title="message"
       />
 
-      <el-empty v-if="!selectedTemplateId" description="请选择一个流程模板开始预览" />
+      <el-empty v-if="!selectedTemplateId" description="请选择一个已发布流程" />
 
       <template v-if="templateDetail">
         <div class="info-grid">
           <div class="info-card">
-            <span>模板名称</span>
+            <span>流程名称</span>
             <strong>{{ templateDetail.templateName }}</strong>
           </div>
           <div class="info-card">
-            <span>模板编码</span>
+            <span>流程编码</span>
             <strong>{{ templateDetail.templateCode }}</strong>
           </div>
           <div class="info-card">
-            <span>模板状态</span>
+            <span>流程状态</span>
             <strong>{{ templateStatusLabel(templateDetail.status) }}</strong>
           </div>
           <div class="info-card">
-            <span>模板默认表单</span>
+            <span>流程默认表单</span>
             <strong>{{ templateDetail.formId || '未绑定' }}</strong>
           </div>
         </div>
@@ -231,7 +231,7 @@ import {
   saveNodeForm,
   submitProcessInstance
 } from '@/api/processInstance'
-import { getProcessTemplateDetail, getProcessTemplates } from '@/api/processTemplate'
+import { getAvailableProcessDetail, getAvailableProcesses } from '@/api/processCatalog'
 import type { FormDefinition, FormSubmission, ProcessInstance, ProcessTemplate } from '@/types/workflow'
 
 type FormBindingMode = 'none' | 'template_default' | 'node_form'
@@ -311,9 +311,9 @@ async function loadTemplates() {
   loading.value = true
   message.value = ''
   try {
-    templates.value = await getProcessTemplates()
+    templates.value = await getAvailableProcesses()
   } catch (error) {
-    message.value = normalizeError(error, '流程模板加载失败，请检查后端服务。')
+    message.value = normalizeError(error, '可发起流程加载失败，请检查后端服务。')
   } finally {
     loading.value = false
   }
@@ -362,7 +362,7 @@ async function handleTemplateChange(id?: number) {
 
   detailLoading.value = true
   try {
-    const detail = await getProcessTemplateDetail(id)
+    const detail = await getAvailableProcessDetail(id)
     templateDetail.value = detail
     instanceTitle.value = `${detail.templateName}-${formatDate(new Date())}`
     previewNodes.value = parsePreviewNodes(detail.nodeConfig)

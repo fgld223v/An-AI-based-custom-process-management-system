@@ -6,6 +6,7 @@ import com.aiflow.dto.ProcessTemplateCreateRequest;
 import com.aiflow.dto.ProcessTemplateDTO;
 import com.aiflow.dto.ProcessTemplateUpdateRequest;
 import com.aiflow.dto.TemplateFormBindingDTO;
+import com.aiflow.enums.ProcessResourceType;
 import com.aiflow.model.ProcessTemplate;
 import com.aiflow.security.CurrentUser;
 import com.aiflow.security.SecurityUtils;
@@ -69,7 +70,9 @@ public class MyProcessController {
             request.setTemplateCode("MY_FLOW_" + currentUser.getId() + "_" + LocalDateTime.now().format(CODE_TIME_FORMATTER));
         }
         request.setCreatedBy(currentUser.getId());
-        ProcessTemplate saved = processTemplateService.createTemplate(DtoMapper.toProcessTemplate(request));
+        ProcessTemplate process = DtoMapper.toProcessTemplate(request);
+        process.setResourceType(ProcessResourceType.BUSINESS_PROCESS);
+        ProcessTemplate saved = processTemplateService.createTemplate(process);
         return ApiResponse.success(DtoMapper.toProcessTemplateDTO(saved));
     }
 
@@ -92,6 +95,13 @@ public class MyProcessController {
         return ApiResponse.success(DtoMapper.toProcessTemplateDTO(saved));
     }
 
+    @PostMapping("/{id}/new-version")
+    public ApiResponse<ProcessTemplateDTO> createNewVersion(@PathVariable Long id) {
+        getOwnedTemplate(id);
+        ProcessTemplate saved = processTemplateService.createNextVersion(id);
+        return ApiResponse.success(DtoMapper.toProcessTemplateDTO(saved));
+    }
+
     @PostMapping("/{id}/unpublish")
     public ApiResponse<ProcessTemplateDTO> unpublishMyProcess(@PathVariable Long id) {
         getOwnedTemplate(id);
@@ -105,6 +115,9 @@ public class MyProcessController {
                 .orElseThrow(() -> new IllegalArgumentException("process not found"));
         if (template.getCreatedBy() == null || !template.getCreatedBy().equals(currentUser.getId())) {
             throw new AccessDeniedException("no permission to access this process");
+        }
+        if (template.getResourceType() != ProcessResourceType.BUSINESS_PROCESS) {
+            throw new IllegalArgumentException("business process not found");
         }
         return template;
     }

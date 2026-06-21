@@ -44,9 +44,13 @@ public class TemplateMarketController {
 
     @PostMapping("/publish-template")
     public ApiResponse<TemplateMarketDTO> publishTemplateToMarket(@RequestBody MarketPublishRequest request) {
+        Long currentUserId = SecurityUtils.currentUserId();
+        if (currentUserId == null) {
+            throw new IllegalStateException("current user is required");
+        }
         TemplateMarket market = templateMarketService.publishTemplateToMarket(
                 request.getTemplateId(),
-                request.getPublisherId(),
+                currentUserId,
                 request.getTitle(),
                 request.getDescription(),
                 request.getCoverUrl(),

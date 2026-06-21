@@ -45,6 +45,7 @@ export interface ProcessTemplate {
   version?: number
   status?: string
   sourceType?: string
+  resourceType?: 'system_template' | 'business_process'
   bpmnXml?: string
   nodeConfig?: string
   formBindConfig?: string
@@ -67,6 +68,7 @@ export interface ProcessTemplatePayload {
   bizTypeId?: number | null
   formId?: number | null
   sourceType?: string
+  resourceType?: 'system_template' | 'business_process'
   bpmnXml?: string
   nodeConfig?: string
   formBindConfig?: string
@@ -151,6 +153,56 @@ export interface ProcessInstance {
   flowableDeploymentId?: string | null
   createTime?: string
   updateTime?: string
+}
+
+export interface BusinessProcessInstanceListParams {
+  templateId?: number | null
+  status?: string
+  keyword?: string
+}
+
+export interface BusinessProcessInstance {
+  id: number
+  instanceCode: string
+  instanceTitle: string
+  status: string
+  anomaly?: boolean
+  anomalyReason?: string | null
+  templateId: number
+  templateCode?: string | null
+  templateName?: string | null
+  templateVersion?: number | null
+  templateStatus?: string | null
+  processOwnerId?: number | null
+  processOwnerName?: string | null
+  applicantId: number
+  applicantUsername?: string | null
+  applicantName: string
+  applicantDepartmentId?: number | null
+  bizTypeId?: number | null
+  formId?: number | null
+  currentNodeKey?: string | null
+  currentNodeName?: string | null
+  currentBusinessType?: string | null
+  flowableProcessInstanceId?: string | null
+  startedAt?: string | null
+  endedAt?: string | null
+  createdAt?: string | null
+  updatedAt?: string | null
+}
+
+export interface ProcessTimelineNode {
+  type: 'start' | 'approval' | 'end' | string
+  nodeName: string
+  operatorName?: string | null
+  time?: string | null
+  duration?: string | null
+  action?: string | null
+  comment?: string | null
+}
+
+export interface ProcessTimeline {
+  nodes: ProcessTimelineNode[]
 }
 
 export interface FormSubmission {
