@@ -7,6 +7,7 @@ import com.aiflow.repository.ProcessTemplateRepository;
 import com.aiflow.repository.FormDefinitionRepository;
 import com.aiflow.service.FlowableDeploymentService;
 import com.aiflow.service.ProcessAuthorizationService;
+import com.aiflow.service.PublishResult;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -131,11 +132,13 @@ class ProcessTemplateServiceImplTest {
         when(processTemplateRepository.save(any(ProcessTemplate.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        ProcessTemplate published = service.publishTemplate(2L);
+        PublishResult result = service.publishTemplate(2L);
+        ProcessTemplate published = result.template();
 
         assertThat(published.getStatus()).isEqualTo(TemplateStatus.PUBLISHED);
         assertThat(previous.getStatus()).isEqualTo(TemplateStatus.DISABLED);
         assertThat(previous.getFlowableDeploymentId()).isEqualTo("deployment-1");
+        assertThat(result.warnings()).isEmpty();
     }
 
     @Test
