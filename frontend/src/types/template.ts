@@ -1,22 +1,5 @@
-export type TemplateStatus = 'DRAFT' | 'PUBLISHED' | 'DISABLED'
-
-export interface WorkflowTemplate {
-  id: number
-  templateName: string
-  businessType: string
-  formJson: string
-  bpmnXml: string
-  status: TemplateStatus
-  createdBy?: number
-  createdTime?: string
-  updatedTime?: string
-}
-
-export interface WorkflowTemplateDraft {
-  templateName: string
-  businessType: string
-  description?: string
-  formJson: string
-  bpmnXml: string
-  status: TemplateStatus
+/** 当前编辑中的流程模板（仅名称/ID，用于 TopBar 和 ProcessDesigner 间共享） */
+export interface CurrentTemplate {
+  id?: number
+  templateName?: string
 }
