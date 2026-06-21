@@ -18,11 +18,9 @@ import javax.xml.transform.stream.StreamResult;
 import java.io.ByteArrayInputStream;
 import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * BPMN XML 增强器 — 在部署前对 BPMN XML 进行变换，注入 Flowable 扩展元素。
@@ -50,19 +48,6 @@ public class BpmnXmlEnhancer {
     private static final String BPMN_NS = "http://www.omg.org/spec/BPMN/20100524/MODEL";
     private static final String FLOWABLE_PREFIX = "flowable";
 
-    /** 所有已知的 ServiceTask 实现属性（带命名空间前缀） */
-    private static final Set<String> IMPLEMENTATION_ATTRS = Set.of(
-            "flowable:class", "flowable:delegateExpression", "flowable:type",
-            "flowable:expression", "flowable:operation",
-            "activiti:class", "activiti:delegateExpression", "activiti:type",
-            "activiti:expression",
-            "camunda:class", "camunda:delegateExpression", "camunda:type",
-            "camunda:expression"
-    );
-
-    /** 需要检查的 ServiceTask 类元素标签（去除命名空间前缀） */
-    private static final Set<String> SERVICE_TASK_TAGS = Set.of("serviceTask", "sendTask");
-
     private final ObjectMapper objectMapper;
 
     public BpmnXmlEnhancer(ObjectMapper objectMapper) {
@@ -70,19 +55,21 @@ public class BpmnXmlEnhancer {
     }
 
     /**
-     * 增强 BPMN XML：根据 nodeConfig 注入多实例和抄送扩展元素，
-     * 并将未配置实现的 ServiceTask/SendTask 转为 UserTask。
+     * 增强 BPMN XML：根据 nodeConfig 注入多实例和抄送扩展元素。
      *
-     * @param bpmnXml        原始 BPMN XML
+     * @param bpmnXml    原始 BPMN XML
      * @param nodeConfigJson 节点配置 JSON（前端 persist 格式：{nodeId: config}）
-     * @return 增强结果，包含增强后的 XML 和转换警告列表
+     * @return 增强后的 BPMN XML
      */
-    public BpmnEnhancementResult enhance(String bpmnXml, String nodeConfigJson) {
-        if (bpmnXml == null || bpmnXml.isBlank()) {
-            return new BpmnEnhancementResult(bpmnXml, List.of());
+    public String enhance(String bpmnXml, String nodeConfigJson) {
+        if (nodeConfigJson == null || nodeConfigJson.isBlank()) {
+            return bpmnXml;
         }
 
         Map<String, Map<String, Object>> nodeConfigMap = parseNodeConfig(nodeConfigJson);
+        if (nodeConfigMap.isEmpty()) {
+            return bpmnXml;
+        }
 
         try {
             Document doc = parseXml(bpmnXml);
@@ -100,7 +87,6 @@ public class BpmnXmlEnhancer {
                 root.setAttributeNS("http://www.w3.org/2000/xmlns/", "xmlns:flowable", FLOWABLE_NS);
             }
 
-            // 第一步：根据 nodeConfig 注入业务类型相关的扩展元素
             for (Map.Entry<String, Map<String, Object>> entry : nodeConfigMap.entrySet()) {
                 String nodeId = entry.getKey();
                 Map<String, Object> config = entry.getValue();
@@ -108,120 +94,25 @@ public class BpmnXmlEnhancer {
                 String approvalMode = stringValue(config.get("approvalMode"));
 
                 if ("form_fill".equals(businessType)) {
+                    // 表单填写节点 → 分配给流程发起人
                     injectInitiatorAssignee(doc, nodeId);
                 } else if ("approval".equals(businessType) && ("ALL".equals(approvalMode) || "ANY".equals(approvalMode))) {
+                    // 会签/或签 → 注入多实例特性
                     injectMultiInstance(doc, nodeId, "ALL".equals(approvalMode), config);
                 } else if ("approval".equals(businessType)) {
+                    // SINGLE 审批 → 不设 assignee，任务无候选人暂不可见。
+                    // 上一节点完成时由 TaskRuntimeServiceImpl.completeTask() 动态分配审批人。
                     log.info("SINGLE 审批节点 {} 不注入 assignee，将在上一节点完成时动态分配", nodeId);
                 } else if ("notify".equals(businessType)) {
                     injectCcDelegate(doc, nodeId, config);
                 }
             }
 
-            // 第二步：将未配置实现的 ServiceTask/SendTask 转为 UserTask
-            List<String> warnings = convertUnconfiguredServiceTasks(doc, nodeConfigMap);
-
-            return new BpmnEnhancementResult(serializeXml(doc), warnings);
+            return serializeXml(doc);
         } catch (Exception e) {
             log.error("BPMN XML 增强失败，将使用原始 XML。nodeConfig={}", nodeConfigJson, e);
-            return new BpmnEnhancementResult(bpmnXml, List.of());
+            return bpmnXml;
         }
-    }
-
-    /**
-     * 扫描所有 serviceTask / sendTask 元素，如果未配置实现方式且 nodeConfig 中无对应配置，
-     * 则将其转为 userTask（人工任务），并返回转换警告列表。
-     */
-    private List<String> convertUnconfiguredServiceTasks(Document doc,
-                                                         Map<String, Map<String, Object>> nodeConfigMap) {
-        List<String> warnings = new ArrayList<>();
-
-        for (String tagName : SERVICE_TASK_TAGS) {
-            NodeList nodeList = doc.getElementsByTagNameNS("*", tagName);
-            // 也需要检查默认命名空间
-            NodeList defaultNsList = doc.getElementsByTagName(tagName);
-            processServiceTaskNodes(doc, nodeList, nodeConfigMap, warnings);
-            processServiceTaskNodes(doc, defaultNsList, nodeConfigMap, warnings);
-        }
-
-        return warnings;
-    }
-
-    /**
-     * 遍历节点列表，将无实现的 ServiceTask 转为 UserTask。
-     */
-    private void processServiceTaskNodes(Document doc, NodeList nodeList,
-                                         Map<String, Map<String, Object>> nodeConfigMap,
-                                         List<String> warnings) {
-        // 收集需要转换的节点（不能边遍历边修改 DOM）
-        List<Element> toConvert = new ArrayList<>();
-        for (int i = 0; i < nodeList.getLength(); i++) {
-            if (nodeList.item(i) instanceof Element element) {
-                String nodeId = element.getAttribute("id");
-                String nodeName = element.getAttribute("name");
-
-                // 跳过已被 nodeConfig 配置过的节点（它们的实现会在业务类型注入时设置）
-                if (nodeConfigMap.containsKey(nodeId)) {
-                    continue;
-                }
-
-                // 检查是否已有实现属性
-                if (!hasImplementation(element)) {
-                    toConvert.add(element);
-                    String label = (nodeName != null && !nodeName.isBlank())
-                            ? "「" + nodeName + "」(" + nodeId + ")"
-                            : nodeId;
-                    warnings.add("节点" + label + " 因未配置实现方式，已自动转为人工任务（UserTask）。"
-                            + "如需自动执行，请在流程设计器中配置实现类或表达式。");
-                }
-            }
-        }
-
-        // 执行转换（重命名元素标签）
-        for (Element element : toConvert) {
-            renameElement(doc, element, "userTask");
-        }
-    }
-
-    /**
-     * 检查 serviceTask/sendTask 元素是否已配置 Flowable/Activiti/Camunda 实现属性。
-     */
-    private boolean hasImplementation(Element element) {
-        for (String attr : IMPLEMENTATION_ATTRS) {
-            String[] parts = attr.split(":", 2);
-            String nsPrefix = parts[0];
-            String localName = parts[1];
-
-            // 检查带命名空间前缀的属性
-            String value = element.getAttribute(attr);
-            if (value != null && !value.isBlank()) {
-                return true;
-            }
-
-            // 查找对应的命名空间 URI
-            String nsUri = element.lookupNamespaceURI(nsPrefix);
-            if (nsUri != null) {
-                String nsValue = element.getAttributeNS(nsUri, localName);
-                if (nsValue != null && !nsValue.isBlank()) {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
-
-    /**
-     * 重命名元素标签（保留所有属性和子节点）。
-     * 使用 DOM Level 3 renameNode() 方法。
-     */
-    private void renameElement(Document doc, Element oldElement, String newLocalName) {
-        String nsUri = oldElement.getNamespaceURI();
-        if (nsUri != null) {
-            doc.renameNode(oldElement, nsUri, newLocalName);
-        } else {
-            doc.renameNode(oldElement, null, newLocalName);
-        }
-        log.info("已将 ServiceTask/SendTask 节点 {} 转为 UserTask", oldElement.getAttribute("id"));
     }
 
     /**

@@ -5,8 +5,6 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.util.List;
-
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -18,9 +16,6 @@ public class ApiResponse<T> {
     private String message;
 
     private T data;
-
-    /** 非阻塞警告信息（如节点类型自动转换等），仅在部分接口返回 */
-    private List<String> warnings;
 
     public static <T> ApiResponse<T> success() {
         return ApiResponse.<T>builder()
@@ -34,15 +29,6 @@ public class ApiResponse<T> {
                 .code(200)
                 .message("success")
                 .data(data)
-                .build();
-    }
-
-    public static <T> ApiResponse<T> success(T data, List<String> warnings) {
-        return ApiResponse.<T>builder()
-                .code(200)
-                .message("success")
-                .data(data)
-                .warnings(warnings)
                 .build();
     }
 
