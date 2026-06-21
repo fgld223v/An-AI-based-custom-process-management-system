@@ -28,26 +28,17 @@ CREATE TABLE IF NOT EXISTS department (
 
 CREATE TABLE IF NOT EXISTS sys_user (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-  department_id BIGINT UNSIGNED NULL,
-  supervisor_id BIGINT UNSIGNED NULL,
   username VARCHAR(64) NOT NULL,
   password VARCHAR(255) NOT NULL,
-  password_hash VARCHAR(255) NULL,
   nickname VARCHAR(64) NULL,
-  real_name VARCHAR(64) NULL,
-  phone VARCHAR(32) NULL,
-  email VARCHAR(128) NULL,
-  avatar_url VARCHAR(512) NULL,
   role VARCHAR(32) NOT NULL DEFAULT 'USER',
   system_role ENUM('super_admin','biz_admin','normal_user') NOT NULL DEFAULT 'normal_user',
+  department_id BIGINT UNSIGNED NULL,
+  supervisor_id BIGINT UNSIGNED NULL,
   managed_biz_type_ids JSON NULL,
   enabled TINYINT NOT NULL DEFAULT 1,
-  status TINYINT NOT NULL DEFAULT 1,
-  last_login_at DATETIME NULL,
   created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   deleted TINYINT NOT NULL DEFAULT 0,
   PRIMARY KEY (id),
   UNIQUE KEY uk_sys_user_username (username),
@@ -56,9 +47,8 @@ CREATE TABLE IF NOT EXISTS sys_user (
   KEY idx_sys_user_role (role),
   KEY idx_sys_user_system_role (system_role),
   KEY idx_sys_user_enabled (enabled),
-  KEY idx_sys_user_status (status),
   KEY idx_sys_user_deleted (deleted),
-  KEY idx_sys_user_created_at (created_at)
+  KEY idx_sys_user_created_time (created_time)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='System user';
 
 CREATE TABLE IF NOT EXISTS biz_type_dict (
@@ -137,26 +127,28 @@ CREATE TABLE IF NOT EXISTS process_template (
   KEY idx_process_template_created_at (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Process template';
 
-CREATE TABLE IF NOT EXISTS workflow_template (
-  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-  template_name VARCHAR(128) NOT NULL,
-  business_type VARCHAR(64) NOT NULL,
-  form_json LONGTEXT NOT NULL,
-  bpmn_xml LONGTEXT NOT NULL,
-  status VARCHAR(32) NOT NULL DEFAULT 'DRAFT',
-  created_by BIGINT UNSIGNED NULL,
-  created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  deleted TINYINT NOT NULL DEFAULT 0,
-  PRIMARY KEY (id),
-  KEY idx_workflow_template_business_type (business_type),
-  KEY idx_workflow_template_status (status),
-  KEY idx_workflow_template_created_by (created_by),
-  KEY idx_workflow_template_deleted (deleted),
-  KEY idx_workflow_template_created_at (created_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Legacy workflow template';
+-- [DEPRECATED] workflow_template 表已废弃，统一使用 process_template（JPA）管理所有流程模板。
+-- 保留此表仅用于已部署数据库的向后兼容，新部署不会再创建该表。
+-- CREATE TABLE IF NOT EXISTS workflow_template (
+--   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+--   template_name VARCHAR(128) NOT NULL,
+--   business_type VARCHAR(64) NOT NULL,
+--   form_json LONGTEXT NOT NULL,
+--   bpmn_xml LONGTEXT NOT NULL,
+--   status VARCHAR(32) NOT NULL DEFAULT 'DRAFT',
+--   created_by BIGINT UNSIGNED NULL,
+--   created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+--   updated_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+--   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+--   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+--   deleted TINYINT NOT NULL DEFAULT 0,
+--   PRIMARY KEY (id),
+--   KEY idx_workflow_template_business_type (business_type),
+--   KEY idx_workflow_template_status (status),
+--   KEY idx_workflow_template_created_by (created_by),
+--   KEY idx_workflow_template_deleted (deleted),
+--   KEY idx_workflow_template_created_at (created_at)
+-- ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Legacy workflow template (deprecated)';
 
 CREATE TABLE IF NOT EXISTS process_fragment (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
