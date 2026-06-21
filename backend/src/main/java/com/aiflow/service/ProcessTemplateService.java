@@ -12,7 +12,7 @@ public interface ProcessTemplateService {
 
     ProcessTemplate updateTemplate(Long id, ProcessTemplate template);
 
-    ProcessTemplate publishTemplate(Long id);
+    PublishResult publishTemplate(Long id);
 
     ProcessTemplate createNextVersion(Long id);
 

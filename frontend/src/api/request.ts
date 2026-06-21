@@ -33,9 +33,13 @@ request.interceptors.request.use((config) => {
 
 request.interceptors.response.use(
   (response) => {
-    const result = response.data as ApiResult<unknown>
+    const result = response.data as ApiResult<unknown> & { warnings?: string[] }
     if (result && typeof result.code === 'number') {
       if (result.code === 200) {
+        // 显示后端返回的警告信息（如节点类型自动转换等）
+        if (result.warnings && result.warnings.length > 0) {
+          result.warnings.forEach((msg) => ElMessage.warning({ message: msg, duration: 8000 }))
+        }
         return result.data
       }
       const message = result.message || '请求失败'

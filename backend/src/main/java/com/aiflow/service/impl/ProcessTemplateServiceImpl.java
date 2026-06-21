@@ -13,6 +13,7 @@ import com.aiflow.repository.ProcessTemplateRepository;
 import com.aiflow.service.FlowableDeploymentService;
 import com.aiflow.service.ProcessAuthorizationService;
 import com.aiflow.service.ProcessTemplateService;
+import com.aiflow.service.PublishResult;
 import com.aiflow.common.BusinessException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -100,7 +101,7 @@ public class ProcessTemplateServiceImpl implements ProcessTemplateService {
     }
 
     @Override
-    public ProcessTemplate publishTemplate(Long id) {
+    public PublishResult publishTemplate(Long id) {
         requireId(id, "id must not be null");
         ProcessTemplate existing = getRequiredTemplate(id);
         if (existing.getStatus() != TemplateStatus.DRAFT && existing.getStatus() != TemplateStatus.REVIEWING) {
@@ -112,7 +113,7 @@ public class ProcessTemplateServiceImpl implements ProcessTemplateService {
         validateNodeConfigForPublish(existing.getNodeConfig());
         validatePublishedForm(existing.getFormId());
         validateFormBindConfig(existing.getFormBindConfig());
-        flowableDeploymentService.deployProcessTemplate(existing);
+        List<String> deployWarnings = flowableDeploymentService.deployProcessTemplate(existing);
 
         LocalDateTime now = LocalDateTime.now();
         List<ProcessTemplate> previousPublishedVersions = processTemplateRepository
@@ -130,7 +131,8 @@ public class ProcessTemplateServiceImpl implements ProcessTemplateService {
         existing.setStatus(TemplateStatus.PUBLISHED);
         existing.setPublishedAt(now);
         existing.setUpdatedAt(now);
-        return processTemplateRepository.save(existing);
+        ProcessTemplate saved = processTemplateRepository.save(existing);
+        return new PublishResult(saved, deployWarnings);
     }
 
     @Override

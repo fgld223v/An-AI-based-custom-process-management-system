@@ -11,6 +11,7 @@ import com.aiflow.model.ProcessTemplate;
 import com.aiflow.security.CurrentUser;
 import com.aiflow.security.SecurityUtils;
 import com.aiflow.service.ProcessTemplateService;
+import com.aiflow.service.PublishResult;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -91,8 +92,9 @@ public class MyProcessController {
         CurrentUser currentUser = requireBizAdmin();
         ProcessTemplate template = getOwnedTemplate(id);
         validateManagedBizType(currentUser, template.getBizTypeId());
-        ProcessTemplate saved = processTemplateService.publishTemplate(id);
-        return ApiResponse.success(DtoMapper.toProcessTemplateDTO(saved));
+        PublishResult result = processTemplateService.publishTemplate(id);
+        ProcessTemplateDTO dto = DtoMapper.toProcessTemplateDTO(result.template());
+        return ApiResponse.success(dto, result.warnings());
     }
 
     @PostMapping("/{id}/new-version")
