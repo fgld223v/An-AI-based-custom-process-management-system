@@ -10,6 +10,7 @@ import com.aiflow.enums.ProcessResourceType;
 import com.aiflow.model.ProcessTemplate;
 import com.aiflow.security.SecurityUtils;
 import com.aiflow.service.ProcessTemplateService;
+import com.aiflow.service.PublishResult;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -68,8 +69,9 @@ public class ProcessTemplateController {
     @PostMapping("/{id}/publish")
     public ApiResponse<ProcessTemplateDTO> publishTemplate(@PathVariable Long id) {
         getSystemTemplate(id);
-        ProcessTemplate saved = processTemplateService.publishTemplate(id);
-        return ApiResponse.success(DtoMapper.toProcessTemplateDTO(saved));
+        PublishResult result = processTemplateService.publishTemplate(id);
+        ProcessTemplateDTO dto = DtoMapper.toProcessTemplateDTO(result.template());
+        return ApiResponse.success(dto, result.warnings());
     }
 
     @PostMapping("/{id}/new-version")
