@@ -6,7 +6,9 @@ import com.aiflow.dto.ProcessTemplateCreateRequest;
 import com.aiflow.dto.ProcessTemplateDTO;
 import com.aiflow.dto.ProcessTemplateUpdateRequest;
 import com.aiflow.dto.TemplateFormBindingDTO;
+import com.aiflow.enums.ProcessResourceType;
 import com.aiflow.model.ProcessTemplate;
+import com.aiflow.security.SecurityUtils;
 import com.aiflow.service.ProcessTemplateService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -36,39 +38,61 @@ public class ProcessTemplateController {
 
     @GetMapping("/{id}")
     public ApiResponse<ProcessTemplateDTO> getTemplate(@PathVariable Long id) {
-        ProcessTemplate template = processTemplateService.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("template not found"));
+        ProcessTemplate template = getSystemTemplate(id);
         return ApiResponse.success(DtoMapper.toProcessTemplateDTO(template));
     }
 
     @GetMapping("/{id}/form")
     public ApiResponse<TemplateFormBindingDTO> getTemplateBoundForm(@PathVariable Long id) {
+        getSystemTemplate(id);
         return ApiResponse.success(processTemplateService.getTemplateBoundForm(id));
     }
 
     @PostMapping
     public ApiResponse<ProcessTemplateDTO> createTemplate(@RequestBody ProcessTemplateCreateRequest request) {
-        ProcessTemplate saved = processTemplateService.createTemplate(DtoMapper.toProcessTemplate(request));
+        ProcessTemplate template = DtoMapper.toProcessTemplate(request);
+        template.setResourceType(ProcessResourceType.SYSTEM_TEMPLATE);
+        template.setCreatedBy(SecurityUtils.currentUserId());
+        ProcessTemplate saved = processTemplateService.createTemplate(template);
         return ApiResponse.success(DtoMapper.toProcessTemplateDTO(saved));
     }
 
     @PutMapping("/{id}")
     public ApiResponse<ProcessTemplateDTO> updateTemplate(@PathVariable Long id,
                                                           @RequestBody ProcessTemplateUpdateRequest request) {
+        getSystemTemplate(id);
         ProcessTemplate saved = processTemplateService.updateTemplate(id, DtoMapper.toProcessTemplate(request));
         return ApiResponse.success(DtoMapper.toProcessTemplateDTO(saved));
     }
 
     @PostMapping("/{id}/publish")
     public ApiResponse<ProcessTemplateDTO> publishTemplate(@PathVariable Long id) {
+        getSystemTemplate(id);
         ProcessTemplate saved = processTemplateService.publishTemplate(id);
         return ApiResponse.success(DtoMapper.toProcessTemplateDTO(saved));
     }
 
-    /** 撤回已发布模板 → 回到 draft 状态 */
+    @PostMapping("/{id}/new-version")
+    public ApiResponse<ProcessTemplateDTO> createNewVersion(@PathVariable Long id) {
+        getSystemTemplate(id);
+        ProcessTemplate saved = processTemplateService.createNextVersion(id);
+        return ApiResponse.success(DtoMapper.toProcessTemplateDTO(saved));
+    }
+
+    /** 停用已发布版本，历史部署信息保持不变。 */
     @PostMapping("/{id}/unpublish")
     public ApiResponse<ProcessTemplateDTO> unpublishTemplate(@PathVariable Long id) {
+        getSystemTemplate(id);
         ProcessTemplate saved = processTemplateService.unpublishTemplate(id);
         return ApiResponse.success(DtoMapper.toProcessTemplateDTO(saved));
+    }
+
+    private ProcessTemplate getSystemTemplate(Long id) {
+        ProcessTemplate template = processTemplateService.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("template not found"));
+        if (template.getResourceType() != ProcessResourceType.SYSTEM_TEMPLATE) {
+            throw new IllegalArgumentException("system template not found");
+        }
+        return template;
     }
 }

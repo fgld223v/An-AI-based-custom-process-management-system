@@ -2,6 +2,7 @@ package com.aiflow.service.impl;
 
 import com.aiflow.model.ProcessTemplate;
 import com.aiflow.service.FlowableDeploymentService;
+import com.aiflow.service.ProcessAuthorizationService;
 import lombok.RequiredArgsConstructor;
 import org.flowable.common.engine.api.FlowableException;
 import org.flowable.engine.RepositoryService;
@@ -21,12 +22,14 @@ public class FlowableDeploymentServiceImpl implements FlowableDeploymentService 
 
     private final RepositoryService repositoryService;
     private final BpmnXmlEnhancer bpmnXmlEnhancer;
+    private final ProcessAuthorizationService processAuthorizationService;
 
     @Override
     public ProcessTemplate deployProcessTemplate(ProcessTemplate template) {
         if (template == null || template.getId() == null) {
             throw new IllegalArgumentException("流程模板不存在。");
         }
+        processAuthorizationService.assertCanDeploy(template);
 
         String bpmnXml = normalizeText(template.getBpmnXml());
         validateBpmnXml(bpmnXml);

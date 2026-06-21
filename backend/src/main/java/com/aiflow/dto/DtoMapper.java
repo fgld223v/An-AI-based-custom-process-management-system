@@ -2,6 +2,7 @@ package com.aiflow.dto;
 
 import com.aiflow.enums.DatabaseEnum;
 import com.aiflow.enums.TemplateSourceType;
+import com.aiflow.enums.ProcessResourceType;
 import com.aiflow.model.BizTypeDict;
 import com.aiflow.model.FormDefinition;
 import com.aiflow.model.ProcessFragment;
@@ -85,6 +86,7 @@ public final class DtoMapper {
                 .version(entity.getVersion())
                 .status(enumValue(entity.getStatus()))
                 .sourceType(enumValue(entity.getSourceType()))
+                .resourceType(enumValue(entity.getResourceType()))
                 .bpmnXml(entity.getBpmnXml())
                 .nodeConfig(entity.getNodeConfig())
                 .formBindConfig(entity.getFormBindConfig())
@@ -107,6 +109,7 @@ public final class DtoMapper {
                 .bizTypeId(request.getBizTypeId())
                 .formId(request.getFormId())
                 .sourceType(parseTemplateSourceType(request.getSourceType()))
+                .resourceType(parseProcessResourceType(request.getResourceType()))
                 .bpmnXml(request.getBpmnXml())
                 .nodeConfig(request.getNodeConfig())
                 .formBindConfig(request.getFormBindConfig())
@@ -212,6 +215,19 @@ public final class DtoMapper {
             }
         }
         throw new IllegalArgumentException("invalid sourceType: " + value);
+    }
+
+    private static ProcessResourceType parseProcessResourceType(String value) {
+        if (value == null || value.trim().isEmpty()) {
+            return null;
+        }
+        String normalizedValue = value.trim();
+        for (ProcessResourceType item : ProcessResourceType.values()) {
+            if (item.name().equalsIgnoreCase(normalizedValue) || item.getValue().equalsIgnoreCase(normalizedValue)) {
+                return item;
+            }
+        }
+        throw new IllegalArgumentException("invalid resourceType: " + value);
     }
 
     private static String enumValue(Enum<?> value) {

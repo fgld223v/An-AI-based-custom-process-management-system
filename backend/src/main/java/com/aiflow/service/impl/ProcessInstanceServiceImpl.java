@@ -18,6 +18,8 @@ import com.aiflow.mapper.SysUserMapper;
 import com.aiflow.service.ApproverResolverService;
 import com.aiflow.service.FlowableRuntimeService;
 import com.aiflow.service.ProcessInstanceService;
+import com.aiflow.service.ProcessAuthorizationService;
+import com.aiflow.service.ProcessTimelineService;
 import com.aiflow.service.RuleEvaluatorService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -28,12 +30,8 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import jakarta.persistence.EntityManager;
-import java.sql.Timestamp;
-import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
 import java.util.List;
 
 @Slf4j
@@ -50,6 +48,7 @@ public class ProcessInstanceServiceImpl implements ProcessInstanceService {
     private final ProcessInstanceRepository processInstanceRepository;
     private final FormSubmissionRepository formSubmissionRepository;
     private final ProcessTemplateRepository processTemplateRepository;
+    private final ProcessAuthorizationService processAuthorizationService;
     private final FlowableRuntimeService flowableRuntimeService;
     private final RuleEvaluatorService ruleEvaluatorService;
     private final ApproverResolverService approverResolverService;
@@ -57,7 +56,7 @@ public class ProcessInstanceServiceImpl implements ProcessInstanceService {
     private final TaskService taskService;
     private final ObjectMapper objectMapper;
     private final FormBindConfigParser formBindConfigParser;
-    private final EntityManager entityManager;
+    private final ProcessTimelineService processTimelineService;
     private final NodeConfigParser nodeConfigParser;
 
     @Override
@@ -104,6 +103,7 @@ public class ProcessInstanceServiceImpl implements ProcessInstanceService {
 
         ProcessTemplate template = processTemplateRepository.findByIdAndDeleted(request.getTemplateId(), 0)
                 .orElseThrow(() -> new IllegalArgumentException("process template not found"));
+        processAuthorizationService.assertCanStart(template);
 
         Long currentUserId = requireCurrentUserId();
         LocalDateTime now = LocalDateTime.now();
@@ -412,92 +412,7 @@ public class ProcessInstanceServiceImpl implements ProcessInstanceService {
     @Override
     @Transactional(readOnly = true)
     public TimelineDTO getTimeline(Long processInstanceId) {
-        ProcessInstance instance = getRequiredInstance(processInstanceId);
-        List<TimelineDTO.TimelineNode> nodes = new ArrayList<>();
-
-        // 1. 发起节点
-        nodes.add(TimelineDTO.TimelineNode.builder()
-                .type("start")
-                .nodeName("发起申请")
-                .operatorName("申请人")
-                .time(fmt(instance.getStartedAt() != null ? instance.getStartedAt() : instance.getCreatedAt()))
-                .duration(null)
-                .action("发起流程")
-                .comment(null)
-                .build());
-
-        LocalDateTime previousTime = instance.getStartedAt() != null
-                ? instance.getStartedAt() : instance.getCreatedAt();
-
-        // 2. 审批节点
-        @SuppressWarnings("unchecked")
-        List<Object[]> records = entityManager
-                .createNativeQuery("""
-                        SELECT ar.node_key, ar.action, ar.comment_text, ar.operated_at,
-                               COALESCE(su.nickname, CONCAT('用户#', ar.approver_id)) AS approver_name
-                        FROM approval_record ar
-                        LEFT JOIN sys_user su ON ar.approver_id = su.id
-                        WHERE ar.instance_id = :instanceId
-                        ORDER BY ar.operated_at ASC
-                        """)
-                .setParameter("instanceId", processInstanceId)
-                .getResultList();
-
-        String actionLabel;
-        for (Object[] r : records) {
-            String action = (String) r[1];
-            switch (action) {
-                case "approve": actionLabel = "通过"; break;
-                case "reject": actionLabel = "驳回"; break;
-                case "supplement": actionLabel = "补充材料"; break;
-                case "delegate": actionLabel = "转交"; break;
-                case "transfer": actionLabel = "移交"; break;
-                default: actionLabel = action;
-            }
-
-            LocalDateTime operatedAt = ((Timestamp) r[3]).toLocalDateTime();
-            String duration = calcDuration(previousTime, operatedAt);
-            previousTime = operatedAt;
-
-            nodes.add(TimelineDTO.TimelineNode.builder()
-                    .type("approval")
-                    .nodeName((String) r[0])
-                    .operatorName((String) r[4])
-                    .time(fmt(operatedAt))
-                    .duration(duration)
-                    .action(actionLabel)
-                    .comment((String) r[2])
-                    .build());
-        }
-
-        // 3. 结束节点
-        if (instance.getEndedAt() != null) {
-            nodes.add(TimelineDTO.TimelineNode.builder()
-                    .type("end")
-                    .nodeName("流程完成")
-                    .operatorName("系统")
-                    .time(fmt(instance.getEndedAt()))
-                    .duration(calcDuration(previousTime, instance.getEndedAt()))
-                    .action("流程结束".equals(instance.getStatus()) || "completed".equals(instance.getStatus()) ? "办结" : "终止")
-                    .comment(null)
-                    .build());
-        }
-
-        return TimelineDTO.builder().nodes(nodes).build();
-    }
-
-    private String fmt(LocalDateTime dt) {
-        return dt != null ? dt.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")) : "";
-    }
-
-    private String calcDuration(LocalDateTime from, LocalDateTime to) {
-        if (from == null || to == null) return null;
-        Duration d = Duration.between(from, to);
-        long hours = d.toHours();
-        long minutes = d.toMinutesPart();
-        if (hours > 0) {
-            return minutes > 0 ? hours + "h" + minutes + "m" : hours + "h";
-        }
-        return minutes + "m";
+        getRequiredInstance(processInstanceId);
+        return processTimelineService.buildTimeline(processInstanceId);
     }
 }

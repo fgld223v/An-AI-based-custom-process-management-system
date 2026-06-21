@@ -97,8 +97,16 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'dashboard',
         name: 'Dashboard',
-        component: () => import('@/views/dashboard/Dashboard.vue'),
-        meta: { title: '运行监控', group: '运行' }
+        component: () => import('@/views/monitor/RuntimeMonitor.vue'),
+        props: { scope: 'global' },
+        meta: { title: '运行监控', group: '运行', roles: SUPER_ADMIN }
+      },
+      {
+        path: 'business-monitor',
+        name: 'BusinessMonitor',
+        component: () => import('@/views/monitor/RuntimeMonitor.vue'),
+        props: { scope: 'business' },
+        meta: { title: '业务监控', group: '运行', roles: BIZ_ADMIN }
       },
       {
         path: 'process/start-preview',

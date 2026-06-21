@@ -25,6 +25,10 @@ export async function publishMyProcess(id: number) {
   return await request.post<ProcessTemplate>(`/api/my-processes/${id}/publish`)
 }
 
+export async function createMyProcessVersion(id: number) {
+  return await request.post<ProcessTemplate>(`/api/my-processes/${id}/new-version`)
+}
+
 export async function unpublishMyProcess(id: number) {
   return await request.post<ProcessTemplate>(`/api/my-processes/${id}/unpublish`)
 }
