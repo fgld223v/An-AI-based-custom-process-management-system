@@ -7,6 +7,8 @@ import com.aiflow.security.SecurityUtils;
 import com.aiflow.service.StatisticsService;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -371,5 +373,80 @@ public class StatisticsServiceImpl implements StatisticsService {
                 .toList();
 
         return NodeEfficiencyDTO.builder().rankings(rankings).build();
+    }
+    @Override
+    public byte[] exportExcel(java.time.LocalDate start, java.time.LocalDate end) {
+        try (org.apache.poi.ss.usermodel.Workbook wb = new org.apache.poi.xssf.usermodel.XSSFWorkbook()) {
+            com.aiflow.dto.StatisticsOverviewDTO overview = getOverview();
+            com.aiflow.dto.NodeEfficiencyDTO nodeEff = getNodeEfficiency();
+            org.apache.poi.ss.usermodel.CellStyle hs = wb.createCellStyle();
+            org.apache.poi.ss.usermodel.Font f = wb.createFont(); f.setBold(true); hs.setFont(f);
+            hs.setFillForegroundColor(org.apache.poi.ss.usermodel.IndexedColors.GREY_25_PERCENT.getIndex());
+            hs.setFillPattern(org.apache.poi.ss.usermodel.FillPatternType.SOLID_FOREGROUND);
+            org.apache.poi.ss.usermodel.Sheet sh1 = wb.createSheet("统计概览");
+            int r = 0;
+            addRow(sh1, r++, hs, "指标", "数值");
+            addRow(sh1, r++, null, "实例总数", overview.getTotalInstances());
+            addRow(sh1, r++, null, "办结率(%%)", overview.getCompletionRate());
+            addRow(sh1, r++, null, "平均耗时(h)", overview.getAvgDurationHours());
+            addRow(sh1, r++, null, "异常实例数", overview.getAnomalyCount());
+            addRow(sh1, r++, null, "今日新增", overview.getTodayNewInstances());
+            addRow(sh1, r++, null, "待处理任务", overview.getPendingTaskCount());
+            sh1.autoSizeColumn(0); sh1.autoSizeColumn(1);
+            r = r + 1;
+            addRow(sh1, r++, hs, "---- 状态分布 ----", "");
+            if (overview.getStatusDistribution() != null) {
+                for (java.util.Map.Entry<String, Long> e : overview.getStatusDistribution().entrySet()) {
+                    addRow(sh1, r++, null, e.getKey(), e.getValue());
+                }
+            }
+            r = r + 1;
+            addRow(sh1, r++, hs, "---- 业务类型分布 ----", "");
+            if (overview.getBizTypeDistribution() != null) {
+                for (com.aiflow.dto.StatisticsOverviewDTO.BizTypeCount bc : overview.getBizTypeDistribution()) {
+                    addRow(sh1, r++, null, bc.getBizTypeName(), bc.getCount());
+                }
+            }
+            for (int i = 0; i <= 1; i++) sh1.autoSizeColumn(i);
+            org.apache.poi.ss.usermodel.Sheet sh3 = wb.createSheet("近30天趋势");
+            java.time.LocalDate s = start != null ? start : java.time.LocalDate.now().minusDays(30);
+            java.time.LocalDate e = end != null ? end : java.time.LocalDate.now();
+            com.aiflow.dto.StatisticsTrendDTO trend = getTrend(s, e, "day", "summary");
+            r = 0;
+            addRow(sh3, r++, hs, "日期", "发起量", "办结量");
+            if (trend != null && trend.getLabels() != null) {
+                var init = trend.getSeries().stream().filter(se -> "发起量".equals(se.getBizTypeName())).findFirst().orElse(null);
+                var done = trend.getSeries().stream().filter(se -> "办结量".equals(se.getBizTypeName())).findFirst().orElse(null);
+                for (int i = 0; i < trend.getLabels().size(); i++) {
+                    addRow(sh3, r++, null, trend.getLabels().get(i), init.getValues().get(i), done.getValues().get(i));
+                }
+            }
+            for (int i = 0; i <= 2; i++) sh3.autoSizeColumn(i);
+            org.apache.poi.ss.usermodel.Sheet sh2 = wb.createSheet("节点效率排名");
+            r = 0;
+            addRow(sh2, r++, hs, "排名", "节点名称", "总任务数", "超时数", "超时率(%%)", "平均耗时(h)");
+            int rank = 1;
+            if (nodeEff.getRankings() != null) {
+                for (com.aiflow.dto.NodeEfficiencyDTO.NodeRanking nr : nodeEff.getRankings()) {
+                    addRow(sh2, r++, null, String.valueOf(rank++), nr.getNodeName(), nr.getTotalCount(), nr.getTimeoutCount(), nr.getTimeoutRate(), nr.getAvgDwellHours());
+                }
+            }
+            for (int i = 0; i <= 5; i++) sh2.autoSizeColumn(i);
+            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+            wb.write(out);
+            return out.toByteArray();
+        } catch (Exception e) {
+            throw new RuntimeException("Excel导出失败", e);
+        }
+    }
+
+    private void addRow(org.apache.poi.ss.usermodel.Sheet sh, int row, org.apache.poi.ss.usermodel.CellStyle style, Object... vals) {
+        org.apache.poi.ss.usermodel.Row r = sh.createRow(row);
+        for (int i = 0; i < vals.length; i++) {
+            org.apache.poi.ss.usermodel.Cell c = r.createCell(i);
+            if (vals[i] instanceof Number n) c.setCellValue(n.doubleValue());
+            else c.setCellValue(vals[i] != null ? vals[i].toString() : "");
+            if (style != null) c.setCellStyle(style);
+        }
     }
 }

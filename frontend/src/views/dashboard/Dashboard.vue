@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { Download } from '@element-plus/icons-vue'
 import { getStatisticsOverview, getStatisticsTrend, getNodeEfficiency } from '@/api/statistics'
 
 declare const echarts: any
@@ -92,6 +93,40 @@ async function loadData() {
   } finally {
     loading.value = false
   }
+}
+
+const exportVisible = ref(false)
+const exportRange = ref<'all' | 'month' | 'quarter' | 'custom'>('all')
+const exportDates = ref<[Date, Date] | null>(null)
+
+async function exportExcel() {
+  try {
+    const token = localStorage.getItem('ai-flow-token') || ''
+    let params = ''
+    if (exportRange.value === 'custom' && exportDates.value) {
+      const s = fmtLocal(exportDates.value[0])
+      const e = fmtLocal(exportDates.value[1])
+      params = `?start=${s}&end=${e}`
+    } else if (exportRange.value === 'month') {
+      const now = new Date()
+      params = `?start=${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01&end=${fmtLocal(now)}`
+    } else if (exportRange.value === 'quarter') {
+      const now = new Date()
+      const qm = Math.floor(now.getMonth() / 3) * 3
+      params = `?start=${now.getFullYear()}-${String(qm+1).padStart(2,'0')}-01&end=${fmtLocal(now)}`
+    }
+    const resp = await fetch(`/api/statistics/export${params}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+    const blob = await resp.blob()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'statistics.xlsx'
+    a.click()
+    URL.revokeObjectURL(url)
+    exportVisible.value = false
+  } catch { /* empty */ }
 }
 
 function nextTick(): Promise<void> {
@@ -283,6 +318,9 @@ onUnmounted(() => {
 
 <template>
   <div class="dashboard" v-loading="loading">
+    <div class="export-bar">
+      <el-button round :icon="Download" size="small" @click="exportVisible = true">导出报表</el-button>
+    </div>
     <!-- 概览卡片 -->
     <el-row :gutter="16" class="stat-cards">
       <el-col :span="6">
@@ -393,6 +431,22 @@ onUnmounted(() => {
         </el-table-column>
       </el-table>
     </el-card>
+
+    <el-dialog v-model="exportVisible" title="导出报表" width="420px">
+      <div class="export-form">
+        <el-radio-group v-model="exportRange" class="export-radios">
+          <el-radio value="all">全部数据</el-radio>
+          <el-radio value="month">本月</el-radio>
+          <el-radio value="quarter">本季度</el-radio>
+          <el-radio value="custom">自定义</el-radio>
+        </el-radio-group>
+        <el-date-picker v-if="exportRange === 'custom'" v-model="exportDates" type="daterange" range-separator="至" size="small" :disabled-date="disableFuture" style="margin-top:12px;width:100%" />
+      </div>
+      <template #footer>
+        <el-button @click="exportVisible = false">取消</el-button>
+        <el-button type="primary" @click="exportExcel">下载 Excel</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
