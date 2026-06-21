@@ -4,6 +4,14 @@ export interface AiProcessNodeConfigItem {
   nodeKey: string
   nodeName: string
   businessType: string
+  /** 审批模式：SINGLE（单人）/ ALL（会签）/ ANY（或签），仅 approval 节点有效 */
+  approvalMode?: string
+  /** 审批人分配策略：DIRECT_SUPERVISOR / DEPARTMENT_MANAGER / ROLE / SPECIFIC_USERS */
+  assignStrategy?: string
+  /** 抄送目标：APPLICANT / APPROVER / USER，仅 notify 节点有效 */
+  notifyTarget?: string
+  /** 通知渠道：in_app / email / both，仅 notify 节点有效 */
+  notifyChannel?: string
 }
 
 export interface AiGenerateProcessResult {
