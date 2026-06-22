@@ -1,8 +1,18 @@
 import request from './request'
 
+export interface StatisticsOverview {
+  todayNewInstances: number
+  pendingTaskCount: number
+  totalInstances: number
+  completionRate: number
+  avgDurationHours: number
+  anomalyCount: number
+  statusDistribution: Record<string, number>
+}
+
 /** 统计概览 */
 export function getStatisticsOverview() {
-  return request.get('/api/statistics/overview')
+  return request.get<StatisticsOverview>('/api/statistics/overview')
 }
 
 /** 趋势数据 */

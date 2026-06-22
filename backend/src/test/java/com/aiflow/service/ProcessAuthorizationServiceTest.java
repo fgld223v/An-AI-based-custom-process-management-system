@@ -4,6 +4,8 @@ import com.aiflow.entity.UserEntity;
 import com.aiflow.enums.ProcessResourceType;
 import com.aiflow.enums.TemplateStatus;
 import com.aiflow.model.ProcessTemplate;
+import com.aiflow.model.SysUser;
+import com.aiflow.repository.SysUserRepository;
 import com.aiflow.security.CurrentUser;
 import com.aiflow.service.impl.NodeConfigParser;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -15,14 +17,19 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class ProcessAuthorizationServiceTest {
 
+    private final SysUserRepository sysUserRepository = mock(SysUserRepository.class);
+    private final WorkflowRoleService workflowRoleService = mock(WorkflowRoleService.class);
     private final ProcessAuthorizationService service = new ProcessAuthorizationService(
-            new NodeConfigParser(new ObjectMapper()));
+            new NodeConfigParser(new ObjectMapper()), sysUserRepository, workflowRoleService);
 
     @AfterEach
     void clearSecurityContext() {
@@ -57,6 +64,42 @@ class ProcessAuthorizationServiceTest {
         assertThatThrownBy(() -> service.assertCanStart(process))
                 .isInstanceOf(AccessDeniedException.class)
                 .hasMessageContaining("role");
+    }
+
+    @Test
+    void systemRolePermissionAllowsAnyConfiguredSystemRole() {
+        ProcessTemplate process = businessProcess(TemplateStatus.PUBLISHED, "SYSTEM_ROLE", "normal_user,biz_admin");
+        authenticate(20L, "normal_user", "USER", 3L, null);
+
+        assertThatCode(() -> service.assertCanStart(process)).doesNotThrowAnyException();
+    }
+
+    @Test
+    void creatorDepartmentPermissionUsesProcessOwnersCurrentDepartment() {
+        ProcessTemplate process = businessProcess(TemplateStatus.PUBLISHED, "CREATOR_DEPARTMENT", null);
+        when(sysUserRepository.findById(10L)).thenReturn(Optional.of(activeUser(10L, 3L)));
+
+        authenticate(20L, "normal_user", "USER", 3L, null);
+        assertThatCode(() -> service.assertCanStart(process)).doesNotThrowAnyException();
+
+        authenticate(21L, "normal_user", "USER", 4L, null);
+        assertThatThrownBy(() -> service.assertCanStart(process))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("department");
+    }
+
+    @Test
+    void workflowRolePermissionUsesDepartmentScopedMembership() {
+        ProcessTemplate process = businessProcess(TemplateStatus.PUBLISHED, "WORKFLOW_ROLE", "DEPT_APPLICANT");
+        when(workflowRoleService.resolveActiveUserIds("DEPT_APPLICANT", 3L)).thenReturn(List.of(20L));
+
+        authenticate(20L, "normal_user", "USER", 3L, null);
+        assertThatCode(() -> service.assertCanStart(process)).doesNotThrowAnyException();
+
+        authenticate(21L, "normal_user", "USER", 3L, null);
+        assertThatThrownBy(() -> service.assertCanStart(process))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("workflow role");
     }
 
     @Test
@@ -95,6 +138,17 @@ class ProcessAuthorizationServiceTest {
                 .hasMessageContaining("startPermissionValue");
     }
 
+    @Test
+    void creatorDepartmentPermissionRequiresActiveCreatorDepartmentBeforePublishing() {
+        authenticate(10L, "biz_admin", "MANAGER", 2L, "[2,3]");
+        ProcessTemplate process = businessProcess(TemplateStatus.DRAFT, "CREATOR_DEPARTMENT", null);
+        when(sysUserRepository.findById(10L)).thenReturn(Optional.of(activeUser(10L, null)));
+
+        assertThatThrownBy(() -> service.assertCanPublish(process))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("active department");
+    }
+
     private ProcessTemplate businessProcess(TemplateStatus status, String permission, String permissionValue) {
         String valueField = permissionValue == null ? "" : ",\"startPermissionValue\":\"" + permissionValue + "\"";
         String nodeConfig = "{\"StartEvent_1\":{\"nodeId\":\"StartEvent_1\",\"businessType\":\"start\","
@@ -128,5 +182,14 @@ class ProcessAuthorizationServiceTest {
         CurrentUser user = new CurrentUser(entity, List.of(new SimpleGrantedAuthority("ROLE_" + systemRole.toUpperCase())));
         SecurityContextHolder.getContext().setAuthentication(
                 new UsernamePasswordAuthenticationToken(user, null, user.getAuthorities()));
+    }
+
+    private SysUser activeUser(Long id, Long departmentId) {
+        return SysUser.builder()
+                .id(id)
+                .departmentId(departmentId)
+                .enabled(1)
+                .deleted(0)
+                .build();
     }
 }

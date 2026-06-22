@@ -3,6 +3,8 @@ package com.aiflow.service;
 import com.aiflow.enums.ProcessResourceType;
 import com.aiflow.enums.TemplateStatus;
 import com.aiflow.model.ProcessTemplate;
+import com.aiflow.model.SysUser;
+import com.aiflow.repository.SysUserRepository;
 import com.aiflow.security.CurrentUser;
 import com.aiflow.security.SecurityUtils;
 import com.aiflow.service.impl.NodeConfigParser;
@@ -26,6 +28,8 @@ public class ProcessAuthorizationService {
     private static final String BIZ_ADMIN = "biz_admin";
 
     private final NodeConfigParser nodeConfigParser;
+    private final SysUserRepository sysUserRepository;
+    private final WorkflowRoleService workflowRoleService;
 
     public void assertCanPublish(ProcessTemplate template) {
         assertCanCreateVersion(template);
@@ -116,11 +120,19 @@ public class ProcessAuthorizationService {
             return;
         }
 
+        if ("CREATOR_DEPARTMENT".equals(permission)) {
+            Long creatorDepartmentId = requireCreatorDepartmentId(template);
+            if (creatorDepartmentId.equals(user.getDepartmentId())) {
+                return;
+            }
+            throw new AccessDeniedException("current department is not allowed to start this process");
+        }
+
         Set<String> allowedValues = permissionValues(startConfig);
         if (allowedValues.isEmpty()) {
             throw new AccessDeniedException("process start permission is not configured");
         }
-        if ("ROLE".equals(permission)) {
+        if ("ROLE".equals(permission) || "SYSTEM_ROLE".equals(permission)) {
             if (containsIgnoreCase(allowedValues, user.getSystemRole())
                     || containsIgnoreCase(allowedValues, user.getRole())) {
                 return;
@@ -132,6 +144,16 @@ public class ProcessAuthorizationService {
                 return;
             }
             throw new AccessDeniedException("current department is not allowed to start this process");
+        }
+        if ("WORKFLOW_ROLE".equals(permission)) {
+            boolean allowed = allowedValues.stream()
+                    .anyMatch(roleCode -> workflowRoleService
+                            .resolveActiveUserIds(roleCode, user.getDepartmentId())
+                            .contains(user.getId()));
+            if (allowed) {
+                return;
+            }
+            throw new AccessDeniedException("current workflow role is not allowed to start this process");
         }
         throw new AccessDeniedException("unsupported process start permission: " + permission);
     }
@@ -154,12 +176,30 @@ public class ProcessAuthorizationService {
             return;
         }
         String permission = upper(stringValue(startConfig.get("startPermission"), "ALL"));
-        if (!List.of("ALL", "ROLE", "DEPARTMENT").contains(permission)) {
+        if (!List.of("ALL", "ROLE", "SYSTEM_ROLE", "DEPARTMENT", "CREATOR_DEPARTMENT", "WORKFLOW_ROLE")
+                .contains(permission)) {
             throw new IllegalStateException("unsupported process start permission: " + permission);
+        }
+        if ("CREATOR_DEPARTMENT".equals(permission)) {
+            requireCreatorDepartmentId(template);
+            return;
         }
         if (!"ALL".equals(permission) && permissionValues(startConfig).isEmpty()) {
             throw new IllegalStateException("startPermissionValue is required for " + permission + " permission");
         }
+    }
+
+    private Long requireCreatorDepartmentId(ProcessTemplate template) {
+        SysUser creator = template.getCreatedBy() == null
+                ? null
+                : sysUserRepository.findById(template.getCreatedBy()).orElse(null);
+        if (creator == null
+                || Integer.valueOf(1).equals(creator.getDeleted())
+                || !Integer.valueOf(1).equals(creator.getEnabled())
+                || creator.getDepartmentId() == null) {
+            throw new IllegalStateException("process creator must belong to an active department");
+        }
+        return creator.getDepartmentId();
     }
 
     private Map<String, Object> findStartConfig(ProcessTemplate template) {

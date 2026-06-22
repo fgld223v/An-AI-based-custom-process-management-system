@@ -75,6 +75,27 @@ export interface ProcessTemplatePayload {
   createdBy?: number
 }
 
+export interface ProcessRouteApprover {
+  userId: number
+  userName: string
+  departmentId?: number | null
+}
+
+export interface ProcessRouteApprovalStep {
+  nodeKey: string
+  nodeName: string
+  approvalMode: string
+  assignStrategy: string
+  approvers: ProcessRouteApprover[]
+}
+
+export interface ProcessRoutePreview {
+  templateId: number
+  applicantId: number
+  applicantName: string
+  approvalSteps: ProcessRouteApprovalStep[]
+}
+
 export interface ProcessFragment {
   id: number
   fragmentCode: string

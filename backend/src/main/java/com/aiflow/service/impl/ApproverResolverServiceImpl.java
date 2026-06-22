@@ -44,17 +44,30 @@ public class ApproverResolverServiceImpl implements ApproverResolverService {
                 .findByIdAndDeleted(instanceId, 0)
                 .orElseThrow(() -> new IllegalArgumentException("流程实例不存在。"));
 
+        return resolveForApplicant(instance.getApplicantId(), assignStrategy, assignValue);
+    }
+
+    @Override
+    public List<Long> resolveApproversForApplicant(Long applicantId, String taskDefinitionKey,
+                                                   String assignStrategy, String assignValue) {
+        if (assignStrategy == null || assignStrategy.isBlank()) {
+            return Collections.emptyList();
+        }
+        return resolveForApplicant(applicantId, assignStrategy, assignValue);
+    }
+
+    private List<Long> resolveForApplicant(Long applicantId, String assignStrategy, String assignValue) {
         return switch (assignStrategy.trim().toUpperCase()) {
-            case "DEPARTMENT_MANAGER" -> resolveDeptManager(instance);
+            case "DEPARTMENT_MANAGER" -> resolveDeptManager(applicantId);
             case "SPECIFIC_USERS" -> resolveSpecificUsers(assignValue);
-            case "DIRECT_SUPERVISOR" -> resolveSupervisor(instance);
-            case "DEPARTMENT" -> resolveDeptManager(instance);
+            case "DIRECT_SUPERVISOR" -> resolveSupervisor(applicantId);
+            case "DEPARTMENT" -> resolveDeptManager(applicantId);
             case "SPECIFIED_DEPARTMENT_MANAGER" -> resolveSpecifiedDeptManager(assignValue);
             case "ROLE_IN_APPLICANT_DEPT" -> resolveWorkflowRole(
-                    roleCode(assignValue), applicantDepartmentId(instance));
+                    roleCode(assignValue), applicantDepartmentId(applicantId));
             case "ROLE_IN_SPECIFIED_DEPT" -> resolveSpecifiedDepartmentRole(assignValue);
             case "GLOBAL_ROLE" -> resolveWorkflowRole(roleCode(assignValue), null);
-            case "ROLE" -> resolveCompatibleRole(instance, assignValue);
+            case "ROLE" -> resolveCompatibleRole(applicantId, assignValue);
             default -> Collections.emptyList();
         };
     }
@@ -66,8 +79,8 @@ public class ApproverResolverServiceImpl implements ApproverResolverService {
     /**
      * 部门经理 — 找到发起人所属部门的 leader_user_id。
      */
-    private List<Long> resolveDeptManager(ProcessInstance instance) {
-        UserEntity applicant = applicant(instance);
+    private List<Long> resolveDeptManager(Long applicantId) {
+        UserEntity applicant = applicant(applicantId);
         if (applicant == null) {
             throw new IllegalStateException("流程发起人不存在或账号已停用");
         }
@@ -109,8 +122,8 @@ public class ApproverResolverServiceImpl implements ApproverResolverService {
     /**
      * 直属上级 — 当前回退到部门经理。
      */
-    private List<Long> resolveSupervisor(ProcessInstance instance) {
-        UserEntity applicant = applicant(instance);
+    private List<Long> resolveSupervisor(Long applicantId) {
+        UserEntity applicant = applicant(applicantId);
         if (applicant == null || applicant.getSupervisorId() == null) return List.of();
         return activeDistinct(List.of(applicant.getSupervisorId()));
     }
@@ -130,9 +143,9 @@ public class ApproverResolverServiceImpl implements ApproverResolverService {
         return activeDistinct(users.stream().map(UserEntity::getId).toList());
     }
 
-    private List<Long> resolveCompatibleRole(ProcessInstance instance, String assignValue) {
+    private List<Long> resolveCompatibleRole(Long applicantId, String assignValue) {
         List<Long> workflowUsers = resolveWorkflowRole(
-                roleCode(assignValue), applicantDepartmentId(instance));
+                roleCode(assignValue), applicantDepartmentId(applicantId));
         return workflowUsers.isEmpty() ? resolveLegacyRoleMembers(assignValue) : workflowUsers;
     }
 
@@ -172,14 +185,14 @@ public class ApproverResolverServiceImpl implements ApproverResolverService {
         return leaders;
     }
 
-    private Long applicantDepartmentId(ProcessInstance instance) {
-        UserEntity applicant = applicant(instance);
+    private Long applicantDepartmentId(Long applicantId) {
+        UserEntity applicant = applicant(applicantId);
         return applicant == null ? null : applicant.getDepartmentId();
     }
 
-    private UserEntity applicant(ProcessInstance instance) {
-        if (instance == null || instance.getApplicantId() == null) return null;
-        UserEntity user = sysUserMapper.selectById(instance.getApplicantId());
+    private UserEntity applicant(Long applicantId) {
+        if (applicantId == null) return null;
+        UserEntity user = sysUserMapper.selectById(applicantId);
         return isActive(user) ? user : null;
     }
 

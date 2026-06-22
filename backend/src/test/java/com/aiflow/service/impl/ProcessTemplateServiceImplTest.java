@@ -6,6 +6,7 @@ import com.aiflow.model.ProcessTemplate;
 import com.aiflow.model.Department;
 import com.aiflow.repository.DepartmentRepository;
 import com.aiflow.repository.ProcessTemplateRepository;
+import com.aiflow.repository.ProcessInstanceRepository;
 import com.aiflow.repository.FormDefinitionRepository;
 import com.aiflow.repository.SysUserRepository;
 import com.aiflow.service.FlowableDeploymentService;
@@ -34,6 +35,9 @@ class ProcessTemplateServiceImplTest {
 
     @Mock
     private ProcessTemplateRepository processTemplateRepository;
+
+    @Mock
+    private ProcessInstanceRepository processInstanceRepository;
 
     @Mock
     private FormDefinitionRepository formDefinitionRepository;
@@ -116,6 +120,8 @@ class ProcessTemplateServiceImplTest {
         when(processTemplateRepository.findByIdAndDeleted(1L, 0)).thenReturn(java.util.Optional.of(published));
         when(processTemplateRepository.findByTemplateCodeAndResourceTypeAndDeletedOrderByVersionDesc(
                 "leave-flow", ProcessResourceType.BUSINESS_PROCESS, 0)).thenReturn(List.of(published));
+        when(processTemplateRepository.findFirstByTemplateCodeAndResourceTypeOrderByVersionDesc(
+                "leave-flow", ProcessResourceType.BUSINESS_PROCESS)).thenReturn(java.util.Optional.of(published));
         when(processTemplateRepository.save(any(ProcessTemplate.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -169,6 +175,55 @@ class ProcessTemplateServiceImplTest {
         assertThat(disabled.getStatus()).isEqualTo(TemplateStatus.DISABLED);
         assertThat(disabled.getFlowableDeploymentId()).isEqualTo("deployment-1");
         assertThat(disabled.getFlowableProcessDefinitionId()).isEqualTo("definition-1");
+    }
+
+    @Test
+    void deletingDraftSoftDeletesVersionWithoutInstances() {
+        ProcessTemplate draft = version(2L, 2, TemplateStatus.DRAFT);
+        when(processTemplateRepository.findByIdAndDeleted(2L, 0)).thenReturn(java.util.Optional.of(draft));
+
+        service.deleteTemplate(2L);
+
+        assertThat(draft.getDeleted()).isEqualTo(1);
+        verify(processTemplateRepository).save(draft);
+    }
+
+    @Test
+    void deletingPublishedVersionRequiresDisablingFirst() {
+        ProcessTemplate published = version(1L, 1, TemplateStatus.PUBLISHED);
+        when(processTemplateRepository.findByIdAndDeleted(1L, 0)).thenReturn(java.util.Optional.of(published));
+
+        assertThatThrownBy(() -> service.deleteTemplate(1L))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("先停用");
+        verify(processTemplateRepository, never()).save(any(ProcessTemplate.class));
+    }
+
+    @Test
+    void deletingVersionWithHistoricalInstancesIsRejected() {
+        ProcessTemplate disabled = version(1L, 1, TemplateStatus.DISABLED);
+        when(processTemplateRepository.findByIdAndDeleted(1L, 0)).thenReturn(java.util.Optional.of(disabled));
+        when(processInstanceRepository.existsByTemplateIdAndDeleted(1L, 0)).thenReturn(true);
+
+        assertThatThrownBy(() -> service.deleteTemplate(1L))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("已有流程实例");
+    }
+
+    @Test
+    void nextVersionSkipsSoftDeletedVersionNumber() {
+        ProcessTemplate published = version(1L, 1, TemplateStatus.PUBLISHED);
+        ProcessTemplate deletedV2 = version(2L, 2, TemplateStatus.DRAFT);
+        deletedV2.setDeleted(1);
+        when(processTemplateRepository.findByIdAndDeleted(1L, 0)).thenReturn(java.util.Optional.of(published));
+        when(processTemplateRepository.findByTemplateCodeAndResourceTypeAndDeletedOrderByVersionDesc(
+                "leave-flow", ProcessResourceType.BUSINESS_PROCESS, 0)).thenReturn(List.of(published));
+        when(processTemplateRepository.findFirstByTemplateCodeAndResourceTypeOrderByVersionDesc(
+                "leave-flow", ProcessResourceType.BUSINESS_PROCESS)).thenReturn(java.util.Optional.of(deletedV2));
+        when(processTemplateRepository.save(any(ProcessTemplate.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        assertThat(service.createNextVersion(1L).getVersion()).isEqualTo(3);
     }
 
     @Test

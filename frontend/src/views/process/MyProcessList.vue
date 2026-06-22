@@ -63,7 +63,7 @@
         <el-table-column label="更新时间" min-width="170">
           <template #default="{ row }">{{ formatTime(row.updatedAt) }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="430" fixed="right">
+        <el-table-column label="操作" width="480" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" :disabled="!canEdit(row.status)" @click="openEditDialog(row)">编辑</el-button>
             <el-button link type="primary" :disabled="!canEdit(row.status)" @click="goToDesigner(row)">流程图</el-button>
@@ -71,6 +71,7 @@
             <el-button link type="success" :disabled="!canPublish(row.status)" @click="handlePublish(row)">发布</el-button>
             <el-button link type="danger" :disabled="normalizeStatus(row.status) !== 'published'" @click="handleUnpublish(row)">停用</el-button>
             <el-button link type="primary" :disabled="normalizeStatus(row.status) !== 'published'" @click="startProcess(row)">发起</el-button>
+            <el-button link type="danger" :icon="Delete" :disabled="normalizeStatus(row.status) === 'published'" @click="handleDelete(row)">删除</el-button>
           </template>
         </el-table-column>
         <template #empty>
@@ -111,10 +112,10 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Refresh } from '@element-plus/icons-vue'
+import { Delete, Plus, Refresh } from '@element-plus/icons-vue'
 import { getBizTypes } from '@/api/bizType'
 import { getPublishedForms } from '@/api/formDefinition'
-import { createMyProcess, createMyProcessVersion, getMyProcesses, publishMyProcess, unpublishMyProcess, updateMyProcess } from '@/api/myProcess'
+import { createMyProcess, createMyProcessVersion, deleteMyProcess, getMyProcesses, publishMyProcess, unpublishMyProcess, updateMyProcess } from '@/api/myProcess'
 import { useAuthStore } from '@/stores/auth'
 import type { BizType, FormDefinition, ProcessTemplate, ProcessTemplatePayload } from '@/types/workflow'
 
@@ -279,6 +280,22 @@ async function handleCreateVersion(row: ProcessTemplate) {
   } catch (error) {
     if (error === 'cancel' || error === 'close') return
     ElMessage.error(error instanceof Error ? error.message : '创建新版本失败')
+  }
+}
+
+async function handleDelete(row: ProcessTemplate) {
+  try {
+    await ElMessageBox.confirm(
+      `确认删除“${row.templateName}”v${row.version || 1}吗？仅从未发起过的流程版本可以删除。`,
+      '删除流程版本',
+      { type: 'warning', confirmButtonText: '删除', confirmButtonClass: 'el-button--danger' }
+    )
+    await deleteMyProcess(row.id)
+    ElMessage.success('流程版本已删除')
+    await loadPageData()
+  } catch (error) {
+    if (error === 'cancel' || error === 'close') return
+    // API 错误由统一请求拦截器提示，避免同一错误重复弹出。
   }
 }
 
