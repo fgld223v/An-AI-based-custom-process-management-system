@@ -10,11 +10,10 @@ import com.aiflow.repository.ProcessTemplateRepository;
 import com.aiflow.repository.SysUserRepository;
 import com.aiflow.service.NotificationService;
 import com.aiflow.service.RuleEvaluatorService;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.aiflow.service.ApprovalRecordService;
+import com.aiflow.service.ApprovalVariableService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.flowable.engine.RuntimeService;
 import org.flowable.engine.TaskService;
 import org.flowable.task.api.Task;
 import org.springframework.beans.factory.annotation.Value;
@@ -26,7 +25,6 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -41,14 +39,15 @@ public class TaskTimeoutNotificationScheduler {
     private static final Long DEFAULT_RECEIVER_ID = 1L;
 
     private final TaskService taskService;
-    private final RuntimeService runtimeService;
     private final NotificationService notificationService;
     private final RuleEvaluatorService ruleEvaluatorService;
     private final NotificationRepository notificationRepository;
     private final ProcessInstanceRepository processInstanceRepository;
     private final ProcessTemplateRepository processTemplateRepository;
     private final SysUserRepository sysUserRepository;
-    private final ObjectMapper objectMapper;
+    private final NodeConfigParser nodeConfigParser;
+    private final ApprovalVariableService approvalVariableService;
+    private final ApprovalRecordService approvalRecordService;
 
     @Value("${notification.timeout-threshold-hours:48}")
     private long timeoutThresholdHours;
@@ -56,9 +55,8 @@ public class TaskTimeoutNotificationScheduler {
     @Scheduled(fixedRateString = "${notification.timeout-scan-fixed-rate-ms:60000}")
     @Transactional
     public void scanTimeoutTasks() {
-        LocalDateTime deadline = LocalDateTime.now().minusHours(timeoutThresholdHours);
+        LocalDateTime now = LocalDateTime.now();
         List<Task> tasks = taskService.createTaskQuery()
-                .taskCreatedBefore(toDate(deadline))
                 .active()
                 .list();
 
@@ -71,10 +69,16 @@ public class TaskTimeoutNotificationScheduler {
             if (!isRunningInstance(instance)) {
                 continue;
             }
-            if (createTimeoutNotificationIfAbsent(task, instance, deadline)) {
+            TimeoutPolicy policy = resolveTimeoutPolicy(task, instance);
+            LocalDateTime taskCreatedAt = toLocalDateTime(task.getCreateTime());
+            if (taskCreatedAt == null || taskCreatedAt.isAfter(now.minusHours(policy.thresholdHours()))) {
+                continue;
+            }
+            LocalDateTime deadline = now.minusHours(policy.thresholdHours());
+            if (createTimeoutNotificationIfAbsent(task, instance, deadline, policy.thresholdHours())) {
                 notificationCount++;
             }
-            if (autoCompleteTimeoutTask(task, instance)) {
+            if (autoCompleteTimeoutTask(task, instance, policy)) {
                 completedCount++;
             }
         }
@@ -83,7 +87,8 @@ public class TaskTimeoutNotificationScheduler {
         }
     }
 
-    private boolean createTimeoutNotificationIfAbsent(Task task, ProcessInstance instance, LocalDateTime deadline) {
+    private boolean createTimeoutNotificationIfAbsent(Task task, ProcessInstance instance,
+                                                       LocalDateTime deadline, long thresholdHours) {
         if (!isRunningInstance(instance)) {
             return false;
         }
@@ -103,7 +108,7 @@ public class TaskTimeoutNotificationScheduler {
         request.setReceiverId(receiverId);
         request.setType(NOTIFICATION_TYPE);
         request.setTitle("任务超时提醒");
-        request.setContent(buildContent(task, instance, elapsedHours, deadline));
+        request.setContent(buildContent(task, instance, elapsedHours, deadline, thresholdHours));
         request.setTargetType(targetType);
         request.setTargetId(instance.getId());
         request.setTargetUrl(targetUrl);
@@ -111,8 +116,11 @@ public class TaskTimeoutNotificationScheduler {
         return true;
     }
 
-    private boolean autoCompleteTimeoutTask(Task task, ProcessInstance instance) {
+    private boolean autoCompleteTimeoutTask(Task task, ProcessInstance instance, TimeoutPolicy policy) {
         if (!isRunningInstance(instance)) {
+            return false;
+        }
+        if (!policy.autoApprove() && !policy.autoReject()) {
             return false;
         }
         Task latestTask = taskService.createTaskQuery()
@@ -123,35 +131,23 @@ public class TaskTimeoutNotificationScheduler {
         }
 
         LocalDateTime now = LocalDateTime.now();
-        Map<String, Object> approvalData = new HashMap<>();
-        approvalData.put("approvalResult", "agree");
-        approvalData.put("approvalOpinion", "系统自动通过");
-        approvalData.put("approved", true);
-        approvalData.put("autoApproved", true);
-        approvalData.put("autoApproveReason", "任务超过配置时长 " + timeoutThresholdHours + " 小时未处理");
-        approvalData.put("autoApproveTime", now.toString());
-
-        Map<String, Object> variables = new HashMap<>(approvalData);
+        String result = policy.autoReject() ? "reject" : "agree";
+        String action = policy.autoReject() ? "reject" : "approve";
+        String opinion = policy.autoReject() ? "系统超时自动驳回" : "系统超时自动通过";
+        String automaticReason = "任务超过配置时长 " + policy.thresholdHours() + " 小时未处理";
+        Map<String, Object> variables = approvalVariableService.build(
+                latestTask.getProcessInstanceId(), latestTask.getTaskDefinitionKey(), result,
+                opinion, true, automaticReason, now);
         variables.put("timeoutAutoCompleted", true);
         variables.put("timeoutTaskId", latestTask.getId());
         variables.put("timeoutTaskName", latestTask.getName());
 
         try {
-            Map<String, Object> existingVars = runtimeService.getVariables(latestTask.getProcessInstanceId());
-            @SuppressWarnings("unchecked")
-            Map<String, Object> allFormData = (Map<String, Object>) existingVars.getOrDefault(
-                    "allFormData", new HashMap<>());
-            allFormData.put(latestTask.getTaskDefinitionKey(), approvalData);
-            variables.put("allFormData", allFormData);
-        } catch (Exception ex) {
-            Map<String, Object> allFormData = new HashMap<>();
-            allFormData.put(latestTask.getTaskDefinitionKey(), approvalData);
-            variables.put("allFormData", allFormData);
-        }
-
-        try {
-            taskService.addComment(latestTask.getId(), latestTask.getProcessInstanceId(), "系统自动通过");
+            taskService.addComment(latestTask.getId(), latestTask.getProcessInstanceId(), opinion);
             taskService.complete(latestTask.getId(), variables);
+            approvalRecordService.record(instance.getId(), latestTask.getId(),
+                    latestTask.getTaskDefinitionKey(), null, action,
+                    opinion + "：" + automaticReason, now);
             ruleEvaluatorService.evaluateAndAutoComplete(instance);
             return true;
         } catch (Exception ex) {
@@ -160,59 +156,82 @@ public class TaskTimeoutNotificationScheduler {
         }
     }
 
-    private void refreshProcessInstanceState(ProcessInstance instance, Task completedTask, LocalDateTime now) {
-        Task nextTask = taskService.createTaskQuery()
-                .processInstanceId(completedTask.getProcessInstanceId())
-                .singleResult();
-        if (nextTask != null) {
-            instance.setCurrentNodeKey(nextTask.getTaskDefinitionKey());
-            instance.setCurrentNodeName(nextTask.getName());
-            instance.setCurrentBusinessType(resolveBusinessType(instance.getTemplateId(), nextTask.getTaskDefinitionKey()));
-        } else {
-            instance.setStatus("completed");
-            instance.setEndedAt(now);
-            instance.setCurrentNodeKey(null);
-            instance.setCurrentNodeName(null);
-            instance.setCurrentBusinessType(null);
-        }
-        instance.setUpdatedAt(now);
-        processInstanceRepository.save(instance);
-    }
-
     private String targetType(Task task) {
         return TARGET_TYPE_PREFIX + task.getId();
     }
 
-    private String resolveBusinessType(Long templateId, String nodeKey) {
+    private TimeoutPolicy resolveTimeoutPolicy(Task task, ProcessInstance instance) {
         ProcessTemplate template = processTemplateRepository
-                .findByIdAndDeleted(templateId, 0)
+                .findByIdAndDeleted(instance.getTemplateId(), 0)
                 .orElse(null);
         if (template == null || !hasText(template.getNodeConfig())) {
-            return null;
+            return new TimeoutPolicy(timeoutThresholdHours, null);
         }
-        try {
-            List<Map<String, Object>> nodes = objectMapper.readValue(
-                    template.getNodeConfig(),
-                    new TypeReference<List<Map<String, Object>>>() {}
-            );
-            for (Map<String, Object> node : nodes) {
-                if (nodeKey.equals(node.get("nodeKey"))) {
-                    Object businessType = node.get("businessType");
-                    return businessType == null ? null : businessType.toString();
-                }
-            }
-        } catch (Exception ignored) {
-            // nodeConfig parse failure should not block timeout auto-flow.
+        Map<String, Object> node = nodeConfigParser.findNode(
+                template.getNodeConfig(), task.getTaskDefinitionKey());
+        if (node == null) {
+            return new TimeoutPolicy(timeoutThresholdHours, null);
         }
+        Map<String, Object> timeout = asMap(node.get("timeoutConfig"));
+        long threshold = positiveLong(firstNonNull(
+                node.get("remindAfterHours"), timeout.get("remindAfterHours"),
+                timeout.get("remindAfter"), timeout.get("timeoutHours")), timeoutThresholdHours);
+        String autoAction = stringValue(firstNonNull(node.get("autoAction"), timeout.get("autoAction")));
+        return new TimeoutPolicy(threshold, autoAction);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> asMap(Object value) {
+        return value instanceof Map<?, ?> map ? (Map<String, Object>) map : Map.of();
+    }
+
+    private Object firstNonNull(Object... values) {
+        for (Object value : values) if (value != null) return value;
         return null;
     }
 
-    private String buildContent(Task task, ProcessInstance instance, long elapsedHours, LocalDateTime deadline) {
+    private long positiveLong(Object value, long fallback) {
+        try {
+            if (value instanceof Number number) {
+                long parsed = number.longValue();
+                return parsed > 0 ? parsed : fallback;
+            }
+            String text = String.valueOf(value).trim().toLowerCase();
+            long multiplier = 1;
+            if (text.endsWith("d")) {
+                multiplier = 24;
+                text = text.substring(0, text.length() - 1).trim();
+            } else if (text.endsWith("h")) {
+                text = text.substring(0, text.length() - 1).trim();
+            }
+            long parsed = Long.parseLong(text) * multiplier;
+            return parsed > 0 ? parsed : fallback;
+        } catch (Exception ignored) {
+            return fallback;
+        }
+    }
+
+    private String stringValue(Object value) {
+        return value == null ? null : value.toString().trim();
+    }
+
+    private record TimeoutPolicy(long thresholdHours, String autoAction) {
+        boolean autoApprove() {
+            return "auto_approve".equalsIgnoreCase(autoAction) || "approve".equalsIgnoreCase(autoAction);
+        }
+
+        boolean autoReject() {
+            return "auto_reject".equalsIgnoreCase(autoAction) || "reject".equalsIgnoreCase(autoAction);
+        }
+    }
+
+    private String buildContent(Task task, ProcessInstance instance, long elapsedHours,
+                                LocalDateTime deadline, long thresholdHours) {
         String instanceTitle = instance == null ? "未知流程实例" : instance.getTitle();
         String taskName = hasText(task.getName()) ? task.getName() : "未命名任务";
         return "流程「" + instanceTitle + "」中的任务「" + taskName + "」已超过 "
                 + elapsedHours + " 小时未处理，请及时跟进。超时扫描阈值："
-                + timeoutThresholdHours + " 小时，截止时间：" + deadline + "。";
+                + thresholdHours + " 小时，截止时间：" + deadline + "。";
     }
 
     private Long resolveReceiverId(Task task) {

@@ -1,5 +1,6 @@
 package com.aiflow.security;
 
+import com.baomidou.mybatisplus.core.toolkit.PluginUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.ibatis.executor.statement.StatementHandler;
 import org.apache.ibatis.mapping.BoundSql;
@@ -33,9 +34,9 @@ public class DataPermissionInterceptor implements Interceptor {
 
     @Override
     public Object intercept(Invocation invocation) throws Throwable {
-        StatementHandler statementHandler = (StatementHandler) invocation.getTarget();
+        StatementHandler statementHandler = PluginUtils.realTarget(invocation.getTarget());
         MetaObject metaObject = SystemMetaObject.forObject(statementHandler);
-        MappedStatement mappedStatement = (MappedStatement) metaObject.getValue("delegate.mappedStatement");
+        MappedStatement mappedStatement = getMappedStatement(metaObject);
 
         // 只拦截查询语句
         if (mappedStatement.getSqlCommandType() != org.apache.ibatis.mapping.SqlCommandType.SELECT) {
@@ -62,10 +63,21 @@ public class DataPermissionInterceptor implements Interceptor {
 
         // 追加 WHERE 条件
         String newSql = appendBizTypeFilter(sql, inClause);
-        metaObject.setValue("delegate.boundSql.sql", newSql);
+        PluginUtils.mpBoundSql(boundSql).sql(newSql);
         log.debug("DataPermissionInterceptor: 已追加 biz_type_id IN ({})", inClause);
 
         return invocation.proceed();
+    }
+
+    private MappedStatement getMappedStatement(MetaObject metaObject) {
+        if (metaObject.hasGetter("delegate.mappedStatement")) {
+            return (MappedStatement) metaObject.getValue("delegate.mappedStatement");
+        }
+        if (metaObject.hasGetter("mappedStatement")) {
+            return (MappedStatement) metaObject.getValue("mappedStatement");
+        }
+        throw new IllegalStateException("unsupported MyBatis StatementHandler: "
+                + metaObject.getOriginalObject().getClass().getName());
     }
 
     private String appendBizTypeFilter(String sql, String inClause) {

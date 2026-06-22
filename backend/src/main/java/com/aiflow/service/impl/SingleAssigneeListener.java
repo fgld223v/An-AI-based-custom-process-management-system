@@ -5,10 +5,10 @@ import com.aiflow.repository.ProcessTemplateRepository;
 import com.aiflow.service.ApproverResolverService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.flowable.engine.delegate.TaskListener;
 import org.flowable.task.service.delegate.DelegateTask;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -32,16 +32,12 @@ import java.util.Map;
  */
 @Slf4j
 @Component("singleAssigneeListener")
+@RequiredArgsConstructor
 public class SingleAssigneeListener implements TaskListener {
 
-    @Autowired
-    private ApproverResolverService approverResolverService;
-
-    @Autowired
-    private ProcessTemplateRepository processTemplateRepository;
-
-    @Autowired
-    private ObjectMapper objectMapper;
+    private final ApproverResolverService approverResolverService;
+    private final ProcessTemplateRepository processTemplateRepository;
+    private final ObjectMapper objectMapper;
 
     @Override
     public void notify(DelegateTask task) {
@@ -60,9 +56,8 @@ public class SingleAssigneeListener implements TaskListener {
         Object templateIdObj = task.getVariable("templateId");
 
         if (businessInstanceIdObj == null || templateIdObj == null) {
-            log.warn("SingleAssigneeListener: 缺少 businessInstanceId 或 templateId 变量，" +
-                    "nodeKey={}，保持当前 assignee", nodeKey);
-            return;
+            throw new IllegalStateException(
+                    "审批任务缺少 businessInstanceId 或 templateId，nodeKey=" + nodeKey);
         }
 
         Long instanceId = toLong(businessInstanceIdObj);
@@ -73,8 +68,7 @@ public class SingleAssigneeListener implements TaskListener {
                 .findByIdAndDeleted(templateId, 0)
                 .orElse(null);
         if (template == null) {
-            log.warn("SingleAssigneeListener: 模板 {} 不存在，保持当前 assignee", templateId);
-            return;
+            throw new IllegalStateException("审批任务关联的流程模板不存在，templateId=" + templateId);
         }
 
         String assignStrategy = null;
@@ -121,8 +115,7 @@ public class SingleAssigneeListener implements TaskListener {
         }
 
         if (approverIds.isEmpty()) {
-            log.warn("SingleAssigneeListener: 审批节点 {} 的审批人列表为空！保持当前 assignee", nodeKey);
-            return;
+            throw new IllegalStateException("审批节点未解析到有效处理人，nodeKey=" + nodeKey);
         }
 
         // 单人审批取第一个审批人

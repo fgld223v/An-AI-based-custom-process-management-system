@@ -40,6 +40,7 @@ public class ProcessTemplateServiceImpl implements ProcessTemplateService {
     private final ProcessAuthorizationService processAuthorizationService;
     private final ObjectMapper objectMapper;
     private final FormBindConfigParser formBindConfigParser;
+    private final NodeConfigParser nodeConfigParser;
 
     @Override
     public ProcessTemplate createTemplate(ProcessTemplate template) {
@@ -304,6 +305,34 @@ public class ProcessTemplateServiceImpl implements ProcessTemplateService {
         } catch (Exception ex) {
             throw new IllegalStateException("节点配置 JSON 格式不正确，无法发布模板。");
         }
+        for (Map<String, Object> config : nodeConfigParser.asOrderedList(nodeConfig)) {
+            if (!"approval".equalsIgnoreCase(stringValue(config.get("businessType")))) {
+                continue;
+            }
+            String nodeName = firstText(config.get("nodeName"), config.get("nodeKey"), config.get("nodeId"));
+            String strategy = stringValue(config.get("assignStrategy"));
+            String assignValue = firstText(config.get("assignValue"), config.get("assigneeValue"));
+            if (!hasText(strategy)) {
+                throw new IllegalStateException("审批节点【" + nodeName + "】未配置审批人策略。");
+            }
+            if (List.of("SPECIFIC_USERS", "ROLE", "ROLE_IN_APPLICANT_DEPT", "ROLE_IN_SPECIFIED_DEPT",
+                    "GLOBAL_ROLE", "SPECIFIED_DEPARTMENT_MANAGER").contains(strategy.toUpperCase())
+                    && !hasText(assignValue)) {
+                throw new IllegalStateException("审批节点【" + nodeName + "】未完整配置审批人范围。");
+            }
+        }
+    }
+
+    private String firstText(Object... values) {
+        for (Object value : values) {
+            String text = stringValue(value);
+            if (hasText(text)) return text;
+        }
+        return "未命名节点";
+    }
+
+    private String stringValue(Object value) {
+        return value == null ? null : value.toString().trim();
     }
 
     private ProcessTemplate getRequiredTemplate(Long id) {

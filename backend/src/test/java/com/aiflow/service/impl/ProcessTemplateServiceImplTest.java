@@ -43,6 +43,9 @@ class ProcessTemplateServiceImplTest {
     @Mock
     private FormBindConfigParser formBindConfigParser;
 
+    @Mock
+    private NodeConfigParser nodeConfigParser;
+
     @InjectMocks
     private ProcessTemplateServiceImpl service;
 

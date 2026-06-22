@@ -5,6 +5,9 @@ import com.aiflow.model.ProcessTemplate;
 import com.aiflow.repository.ProcessInstanceRepository;
 import com.aiflow.repository.ProcessTemplateRepository;
 import com.aiflow.service.RuleEvaluatorService;
+import com.aiflow.service.ApprovalRecordService;
+import com.aiflow.service.ApprovalVariableService;
+import com.aiflow.service.WorkflowNotificationService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -36,6 +39,9 @@ public class RuleEvaluatorServiceImpl implements RuleEvaluatorService {
     private final ProcessTemplateRepository processTemplateRepository;
     private final ObjectMapper objectMapper;
     private final NodeConfigParser nodeConfigParser;
+    private final ApprovalVariableService approvalVariableService;
+    private final ApprovalRecordService approvalRecordService;
+    private final WorkflowNotificationService workflowNotificationService;
 
     @Override
     @Transactional
@@ -69,33 +75,17 @@ public class RuleEvaluatorServiceImpl implements RuleEvaluatorService {
 
     private void autoCompleteTask(Task task, ProcessInstance instance, ApprovalRule rule) {
         LocalDateTime now = LocalDateTime.now();
-        Map<String, Object> approvalData = new HashMap<>();
-        approvalData.put("approvalResult", "agree");
-        approvalData.put("approvalOpinion", AUTO_APPROVE_OPINION);
-        approvalData.put("approved", true);
-        approvalData.put("autoApproved", true);
-        approvalData.put("autoApproveReason", rule.description());
-        approvalData.put("autoApproveTime", now.toString());
-
-        Map<String, Object> variables = new HashMap<>(approvalData);
+        Map<String, Object> variables = approvalVariableService.build(
+                task.getProcessInstanceId(), task.getTaskDefinitionKey(), "agree",
+                AUTO_APPROVE_OPINION, true, rule.description(), now);
         variables.put("ruleAutoApproved", true);
         variables.put("ruleAutoApproveTaskId", task.getId());
         variables.put("ruleAutoApproveTaskName", task.getName());
 
-        try {
-            Map<String, Object> existingVars = runtimeService.getVariables(task.getProcessInstanceId());
-            @SuppressWarnings("unchecked")
-            Map<String, Object> allFormData = (Map<String, Object>) existingVars.getOrDefault("allFormData", new HashMap<>());
-            allFormData.put(task.getTaskDefinitionKey(), approvalData);
-            variables.put("allFormData", allFormData);
-        } catch (Exception ex) {
-            Map<String, Object> allFormData = new HashMap<>();
-            allFormData.put(task.getTaskDefinitionKey(), approvalData);
-            variables.put("allFormData", allFormData);
-        }
-
         taskService.addComment(task.getId(), task.getProcessInstanceId(), AUTO_APPROVE_OPINION);
         taskService.complete(task.getId(), variables);
+        approvalRecordService.record(instance.getId(), task.getId(), task.getTaskDefinitionKey(),
+                null, "approve", AUTO_APPROVE_OPINION + "：" + rule.description(), now);
         log.info("Auto approved task by rule. instanceId={}, taskId={}, rule={}",
                 instance.getId(), task.getId(), rule.description());
     }
@@ -108,6 +98,7 @@ public class RuleEvaluatorServiceImpl implements RuleEvaluatorService {
     }
 
     private void refreshProcessInstanceState(ProcessInstance instance, Task currentTask, LocalDateTime now) {
+        boolean newlyCompleted = currentTask == null && !STATUS_COMPLETED.equals(instance.getStatus());
         if (currentTask != null) {
             instance.setCurrentNodeKey(currentTask.getTaskDefinitionKey());
             instance.setCurrentNodeName(currentTask.getName());
@@ -121,6 +112,9 @@ public class RuleEvaluatorServiceImpl implements RuleEvaluatorService {
         }
         instance.setUpdatedAt(now);
         processInstanceRepository.save(instance);
+        if (newlyCompleted) {
+            workflowNotificationService.notifyProcessCompleted(instance);
+        }
     }
 
     private Map<String, Object> collectVariables(ProcessInstance instance, Task task) {

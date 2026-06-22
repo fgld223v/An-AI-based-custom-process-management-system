@@ -288,6 +288,11 @@ async function handleCreateTemplate() {
 
 async function submitCreateTemplate() {
   if (!result.value) return
+  // 前端校验模板名称
+  if (!createForm.value.templateName?.trim()) {
+    ElMessage.warning('请输入模板名称')
+    return
+  }
   creating.value = true
   try {
     const createApi = authStore.user?.systemRole === 'biz_admin' ? createMyProcess : createProcessTemplate

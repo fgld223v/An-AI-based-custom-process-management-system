@@ -55,11 +55,8 @@ public class MultiInstanceAssigneeListener implements ExecutionListener {
         Object templateIdObj = execution.getVariable("templateId");
 
         if (businessInstanceIdObj == null || templateIdObj == null) {
-            log.warn("MultiInstanceAssigneeListener: 缺少 businessInstanceId 或 templateId 变量，" +
-                    "nodeKey={}", nodeKey);
-            // 兜底：设置空列表，避免流程卡死
-            execution.setVariable("assigneeList_" + nodeKey, List.of());
-            return;
+            throw new IllegalStateException(
+                    "多实例审批缺少 businessInstanceId 或 templateId，nodeKey=" + nodeKey);
         }
 
         Long instanceId = toLong(businessInstanceIdObj);
@@ -70,9 +67,7 @@ public class MultiInstanceAssigneeListener implements ExecutionListener {
                 .findByIdAndDeleted(templateId, 0)
                 .orElse(null);
         if (template == null) {
-            log.warn("MultiInstanceAssigneeListener: 模板 {} 不存在", templateId);
-            execution.setVariable("assigneeList_" + nodeKey, List.of());
-            return;
+            throw new IllegalStateException("多实例审批关联的流程模板不存在，templateId=" + templateId);
         }
 
         String assignStrategy = null;
@@ -116,9 +111,7 @@ public class MultiInstanceAssigneeListener implements ExecutionListener {
                 .collect(Collectors.toList());
 
         if (assigneeList.isEmpty()) {
-            log.warn("MultiInstanceAssigneeListener: 节点 {} 的审批人列表为空，流程将卡死！", nodeKey);
-            // 设置一个系统管理员兜底
-            assigneeList = List.of("1");
+            throw new IllegalStateException("多实例审批节点未解析到有效处理人，nodeKey=" + nodeKey);
         }
 
         String collectionVar = "assigneeList_" + nodeKey;

@@ -19,6 +19,7 @@
             <el-option label="任务提醒" value="task_remind" />
             <el-option label="超时预警" value="timeout_warning" />
             <el-option label="审批结果" value="approval_result" />
+            <el-option label="流程完成" value="process_completed" />
             <el-option label="系统通知" value="system_notice" />
           </el-select>
         </el-form-item>
@@ -173,6 +174,7 @@ function typeLabel(type?: string) {
     task_remind: '任务提醒',
     timeout_warning: '超时预警',
     approval_result: '审批结果',
+    process_completed: '流程完成',
     system_notice: '系统通知'
   }
   return map[type || ''] || type || '-'
@@ -181,6 +183,7 @@ function typeLabel(type?: string) {
 function typeTag(type?: string) {
   if (type === 'timeout_warning') return 'danger'
   if (type === 'approval_result') return 'success'
+  if (type === 'process_completed') return 'success'
   if (type === 'task_remind') return 'warning'
   return 'info'
 }
