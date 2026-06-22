@@ -34,7 +34,6 @@ import { useRoute, useRouter } from 'vue-router'
 import {
   Bell,
   CirclePlus,
-  Cpu,
   DataAnalysis,
   Files,
   MagicStick,
@@ -44,14 +43,11 @@ import {
   Setting,
   Share,
   Tickets,
-  Timer,
-  Tools,
   TrendCharts,
   UserFilled
 } from '@element-plus/icons-vue'
 import { getMyTasks } from '@/api/task'
 import { useAuthStore } from '@/stores/auth'
-import { showComingSoon } from '@/utils/feedback'
 import type { SystemRole } from '@/types/auth'
 
 interface MenuItem {
@@ -122,8 +118,7 @@ const allMenuGroups: MenuGroup[] = [
     title: '资源',
     items: [
       { label: '流程模板管理', path: '/templates', icon: Files, available: true, roles: superAdminOnly },
-      { label: '模板市场', path: '/template-market', icon: Files, available: true, roles: adminRoles },
-      { label: '节点/工具库', path: '/placeholder/tools', icon: Tools, roles: adminRoles }
+      { label: '模板市场', path: '/template-market', icon: Files, available: true, roles: adminRoles }
     ]
   },
   {
@@ -133,10 +128,7 @@ const allMenuGroups: MenuGroup[] = [
       { label: '部门管理', path: '/admin/departments', icon: OfficeBuilding, available: true, roles: superAdminOnly },
       { label: '流程角色管理', path: '/admin/workflow-roles', icon: UserFilled, available: true, roles: superAdminOnly },
       { label: '自动化策略', path: '/settings/automation', icon: Operation, available: true, roles: adminRoles },
-      { label: '个人设置', path: '/settings', icon: Setting, available: true },
-      { label: 'AI 资源池', path: '/placeholder/ai-pool', icon: Cpu, roles: adminRoles },
-      { label: '定时任务', path: '/placeholder/schedule', icon: Timer, roles: adminRoles }
-      
+      { label: '个人设置', path: '/settings', icon: Setting, available: true }
     ]
   }
 ]
@@ -173,10 +165,8 @@ function isActive(path: string) {
 }
 
 function handleClick(item: MenuItem) {
-  if (item.available) {
+  if (item.available !== false) {
     router.push(item.path)
-  } else {
-    showComingSoon()
   }
 }
 </script>
