@@ -80,3 +80,23 @@ export async function updateUser(id: number, data: UpdateUserPayload) {
 export async function deleteUser(id: number) {
   return await request.delete<{ deleted: boolean; id: number }>(`/api/admin/users/${id}`)
 }
+
+// ================================================================
+// Excel 导入 / 导出
+// ================================================================
+
+export interface ImportResult {
+  total: number
+  success: number
+  failed: number
+  errors: Array<{ row: number; reason: string }>
+}
+
+// These use raw axios (blob / multipart), see @/utils/download.ts
+export const USER_TEMPLATE_URL = '/api/admin/users/template'
+export const USER_EXPORT_URL = '/api/admin/users/export'
+export const USER_IMPORT_URL = '/api/admin/users/import'
+
+export const DEPT_TEMPLATE_URL = '/api/admin/departments/template'
+export const DEPT_EXPORT_URL = '/api/admin/departments/export'
+export const DEPT_IMPORT_URL = '/api/admin/departments/import'

@@ -5,7 +5,11 @@
         <h1>用户管理</h1>
         <p>管理系统用户、角色分配、所属部门和业务管辖范围。</p>
       </div>
-      <el-button type="primary" round :icon="Plus" @click="openCreate">新增用户</el-button>
+      <div class="head-actions">
+        <el-button round :icon="Download" @click="handleExport">导出</el-button>
+        <el-button round :icon="Upload" @click="importVisible = true">导入</el-button>
+        <el-button type="primary" round :icon="Plus" @click="openCreate">新增用户</el-button>
+      </div>
     </div>
 
     <el-alert v-if="msg" :title="msg" :type="msgType" show-icon closable @close="msg = ''" />
@@ -104,16 +108,26 @@
         <el-button round type="primary" :loading="saving" @click="handleSave">保存</el-button>
       </template>
     </el-dialog>
+
+    <ImportExcelDialog
+      v-model:visible="importVisible"
+      title="导入用户"
+      :template-url="USER_TEMPLATE_URL"
+      :import-url="USER_IMPORT_URL"
+      @imported="loadUsers"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
-import { getUsers, createUser, updateUser, deleteUser } from '@/api/admin'
+import { Plus, Download, Upload } from '@element-plus/icons-vue'
+import { getUsers, createUser, updateUser, deleteUser, USER_TEMPLATE_URL, USER_EXPORT_URL, USER_IMPORT_URL } from '@/api/admin'
 import type { AdminUser, CreateUserPayload, UpdateUserPayload } from '@/api/admin'
 import request from '@/api/request'
+import ImportExcelDialog from '@/components/ImportExcelDialog.vue'
+import { downloadBlob } from '@/utils/download'
 
 type TagType = 'success' | 'warning' | 'info' | 'primary' | 'danger'
 
@@ -126,6 +140,7 @@ const loading = ref(false)
 const saving = ref(false)
 const users = ref<AdminUser[]>([])
 const dialogVisible = ref(false)
+const importVisible = ref(false)
 const isEdit = ref(false)
 const editId = ref<number | null>(null)
 const msg = ref('')
@@ -299,6 +314,15 @@ async function handleSave() {
   }
 }
 
+async function handleExport() {
+  try {
+    await downloadBlob(USER_EXPORT_URL, '用户数据.xlsx')
+    ElMessage.success('导出成功')
+  } catch (e: any) {
+    ElMessage.error(e?.message || '导出失败')
+  }
+}
+
 async function handleDelete(row: AdminUser) {
   try {
     await ElMessageBox.confirm(`确定删除用户「${row.nickname || row.username}」吗？`, '确认删除', { type: 'warning' })
@@ -355,5 +379,11 @@ async function handleDelete(row: AdminUser) {
 .hint {
   margin-top: 4px;
   font-size: 12px;
+}
+
+.head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 </style>
