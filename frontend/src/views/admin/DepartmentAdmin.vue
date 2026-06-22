@@ -5,7 +5,11 @@
         <h1>部门管理</h1>
         <p>维护组织架构、部门负责人和用户归属关系。</p>
       </div>
-      <el-button type="primary" round :icon="Plus" @click="openCreate">新增部门</el-button>
+      <div class="head-actions">
+        <el-button round :icon="Download" @click="handleExport">导出</el-button>
+        <el-button round :icon="Upload" @click="importVisible = true">导入</el-button>
+        <el-button type="primary" round :icon="Plus" @click="openCreate">新增部门</el-button>
+      </div>
     </div>
 
     <section class="table-panel" v-loading="loading">
@@ -75,14 +79,25 @@
         <el-button round type="primary" :loading="saving" @click="handleSave">保存</el-button>
       </template>
     </el-dialog>
+
+    <ImportExcelDialog
+      v-model:visible="importVisible"
+      title="导入部门"
+      :template-url="DEPT_TEMPLATE_URL"
+      :import-url="DEPT_IMPORT_URL"
+      @imported="loadDepts"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
+import { Plus, Download, Upload } from '@element-plus/icons-vue'
 import request from '@/api/request'
+import { DEPT_TEMPLATE_URL, DEPT_EXPORT_URL, DEPT_IMPORT_URL } from '@/api/admin'
+import ImportExcelDialog from '@/components/ImportExcelDialog.vue'
+import { downloadBlob } from '@/utils/download'
 
 interface Department {
   id: number
@@ -105,6 +120,7 @@ const departments = ref<Department[]>([])
 const deptOptions = ref<Option[]>([])
 const userOptions = ref<Option[]>([])
 const dialogVisible = ref(false)
+const importVisible = ref(false)
 const isEdit = ref(false)
 const editId = ref<number | null>(null)
 
@@ -197,6 +213,15 @@ async function handleSave() {
   }
 }
 
+async function handleExport() {
+  try {
+    await downloadBlob(DEPT_EXPORT_URL, '部门数据.xlsx')
+    ElMessage.success('导出成功')
+  } catch (e: any) {
+    ElMessage.error(e?.message || '导出失败')
+  }
+}
+
 async function handleDelete(row: Department) {
   try {
     await ElMessageBox.confirm(`确定删除部门「${row.deptName}」吗？`, '确认删除', { type: 'warning' })
@@ -239,5 +264,11 @@ async function handleDelete(row: Department) {
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.94);
   box-shadow: var(--shadow);
+}
+
+.head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 </style>
