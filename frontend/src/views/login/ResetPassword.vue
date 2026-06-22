@@ -3,21 +3,15 @@
     <section class="login-hero">
       <div class="hero-pill">AI Workflow Builder</div>
       <h1>AI Flow</h1>
-      <p>面向流程自动化、表单采集与低代码编排的现代流程管理系统。</p>
-      <div class="hero-grid">
-        <div v-for="item in heroItems" :key="item.title" class="hero-card">
-          <span>{{ item.value }}</span>
-          <small>{{ item.title }}</small>
-        </div>
-      </div>
+      <p>重置您的账号密码，重新获得工作区访问权限。</p>
     </section>
 
     <section class="login-panel">
       <div class="panel-heading">
         <div class="brand-mark large">AF</div>
         <div>
-          <h2>欢迎回来</h2>
-          <p>登录 PROCESS OS 工作区</p>
+          <h2>重置密码</h2>
+          <p>输入用户名并设置新密码</p>
         </div>
       </div>
 
@@ -25,25 +19,19 @@
         <el-form-item prop="username">
           <el-input v-model="form.username" placeholder="请输入用户名" :prefix-icon="User" />
         </el-form-item>
-        <el-form-item prop="password">
-          <el-input v-model="form.password" placeholder="请输入密码" type="password" show-password :prefix-icon="Lock" />
+        <el-form-item prop="newPassword">
+          <el-input v-model="form.newPassword" placeholder="请输入新密码" type="password" show-password :prefix-icon="Lock" />
+        </el-form-item>
+        <el-form-item prop="confirmPassword">
+          <el-input v-model="form.confirmPassword" placeholder="请确认新密码" type="password" show-password :prefix-icon="Lock" />
         </el-form-item>
         <el-button class="login-button" type="success" size="large" :loading="loading" @click="submit">
-          登录工作台
+          重置密码
         </el-button>
       </el-form>
 
-      <div class="panel-footer">
-        <span class="footer-text">还没有账号？</span>
-        <el-button text type="success" size="default" @click="goRegister">
-          立即注册
-        </el-button>
-      </div>
-
-      <div class="forgot-row">
-        <el-button text type="primary" size="default" @click="goResetPassword">
-          忘记密码？
-        </el-button>
+      <div class="login-footer">
+        <span class="footer-link" @click="router.push('/login')">想起密码了？返回登录</span>
       </div>
     </section>
   </div>
@@ -55,28 +43,39 @@ import { useRouter } from 'vue-router'
 import type { FormInstance, FormRules } from 'element-plus'
 import { ElMessage } from 'element-plus'
 import { Lock, User } from '@element-plus/icons-vue'
-import { useAuthStore } from '@/stores/auth'
+import { resetPasswordApi } from '@/api/auth'
 
 const router = useRouter()
-const authStore = useAuthStore()
 const formRef = ref<FormInstance>()
 const loading = ref(false)
 
 const form = reactive({
   username: '',
-  password: ''
+  newPassword: '',
+  confirmPassword: ''
 })
 
-const rules: FormRules = {
-  username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
-  password: [{ required: true, message: '请输入密码', trigger: 'blur' }]
+const validateConfirm = (_rule: any, value: string, callback: Function) => {
+  if (value !== form.newPassword) {
+    callback(new Error('两次输入的密码不一致'))
+  } else {
+    callback()
+  }
 }
 
-const heroItems = [
-  { value: 'AI', title: '智能构建' },
-  { value: 'BPMN', title: '流程建模' },
-  { value: 'JSON', title: '表单配置' }
-]
+const rules: FormRules = {
+  username: [
+    { required: true, message: '请输入用户名', trigger: 'blur' }
+  ],
+  newPassword: [
+    { required: true, message: '请输入新密码', trigger: 'blur' },
+    { min: 6, message: '密码长度至少 6 位', trigger: 'blur' }
+  ],
+  confirmPassword: [
+    { required: true, message: '请确认新密码', trigger: 'blur' },
+    { validator: validateConfirm, trigger: 'blur' }
+  ]
+}
 
 async function submit() {
   try {
@@ -86,24 +85,18 @@ async function submit() {
   }
   loading.value = true
   try {
-    authStore.logout()
-    await authStore.login(form)
-    ElMessage.success('登录成功')
-    const role = authStore.user?.systemRole
-    router.push(role === 'normal_user' ? '/process/start-preview' : '/workbench')
+    await resetPasswordApi({
+      username: form.username.trim(),
+      newPassword: form.newPassword,
+      confirmPassword: form.confirmPassword
+    })
+    ElMessage.success('密码重置成功，请使用新密码登录')
+    router.push('/login')
   } catch (e: any) {
-    ElMessage.error(e?.message || '登录失败，请检查用户名和密码')
+    ElMessage.error(e?.message || '密码重置失败')
   } finally {
     loading.value = false
   }
-}
-
-function goRegister() {
-  router.push('/register')
-}
-
-function goResetPassword() {
-  router.push('/reset-password')
 }
 </script>
 
@@ -142,31 +135,6 @@ function goResetPassword() {
 .login-hero p {
   color: var(--muted);
   line-height: 1.7;
-  margin-bottom: 28px;
-}
-
-.hero-grid {
-  display: flex;
-  gap: 16px;
-}
-
-.hero-card {
-  padding: 16px 20px;
-  border-radius: 14px;
-  border: 1px solid var(--line);
-  background: var(--panel);
-  text-align: center;
-}
-
-.hero-card span {
-  display: block;
-  font-size: 22px;
-  font-weight: 700;
-}
-
-.hero-card small {
-  color: var(--muted);
-  font-size: 12px;
 }
 
 .login-panel {
@@ -220,22 +188,19 @@ function goResetPassword() {
   margin-top: 8px;
 }
 
-.panel-footer {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.login-footer {
   margin-top: 18px;
-  gap: 4px;
+  text-align: center;
 }
 
-.footer-text {
-  color: var(--muted);
+.footer-link {
+  color: var(--el-color-primary);
+  cursor: pointer;
   font-size: 13px;
 }
 
-.forgot-row {
-  text-align: center;
-  margin-top: 8px;
+.footer-link:hover {
+  text-decoration: underline;
 }
 
 @media (max-width: 860px) {
@@ -246,10 +211,6 @@ function goResetPassword() {
 
   .login-hero {
     text-align: center;
-  }
-
-  .hero-grid {
-    justify-content: center;
   }
 }
 </style>

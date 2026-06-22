@@ -3,6 +3,7 @@ package com.aiflow.controller;
 import com.aiflow.common.ApiResponse;
 import com.aiflow.dto.LoginRequest;
 import com.aiflow.dto.LoginResponse;
+import com.aiflow.dto.ResetPasswordRequest;
 import com.aiflow.model.SysUser;
 import com.aiflow.repository.SysUserRepository;
 import com.aiflow.security.CurrentUser;
@@ -73,6 +74,27 @@ public class AuthController {
                 .build();
         sysUserRepository.save(user);
         return ApiResponse.success(Map.of("id", user.getId(), "username", user.getUsername()));
+    }
+
+    @PostMapping("/reset-password")
+    public ApiResponse<Map<String, Object>> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        // 验证两次密码输入一致
+        if (!request.getNewPassword().equals(request.getConfirmPassword())) {
+            return ApiResponse.fail(400, "两次输入的密码不一致");
+        }
+
+        String username = request.getUsername().trim();
+        SysUser user = sysUserRepository.findByUsername(username).orElse(null);
+        if (user == null) {
+            return ApiResponse.fail(404, "用户不存在");
+        }
+
+        // 更新密码（BCrypt 加密后存储）
+        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        user.setUpdatedTime(LocalDateTime.now());
+        sysUserRepository.save(user);
+
+        return ApiResponse.success(Map.of("message", "密码重置成功，请使用新密码登录"));
     }
 
     @Data
