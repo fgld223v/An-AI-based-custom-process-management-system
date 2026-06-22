@@ -7,12 +7,14 @@ import com.aiflow.model.SysUser;
 import com.aiflow.repository.NotificationRepository;
 import com.aiflow.repository.ProcessInstanceRepository;
 import com.aiflow.repository.SysUserRepository;
+import com.aiflow.security.SecurityUtils;
 import com.aiflow.service.NotificationService;
 import com.aiflow.service.TaskUrgeService;
 import lombok.RequiredArgsConstructor;
 import org.flowable.engine.TaskService;
 import org.flowable.task.api.Task;
 import org.springframework.stereotype.Service;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
@@ -40,6 +42,10 @@ public class TaskUrgeServiceImpl implements TaskUrgeService {
         ProcessInstance instance = processInstanceRepository
                 .findByIdAndDeleted(processInstanceId, 0)
                 .orElseThrow(() -> new IllegalArgumentException("流程实例不存在。"));
+        Long currentUserId = SecurityUtils.currentUserId();
+        if (currentUserId == null || !currentUserId.equals(instance.getApplicantId())) {
+            throw new AccessDeniedException("only the applicant can urge this process instance");
+        }
         if (!"running".equals(instance.getStatus()) || !hasText(instance.getFlowableProcessInstanceId())) {
             throw new IllegalStateException("仅运行中的流程实例支持催办。");
         }

@@ -86,7 +86,7 @@ const allMenuGroups: MenuGroup[] = [
   {
     title: '概览',
     items: [
-      { label: '工作台', path: '/workbench', icon: DataAnalysis, available: true }
+      { label: '工作台', path: '/workbench', icon: DataAnalysis, available: true ,roles: superAdminOnly }
     ]
   },
   {
@@ -109,13 +109,13 @@ const allMenuGroups: MenuGroup[] = [
     title: '运行',
     items: [
       { label: '业务监控', path: '/business-monitor', icon: Monitor, available: true, roles: bizAdminOnly },
-      { label: '运行监控', path: '/dashboard', icon: Monitor, available: true, roles: superAdminOnly },
+      { label: '运行监控', path: '/runtime-monitor', icon: Monitor, available: true, roles: superAdminOnly },
       { label: '流程发起', path: '/process/start-preview', icon: CirclePlus, available: true },
       { label: '我的申请', path: '/process/instances', icon: Tickets, available: true },
       { label: '待办任务', path: '/tasks/todo', icon: Tickets, available: true, badge: '' },
       { label: '已办任务', path: '/tasks/done', icon: Tickets, available: true },
       { label: '通知中心', path: '/notifications', icon: Bell, available: true },
-      { label: '执行追踪', path: '/placeholder/tracing', icon: TrendCharts, roles: adminRoles }
+      { label: '执行追踪', path: '/dashboard', icon: TrendCharts, available: true,roles: superAdminOnly  }
     ]
   },
   {

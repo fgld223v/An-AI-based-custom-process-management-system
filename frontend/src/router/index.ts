@@ -95,11 +95,17 @@ const routes: RouteRecordRaw[] = [
         meta: { title: 'AI 流程优化', group: 'AI', roles: ADMIN_ROLES }
       },
       {
-        path: 'dashboard',
-        name: 'Dashboard',
+        path: 'runtime-monitor',
+        name: 'RuntimeMonitor',
         component: () => import('@/views/monitor/RuntimeMonitor.vue'),
         props: { scope: 'global' },
         meta: { title: '运行监控', group: '运行', roles: SUPER_ADMIN }
+      },
+      {
+        path: 'dashboard',
+        name: 'Dashboard',
+        component: () => import('@/views/dashboard/Dashboard.vue'),
+        meta: { title: '仪表盘', group: '运行', roles: ADMIN_ROLES }
       },
       {
         path: 'business-monitor',
@@ -174,20 +180,40 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/settings/AutomationSettings.vue'),
         meta: { title: '自动化策略', group: '系统', roles: ADMIN_ROLES }
       },
-      {
-        path: 'settings/automation',
-        name: 'AutomationSettings',
-        component: () => import('@/views/settings/AutomationSettings.vue'),
-        meta: { title: '自动化策略', group: '系统', roles: ['super_admin', 'biz_admin'] }
-      },
       // ---- 占位页面 ----
       {
         path: 'placeholder/:feature',
         name: 'Placeholder',
         component: () => import('@/views/placeholder/Placeholder.vue'),
         meta: { title: '功能预告' }
+      },
+      // ---- 404 兜底（布局内未匹配路径） ----
+      {
+        path: 'not-found',
+        name: 'NotFound',
+        component: () => import('@/views/placeholder/Placeholder.vue'),
+        props: { feature: '404' },
+        meta: { title: '页面未找到' }
+      },
+      {
+        path: ':pathMatch(.*)*',
+        name: 'LayoutCatchAll',
+        redirect: (to) => {
+          // 按角色兜底跳转到合适的默认页
+          const authStore = useAuthStore()
+          const role = authStore.user?.systemRole
+          if (role === 'normal_user') return '/process/start-preview'
+          if (role === 'super_admin' || role === 'biz_admin') return '/workbench'
+          return '/not-found'
+        }
       }
     ]
+  },
+  // ---- 全局 404（未登录或未匹配任何路由） ----
+  {
+    path: '/:pathMatch(.*)*',
+    name: 'GlobalCatchAll',
+    redirect: '/login'
   }
 ]
 

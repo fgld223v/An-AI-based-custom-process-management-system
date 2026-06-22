@@ -28,26 +28,17 @@ CREATE TABLE IF NOT EXISTS department (
 
 CREATE TABLE IF NOT EXISTS sys_user (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-  department_id BIGINT UNSIGNED NULL,
-  supervisor_id BIGINT UNSIGNED NULL,
   username VARCHAR(64) NOT NULL,
   password VARCHAR(255) NOT NULL,
-  password_hash VARCHAR(255) NULL,
   nickname VARCHAR(64) NULL,
-  real_name VARCHAR(64) NULL,
-  phone VARCHAR(32) NULL,
-  email VARCHAR(128) NULL,
-  avatar_url VARCHAR(512) NULL,
   role VARCHAR(32) NOT NULL DEFAULT 'USER',
   system_role ENUM('super_admin','biz_admin','normal_user') NOT NULL DEFAULT 'normal_user',
+  department_id BIGINT UNSIGNED NULL,
+  supervisor_id BIGINT UNSIGNED NULL,
   managed_biz_type_ids JSON NULL,
   enabled TINYINT NOT NULL DEFAULT 1,
-  status TINYINT NOT NULL DEFAULT 1,
-  last_login_at DATETIME NULL,
   created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   deleted TINYINT NOT NULL DEFAULT 0,
   PRIMARY KEY (id),
   UNIQUE KEY uk_sys_user_username (username),
@@ -56,10 +47,43 @@ CREATE TABLE IF NOT EXISTS sys_user (
   KEY idx_sys_user_role (role),
   KEY idx_sys_user_system_role (system_role),
   KEY idx_sys_user_enabled (enabled),
-  KEY idx_sys_user_status (status),
   KEY idx_sys_user_deleted (deleted),
-  KEY idx_sys_user_created_at (created_at)
+  KEY idx_sys_user_created_time (created_time)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='System user';
+
+CREATE TABLE IF NOT EXISTS workflow_role (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  role_code VARCHAR(64) NOT NULL,
+  role_name VARCHAR(128) NOT NULL,
+  description VARCHAR(512) NULL,
+  role_scope ENUM('global','department') NOT NULL DEFAULT 'department',
+  enabled TINYINT NOT NULL DEFAULT 1,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  deleted TINYINT NOT NULL DEFAULT 0,
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_workflow_role_code (role_code),
+  KEY idx_workflow_role_scope (role_scope),
+  KEY idx_workflow_role_enabled (enabled),
+  KEY idx_workflow_role_deleted (deleted)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Workflow business role';
+
+CREATE TABLE IF NOT EXISTS user_workflow_role (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id BIGINT UNSIGNED NOT NULL,
+  role_id BIGINT UNSIGNED NOT NULL,
+  department_id BIGINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '0 means global scope',
+  created_by BIGINT UNSIGNED NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  deleted TINYINT NOT NULL DEFAULT 0,
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_user_workflow_role_scope (user_id, role_id, department_id),
+  KEY idx_user_workflow_role_user (user_id),
+  KEY idx_user_workflow_role_role (role_id),
+  KEY idx_user_workflow_role_department (department_id),
+  KEY idx_user_workflow_role_deleted (deleted)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='User workflow role assignment';
 
 CREATE TABLE IF NOT EXISTS biz_type_dict (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -137,26 +161,28 @@ CREATE TABLE IF NOT EXISTS process_template (
   KEY idx_process_template_created_at (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Process template';
 
-CREATE TABLE IF NOT EXISTS workflow_template (
-  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-  template_name VARCHAR(128) NOT NULL,
-  business_type VARCHAR(64) NOT NULL,
-  form_json LONGTEXT NOT NULL,
-  bpmn_xml LONGTEXT NOT NULL,
-  status VARCHAR(32) NOT NULL DEFAULT 'DRAFT',
-  created_by BIGINT UNSIGNED NULL,
-  created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  deleted TINYINT NOT NULL DEFAULT 0,
-  PRIMARY KEY (id),
-  KEY idx_workflow_template_business_type (business_type),
-  KEY idx_workflow_template_status (status),
-  KEY idx_workflow_template_created_by (created_by),
-  KEY idx_workflow_template_deleted (deleted),
-  KEY idx_workflow_template_created_at (created_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Legacy workflow template';
+-- [DEPRECATED] workflow_template 表已废弃，统一使用 process_template（JPA）管理所有流程模板。
+-- 保留此表仅用于已部署数据库的向后兼容，新部署不会再创建该表。
+-- CREATE TABLE IF NOT EXISTS workflow_template (
+--   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+--   template_name VARCHAR(128) NOT NULL,
+--   business_type VARCHAR(64) NOT NULL,
+--   form_json LONGTEXT NOT NULL,
+--   bpmn_xml LONGTEXT NOT NULL,
+--   status VARCHAR(32) NOT NULL DEFAULT 'DRAFT',
+--   created_by BIGINT UNSIGNED NULL,
+--   created_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+--   updated_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+--   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+--   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+--   deleted TINYINT NOT NULL DEFAULT 0,
+--   PRIMARY KEY (id),
+--   KEY idx_workflow_template_business_type (business_type),
+--   KEY idx_workflow_template_status (status),
+--   KEY idx_workflow_template_created_by (created_by),
+--   KEY idx_workflow_template_deleted (deleted),
+--   KEY idx_workflow_template_created_at (created_at)
+-- ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Legacy workflow template (deprecated)';
 
 CREATE TABLE IF NOT EXISTS process_fragment (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -334,9 +360,9 @@ CREATE TABLE IF NOT EXISTS task (
 CREATE TABLE IF NOT EXISTS approval_record (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   instance_id BIGINT UNSIGNED NOT NULL,
-  task_id BIGINT UNSIGNED NULL,
+  task_id VARCHAR(128) NULL,
   node_key VARCHAR(128) NOT NULL,
-  approver_id BIGINT UNSIGNED NOT NULL,
+  approver_id BIGINT UNSIGNED NULL,
   action ENUM('approve','reject','supplement','delegate','transfer') NOT NULL,
   comment_text TEXT NULL,
   attachment_list JSON NULL,
@@ -346,10 +372,14 @@ CREATE TABLE IF NOT EXISTS approval_record (
   PRIMARY KEY (id),
   KEY idx_approval_record_instance_id (instance_id),
   KEY idx_approval_record_task_id (task_id),
+  UNIQUE KEY uk_approval_record_task_action (task_id, action),
   KEY idx_approval_record_approver_id (approver_id),
   KEY idx_approval_record_action (action),
   KEY idx_approval_record_created_at (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Approval record';
+
+ALTER TABLE approval_record MODIFY COLUMN task_id VARCHAR(128) NULL;
+ALTER TABLE approval_record MODIFY COLUMN approver_id BIGINT UNSIGNED NULL;
 
 CREATE TABLE IF NOT EXISTS ai_advice_record (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -491,11 +521,12 @@ CREATE TABLE IF NOT EXISTS system_config (
 CREATE TABLE IF NOT EXISTS notification (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   receiver_id BIGINT UNSIGNED NOT NULL,
-  type ENUM('task_remind','timeout_warning','approval_result','system_notice') NOT NULL,
+  type ENUM('task_remind','timeout_warning','approval_result','process_completed','system_notice') NOT NULL,
   title VARCHAR(256) NOT NULL,
   content TEXT NULL,
   target_type VARCHAR(64) NULL,
   target_id BIGINT UNSIGNED NULL,
+  target_url VARCHAR(512) NULL,
   read_status TINYINT NOT NULL DEFAULT 0,
   read_at DATETIME NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -509,6 +540,9 @@ CREATE TABLE IF NOT EXISTS notification (
   KEY idx_notification_deleted (deleted),
   KEY idx_notification_created_at (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Notification';
+
+ALTER TABLE notification
+  MODIFY COLUMN type ENUM('task_remind','timeout_warning','approval_result','process_completed','system_notice') NOT NULL;
 
 CREATE TABLE IF NOT EXISTS ai_service_account (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,

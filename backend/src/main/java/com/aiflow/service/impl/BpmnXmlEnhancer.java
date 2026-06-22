@@ -100,11 +100,12 @@ public class BpmnXmlEnhancer {
                     // 会签/或签 → 注入多实例特性
                     injectMultiInstance(doc, nodeId, "ALL".equals(approvalMode), config);
                 } else if ("approval".equals(businessType)) {
-                    // SINGLE 审批 → 不设 assignee，任务无候选人暂不可见。
-                    // 上一节点完成时由 TaskRuntimeServiceImpl.completeTask() 动态分配审批人。
-                    log.info("SINGLE 审批节点 {} 不注入 assignee，将在上一节点完成时动态分配", nodeId);
+                    injectSingleApprovalListener(doc, nodeId, config);
                 } else if ("notify".equals(businessType)) {
                     injectCcDelegate(doc, nodeId, config);
+                }
+                if ("form_fill".equals(businessType) || "approval".equals(businessType)) {
+                    injectTaskCreatedNotificationListener(doc, nodeId);
                 }
             }
 
@@ -140,17 +141,15 @@ public class BpmnXmlEnhancer {
         multiInstance.setAttributeNS(FLOWABLE_NS, FLOWABLE_PREFIX + ":elementVariable",
                 "assignee");
 
-        if (!allMustComplete) {
-            // 或签：任一完成即继续
-            Element completionCondition = doc.createElementNS(BPMN_NS,
-                    "bpmn:completionCondition");
-            completionCondition.setTextContent("${nrOfCompletedInstances >= 1}");
-            // Flowable 要求 completionCondition 有 xsi:type
-            completionCondition.setAttributeNS(
-                    "http://www.w3.org/2001/XMLSchema-instance", "xsi:type",
-                    "bpmn:tFormalExpression");
-            multiInstance.appendChild(completionCondition);
-        }
+        Element completionCondition = doc.createElementNS(BPMN_NS,
+                "bpmn:completionCondition");
+        completionCondition.setTextContent(allMustComplete
+                ? "${rejected || nrOfCompletedInstances == nrOfInstances}"
+                : "${rejected || nrOfCompletedInstances >= 1}");
+        completionCondition.setAttributeNS(
+                "http://www.w3.org/2001/XMLSchema-instance", "xsi:type",
+                "bpmn:tFormalExpression");
+        multiInstance.appendChild(completionCondition);
 
         // 注入 executionListener — 在 multiInstance 启动时解析审批人列表
         Element executionListener = doc.createElementNS(FLOWABLE_NS,
@@ -216,9 +215,6 @@ public class BpmnXmlEnhancer {
             return;
         }
 
-        // 先设置一个占位 assignee，确保 Flowable 能创建任务
-        userTask.setAttributeNS(FLOWABLE_NS, FLOWABLE_PREFIX + ":assignee", "${initiator}");
-
         // 查找或创建 bpmn:extensionElements 容器
         Element extElements = findExtensionElements(doc, userTask);
         if (extElements == null) {
@@ -232,6 +228,16 @@ public class BpmnXmlEnhancer {
             }
         }
 
+        NodeList existingListeners = extElements.getElementsByTagNameNS(FLOWABLE_NS, "taskListener");
+        for (int i = 0; i < existingListeners.getLength(); i++) {
+            Element listener = (Element) existingListeners.item(i);
+            String delegateExpression = listener.getAttributeNS(FLOWABLE_NS, "delegateExpression");
+            if ("create".equals(listener.getAttribute("event"))
+                    && "${singleAssigneeListener}".equals(delegateExpression)) {
+                return;
+            }
+        }
+
         // 注入 TaskListener — create 事件触发时由 singleAssigneeListener 重新分配
         Element taskListener = doc.createElementNS(FLOWABLE_NS,
                 FLOWABLE_PREFIX + ":taskListener");
@@ -242,6 +248,35 @@ public class BpmnXmlEnhancer {
 
         log.info("已为 SINGLE 审批节点 {} 注入 TaskListener（assignStrategy={}）",
                 nodeId, stringValue(config.get("assignStrategy")));
+    }
+
+    private void injectTaskCreatedNotificationListener(Document doc, String nodeId) {
+        Element userTask = findElementById(doc, "userTask", nodeId);
+        if (userTask == null) return;
+
+        Element extElements = findExtensionElements(doc, userTask);
+        if (extElements == null) {
+            extElements = doc.createElementNS(BPMN_NS, "bpmn:extensionElements");
+            org.w3c.dom.Node firstChild = userTask.getFirstChild();
+            if (firstChild != null) userTask.insertBefore(extElements, firstChild);
+            else userTask.appendChild(extElements);
+        }
+
+        NodeList listeners = extElements.getElementsByTagNameNS(FLOWABLE_NS, "taskListener");
+        for (int i = 0; i < listeners.getLength(); i++) {
+            Element listener = (Element) listeners.item(i);
+            if ("create".equals(listener.getAttribute("event"))
+                    && "${taskCreatedNotificationListener}".equals(
+                    listener.getAttributeNS(FLOWABLE_NS, "delegateExpression"))) {
+                return;
+            }
+        }
+
+        Element listener = doc.createElementNS(FLOWABLE_NS, FLOWABLE_PREFIX + ":taskListener");
+        listener.setAttribute("event", "create");
+        listener.setAttributeNS(FLOWABLE_NS, FLOWABLE_PREFIX + ":delegateExpression",
+                "${taskCreatedNotificationListener}");
+        extElements.appendChild(listener);
     }
 
     /**

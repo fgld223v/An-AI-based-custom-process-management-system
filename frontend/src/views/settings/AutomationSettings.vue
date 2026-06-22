@@ -142,28 +142,15 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { Check, Plus, Refresh } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { getAutomationRules, saveAutomationRules, type AutomationRule } from '@/api/systemConfig'
 
 type RuleAction = 'approve' | 'notify'
 type RuleStatus = '' | 'enabled' | 'disabled'
 
-interface AutomationRule {
-  id: string
-  name: string
-  scope: string
-  field: string
-  operator: string
-  value: string
-  action: RuleAction
-  enabled: boolean
-  remark: string
-  updatedAt: string
-}
-
-const STORAGE_KEY = 'aiflow.automation.rules'
-
 const rules = ref<AutomationRule[]>([])
 const drawerVisible = ref(false)
 const editingId = ref('')
+const loading = ref(false)
 const query = reactive<{ keyword: string; status: RuleStatus; field: string }>({
   keyword: '',
   status: '',
@@ -199,22 +186,40 @@ onMounted(() => {
   loadRules()
 })
 
-function loadRules() {
-  const raw = localStorage.getItem(STORAGE_KEY)
-  if (raw) {
-    try {
-      rules.value = JSON.parse(raw)
-      return
-    } catch {
-      localStorage.removeItem(STORAGE_KEY)
+async function loadRules() {
+  loading.value = true
+  try {
+    rules.value = await getAutomationRules()
+    if (rules.value.length === 0) {
+      rules.value = defaultRules()
+      await persistRules()
     }
+  } catch {
+    // 后端不可用时回退到 localStorage
+    ElMessage.warning('自动化策略服务暂不可用，使用本地缓存')
+    const raw = localStorage.getItem('aiflow.automation.rules')
+    if (raw) {
+      try {
+        rules.value = JSON.parse(raw)
+        loading.value = false
+        return
+      } catch {
+        localStorage.removeItem('aiflow.automation.rules')
+      }
+    }
+    rules.value = defaultRules()
+  } finally {
+    loading.value = false
   }
-  rules.value = defaultRules()
-  persistRules()
 }
 
-function persistRules() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(rules.value))
+async function persistRules() {
+  try {
+    await saveAutomationRules(rules.value)
+  } catch {
+    // 后端不可用时回退到 localStorage
+    localStorage.setItem('aiflow.automation.rules', JSON.stringify(rules.value))
+  }
 }
 
 function openCreate() {

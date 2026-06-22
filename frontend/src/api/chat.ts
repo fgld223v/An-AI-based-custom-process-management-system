@@ -25,11 +25,14 @@ export function getMessages(sessionId: number) {
  * Stream chat via SSE.
  * Uses native fetch (not axios) because we need to read the response
  * body as a ReadableStream for token-by-token rendering.
+ *
+ * @param signal AbortSignal to cancel the request (timeout or manual abort)
  */
 export function streamChat(
   sessionId: number,
   message: string,
-  token: string
+  token: string,
+  signal?: AbortSignal
 ): Promise<Response> {
   return fetch('/api/ai/chat/stream', {
     method: 'POST',
@@ -37,6 +40,7 @@ export function streamChat(
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`
     },
-    body: JSON.stringify({ sessionId, message })
+    body: JSON.stringify({ sessionId, message }),
+    signal
   })
 }

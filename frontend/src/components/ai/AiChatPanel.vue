@@ -101,12 +101,12 @@
             </div>
 
             <!-- Input Area -->
-            <div class="chat-input-area">
+            <div class="chat-input-area" @mousedown.stop @click.stop>
               <el-input
+                ref="inputRef"
                 v-model="inputText"
                 type="textarea"
                 :rows="2"
-                :disabled="store.streaming"
                 placeholder="输入消息，Enter 发送，Shift+Enter 换行"
                 resize="none"
                 @keydown="handleKeydown"
@@ -125,6 +125,7 @@
         </div>
 
         <!-- Resize handles -->
+        <div class="resize-handle resize-t" @mousedown.stop="startResizeT" @touchstart.stop="startResizeT" />
         <div class="resize-handle resize-br" @mousedown.stop="startResizeBR" @touchstart.stop="startResizeBR">
           <svg width="12" height="12" viewBox="0 0 12 12"><path d="M0 12L12 0M4 12L12 4M8 12L12 8" stroke="#999" stroke-width="1.2"/></svg>
         </div>
@@ -282,13 +283,35 @@ function onResizeR(e: MouseEvent | TouchEvent) {
   panelW.value = clampW(x - panelX.value)
 }
 
-// ---- Resize (bottom edge: changes Y+H) ----
-function startResizeB(e: MouseEvent | TouchEvent) {
+// ---- Resize (top edge: changes Y+H) ----
+function startResizeT(e: MouseEvent | TouchEvent) {
   if (dragging.value) return
   e.preventDefault(); e.stopPropagation()
   resizing.value = true
   const bottomEdge = panelY.value + panelH.value
   resizeOffY.value = bottomEdge
+  document.addEventListener('mousemove', onResizeT)
+  document.addEventListener('mouseup', stopResize)
+  document.addEventListener('touchmove', onResizeT, { passive: false })
+  document.addEventListener('touchend', stopResize)
+}
+
+function onResizeT(e: MouseEvent | TouchEvent) {
+  if (!resizing.value) return
+  e.preventDefault()
+  const { y } = getClient(e)
+  const bottomEdge = resizeOffY.value
+  const newY = Math.max(0, Math.min(bottomEdge - MIN_H, y))
+  panelY.value = newY
+  panelH.value = clampH(bottomEdge - newY)
+}
+
+// ---- Resize (bottom edge: changes H, top stays fixed) ----
+function startResizeB(e: MouseEvent | TouchEvent) {
+  if (dragging.value) return
+  e.preventDefault(); e.stopPropagation()
+  resizing.value = true
+  resizeOffY.value = panelY.value // Lock the top edge position
   document.addEventListener('mousemove', onResizeB)
   document.addEventListener('mouseup', stopResize)
   document.addEventListener('touchmove', onResizeB, { passive: false })
@@ -299,19 +322,19 @@ function onResizeB(e: MouseEvent | TouchEvent) {
   if (!resizing.value) return
   e.preventDefault()
   const { y } = getClient(e)
-  const bottomEdge = resizeOffY.value
-  const newY = Math.max(0, y)
-  panelY.value = newY
-  panelH.value = clampH(bottomEdge - newY)
+  const topEdge = resizeOffY.value
+  panelH.value = clampH(y - topEdge)
 }
 
 function stopResize() {
   resizing.value = false
+  document.removeEventListener('mousemove', onResizeT)
   document.removeEventListener('mousemove', onResizeBR)
   document.removeEventListener('mousemove', onResizeL)
   document.removeEventListener('mousemove', onResizeR)
   document.removeEventListener('mousemove', onResizeB)
   document.removeEventListener('mouseup', stopResize)
+  document.removeEventListener('touchmove', onResizeT)
   document.removeEventListener('touchmove', onResizeBR)
   document.removeEventListener('touchmove', onResizeL)
   document.removeEventListener('touchmove', onResizeR)
@@ -325,8 +348,18 @@ function clampH(h: number) { return Math.max(MIN_H, Math.min(MAX_H, h)) }
 onBeforeUnmount(() => {
   stopDrag()
   stopResize()
+  store.abortStream()
 })
 const messagesRef = ref<HTMLElement>()
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const inputRef = ref<any>()
+
+function focusInput() {
+  nextTick(() => {
+    inputRef.value?.focus?.()
+    inputRef.value?.textarea?.focus?.()
+  })
+}
 
 // Auto-scroll when messages change
 watch(
@@ -348,6 +381,26 @@ watch(
       nextTick(() => {
         inputText.value = ''
       })
+      focusInput()
+    }
+  }
+)
+
+// Re-focus textarea after streaming ends so the next question can be typed immediately.
+watch(
+  () => store.streaming,
+  (isStreaming, wasStreaming) => {
+    if (!isStreaming && wasStreaming) {
+      focusInput()
+    }
+  }
+)
+
+watch(
+  () => store.minimized,
+  (minimized) => {
+    if (!minimized && store.isOpen) {
+      focusInput()
     }
   }
 )
@@ -609,7 +662,7 @@ async function handleDeleteSession(session: ChatSession) {
 .resize-l {
   left: 0;
   top: 40px;
-  bottom: 40px;
+  bottom: 76px;
   width: 6px;
   cursor: ew-resize;
 }
@@ -621,7 +674,7 @@ async function handleDeleteSession(session: ChatSession) {
 .resize-r {
   right: 0;
   top: 40px;
-  bottom: 40px;
+  bottom: 76px;
   width: 6px;
   cursor: ew-resize;
 }
@@ -630,10 +683,22 @@ async function handleDeleteSession(session: ChatSession) {
   background: rgba(0, 163, 255, 0.15);
 }
 
+.resize-t {
+  top: 0;
+  left: 72px;
+  right: 72px;
+  height: 6px;
+  cursor: ns-resize;
+}
+
+.resize-t:hover {
+  background: rgba(0, 163, 255, 0.15);
+}
+
 .resize-b {
   bottom: 0;
-  left: 40px;
-  right: 40px;
+  left: 72px;
+  right: 72px;
   height: 6px;
   cursor: ns-resize;
 }

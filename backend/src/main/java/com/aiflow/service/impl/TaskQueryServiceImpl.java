@@ -1,12 +1,15 @@
 package com.aiflow.service.impl;
 
 import com.aiflow.dto.TaskDTO;
+import com.aiflow.model.ApprovalRecord;
 import com.aiflow.model.ProcessInstance;
 import com.aiflow.model.ProcessTemplate;
+import com.aiflow.repository.ApprovalRecordRepository;
 import com.aiflow.repository.ProcessInstanceRepository;
 import com.aiflow.repository.ProcessTemplateRepository;
 import com.aiflow.security.SecurityUtils;
 import com.aiflow.service.TaskQueryService;
+import com.aiflow.service.TaskAuthorizationService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +22,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -46,6 +50,8 @@ public class TaskQueryServiceImpl implements TaskQueryService {
     private final ProcessTemplateRepository processTemplateRepository;
     private final ObjectMapper objectMapper;
     private final FormBindConfigParser formBindConfigParser;
+    private final TaskAuthorizationService taskAuthorizationService;
+    private final ApprovalRecordRepository approvalRecordRepository;
 
     // ========================================================================
     // 待办（ACT_RU_TASK）
@@ -85,7 +91,10 @@ public class TaskQueryServiceImpl implements TaskQueryService {
     @Override
     public List<TaskDTO> listDoneTasks() {
         Long currentUserId = SecurityUtils.currentUserId();
-        String userIdStr = currentUserId != null ? String.valueOf(currentUserId) : null;
+        if (currentUserId == null) {
+            return List.of();
+        }
+        String userIdStr = String.valueOf(currentUserId);
 
         List<HistoricTaskInstance> historicTasks = historyService
                 .createHistoricTaskInstanceQuery()
@@ -94,16 +103,46 @@ public class TaskQueryServiceImpl implements TaskQueryService {
                 .orderByHistoricTaskInstanceEndTime().desc()
                 .list();
 
+        Map<String, HistoricTaskInstance> tasksById = new LinkedHashMap<>();
+        historicTasks.forEach(task -> tasksById.put(task.getId(), task));
+
+        // Some tasks assigned by a CREATE listener have no ASSIGNEE_ in ACT_HI_TASKINST.
+        // approval_record is the authoritative audit trail for the actual operator.
+        List<ApprovalRecord> approvalRecords = approvalRecordRepository
+                .findByApproverIdAndTaskIdIsNotNullOrderByOperatedAtDesc(currentUserId);
+        for (ApprovalRecord record : approvalRecords) {
+            if (!hasText(record.getTaskId()) || tasksById.containsKey(record.getTaskId())) {
+                continue;
+            }
+            HistoricTaskInstance historicTask = historyService
+                    .createHistoricTaskInstanceQuery()
+                    .taskId(record.getTaskId())
+                    .finished()
+                    .singleResult();
+            if (historicTask != null) {
+                tasksById.put(historicTask.getId(), historicTask);
+            }
+        }
+
         List<TaskDTO> result = new ArrayList<>();
-        for (HistoricTaskInstance ht : historicTasks) {
+        for (HistoricTaskInstance ht : tasksById.values()) {
             ProcessInstance instance = processInstanceRepository
                     .findByFlowableProcessInstanceIdAndDeleted(ht.getProcessInstanceId(), 0)
                     .orElse(null);
             if (instance == null) {
                 continue;
             }
-            result.add(toTaskDTO(ht, instance));
+            TaskDTO dto = toTaskDTO(ht, instance);
+            if (!hasText(dto.getAssignee())) {
+                dto.setAssignee(userIdStr);
+            }
+            result.add(dto);
         }
+        result.sort((left, right) -> {
+            if (left.getEndTime() == null) return right.getEndTime() == null ? 0 : 1;
+            if (right.getEndTime() == null) return -1;
+            return right.getEndTime().compareTo(left.getEndTime());
+        });
         return result;
     }
 
@@ -118,6 +157,7 @@ public class TaskQueryServiceImpl implements TaskQueryService {
                 .taskId(taskId)
                 .singleResult();
         if (task != null) {
+            taskAuthorizationService.assertCanView(task);
             ProcessInstance instance = processInstanceRepository
                     .findByFlowableProcessInstanceIdAndDeleted(task.getProcessInstanceId(), 0)
                     .orElseThrow(() -> new IllegalArgumentException("关联的业务流程实例不存在。"));
@@ -132,11 +172,21 @@ public class TaskQueryServiceImpl implements TaskQueryService {
         if (historicTask == null) {
             throw new IllegalArgumentException("任务不存在。");
         }
+        Long currentUserId = SecurityUtils.currentUserId();
+        boolean recordedApprover = currentUserId != null
+                && approvalRecordRepository.existsByTaskIdAndApproverId(taskId, currentUserId);
+        if (!recordedApprover) {
+            taskAuthorizationService.assertCanView(historicTask);
+        }
 
         ProcessInstance instance = processInstanceRepository
                 .findByFlowableProcessInstanceIdAndDeleted(historicTask.getProcessInstanceId(), 0)
                 .orElseThrow(() -> new IllegalArgumentException("关联的业务流程实例不存在。"));
-        return toTaskDTO(historicTask, instance);
+        TaskDTO dto = toTaskDTO(historicTask, instance);
+        if (!hasText(dto.getAssignee()) && recordedApprover) {
+            dto.setAssignee(String.valueOf(currentUserId));
+        }
+        return dto;
     }
 
     // ========================================================================
