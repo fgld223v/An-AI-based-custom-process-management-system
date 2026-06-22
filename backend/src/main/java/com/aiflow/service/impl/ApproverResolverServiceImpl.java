@@ -76,19 +76,6 @@ public class ApproverResolverServiceImpl implements ApproverResolverService {
             throw new IllegalStateException("流程发起人尚未归属部门，无法解析部门负责人");
         }
         return resolveDepartmentLeader(departmentId);
-        Long applicantId = instance.getApplicantId();
-        if (applicantId == null) return defaultApprover();
-
-        // 查询发起人的用户记录获取 departmentId
-        UserEntity applicant = sysUserMapper.selectById(applicantId);
-        if (applicant == null || applicant.getDepartmentId() == null) return defaultApprover();
-
-        // 查询部门获取 leader
-        Department dept = departmentRepository.findByIdAndDeleted(applicant.getDepartmentId(), 0).orElse(null);
-        if (dept != null && dept.getLeaderUserId() != null) {
-            return List.of(dept.getLeaderUserId());
-        }
-        return defaultApprover();
     }
 
     /**
@@ -126,13 +113,6 @@ public class ApproverResolverServiceImpl implements ApproverResolverService {
         UserEntity applicant = applicant(instance);
         if (applicant == null || applicant.getSupervisorId() == null) return List.of();
         return activeDistinct(List.of(applicant.getSupervisorId()));
-        Long applicantId = instance.getApplicantId();
-        if (applicantId == null) return resolveDeptManager(instance);
-        UserEntity applicant = sysUserMapper.selectById(applicantId);
-        if (applicant != null && applicant.getSupervisorId() != null) {
-            return List.of(applicant.getSupervisorId());
-        }
-        return resolveDeptManager(instance); // 无上级时回退到部门经理
     }
 
     /**
