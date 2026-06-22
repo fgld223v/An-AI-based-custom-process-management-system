@@ -131,6 +131,7 @@ const allMenuGroups: MenuGroup[] = [
     items: [
       { label: '用户管理', path: '/admin/users', icon: UserFilled, available: true, roles: superAdminOnly },
       { label: '部门管理', path: '/admin/departments', icon: OfficeBuilding, available: true, roles: superAdminOnly },
+      { label: '流程角色管理', path: '/admin/workflow-roles', icon: UserFilled, available: true, roles: superAdminOnly },
       { label: '自动化策略', path: '/settings/automation', icon: Operation, available: true, roles: adminRoles },
       { label: '个人设置', path: '/settings', icon: Setting, available: true },
       { label: 'AI 资源池', path: '/placeholder/ai-pool', icon: Cpu, roles: adminRoles },

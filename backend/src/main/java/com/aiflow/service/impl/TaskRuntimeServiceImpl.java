@@ -2,15 +2,12 @@ package com.aiflow.service.impl;
 
 import com.aiflow.dto.TaskCompleteRequest;
 import com.aiflow.dto.TaskDTO;
-import com.aiflow.entity.UserEntity;
-import com.aiflow.mapper.SysUserMapper;
 import com.aiflow.model.FormSubmission;
 import com.aiflow.model.ProcessInstance;
 import com.aiflow.model.ProcessTemplate;
 import com.aiflow.repository.FormSubmissionRepository;
 import com.aiflow.repository.ProcessInstanceRepository;
 import com.aiflow.repository.ProcessTemplateRepository;
-import com.aiflow.service.ApproverResolverService;
 import com.aiflow.service.ApprovalRecordService;
 import com.aiflow.service.ApprovalVariableService;
 import com.aiflow.service.RuleEvaluatorService;
@@ -61,8 +58,6 @@ public class TaskRuntimeServiceImpl implements TaskRuntimeService {
     private final ProcessInstanceRepository processInstanceRepository;
     private final FormSubmissionRepository formSubmissionRepository;
     private final ProcessTemplateRepository processTemplateRepository;
-    private final ApproverResolverService approverResolverService;
-    private final SysUserMapper sysUserMapper;
     private final RuleEvaluatorService ruleEvaluatorService;
     private final ObjectMapper objectMapper;
     private final NodeConfigParser nodeConfigParser;
@@ -182,61 +177,7 @@ public class TaskRuntimeServiceImpl implements TaskRuntimeService {
         // ================================================================
         // 6-7. 查询下一任务并执行审批规则自动流转
         // ================================================================
-        // 判断当前任务是否为多实例（会签/或签）
-        boolean isMultiInstance = isMultiInstanceNode(
-                instance.getTemplateId(), task.getTaskDefinitionKey());
         Task nextTask = ruleEvaluatorService.evaluateAndAutoComplete(instance);
-
-        // ================================================================
-        // 8. 审批人解析与分配（下一个 UserTask 自动分配 assignee）
-        // ================================================================
-        if (nextTask != null) {
-            // 多实例场景：如果下一任务是同节点多实例的另一个副本，
-            // 跳过手动分配（由 MultiInstanceAssigneeListener 处理）
-            boolean isNextTaskSameMultiInstance = isMultiInstance
-                    && nextTask.getTaskDefinitionKey().equals(task.getTaskDefinitionKey());
-
-            if (!isNextTaskSameMultiInstance && !hasText(nextTask.getAssignee())) {
-                String strategy = resolveAssignStrategy(instance.getTemplateId(), nextTask.getTaskDefinitionKey());
-                String assignValue = resolveAssignValue(instance.getTemplateId(), nextTask.getTaskDefinitionKey());
-
-                // 检查下一个节点是否也是多实例（会签/或签）
-                boolean nextIsMultiInstance = isMultiInstanceNode(
-                        instance.getTemplateId(), nextTask.getTaskDefinitionKey());
-
-                if (nextIsMultiInstance) {
-                    // 下一个节点是多实例 → 由 MultiInstanceAssigneeListener 分配
-                    // 不在此处手动分配
-                } else {
-                    // 对于审批节点，如果未配置 assignStrategy，默认使用 DEPARTMENT_MANAGER
-                    if (strategy == null || strategy.isBlank()) {
-                        String nextBusinessType = resolveBusinessType(
-                                instance.getTemplateId(), nextTask.getTaskDefinitionKey());
-                        if ("approval".equals(nextBusinessType)) {
-                            strategy = "DEPARTMENT_MANAGER";
-                            log.info("审批节点 {} 未配置审批策略，默认使用 DEPARTMENT_MANAGER",
-                                    nextTask.getTaskDefinitionKey());
-                        }
-                    }
-
-                    if (strategy != null && !strategy.isBlank()) {
-                        List<Long> approverIds = approverResolverService.resolveApprovers(
-                                instance.getId(), nextTask.getTaskDefinitionKey(), strategy, assignValue);
-                        if (!approverIds.isEmpty()) {
-                            UserEntity approver = sysUserMapper.selectById(approverIds.get(0));
-                            if (approver != null) {
-                                taskService.setAssignee(nextTask.getId(), String.valueOf(approver.getId()));
-                                log.info("已为审批任务 {} 分配审批人: {} (id={})",
-                                        nextTask.getName(), approver.getNickname(), approver.getId());
-                            }
-                        } else {
-                            log.warn("审批节点 {} 的审批人解析为空，流程可能卡死",
-                                    nextTask.getTaskDefinitionKey());
-                        }
-                    }
-                }
-            }
-        }
 
         // 构建返回结果：下一任务或 null
         if (nextTask != null) {
@@ -321,20 +262,6 @@ public class TaskRuntimeServiceImpl implements TaskRuntimeService {
     }
 
     /**
-     * 从 nodeConfig 读取审批节点的 assignStrategy。
-     */
-    private String resolveAssignStrategy(Long templateId, String taskDefinitionKey) {
-        return nodeConfigParser.getStringField(getNodeConfigJson(templateId), taskDefinitionKey, "assignStrategy");
-    }
-
-    /**
-     * 从 nodeConfig 读取审批节点的 assignValue。
-     */
-    private String resolveAssignValue(Long templateId, String taskDefinitionKey) {
-        return nodeConfigParser.getStringField(getNodeConfigJson(templateId), taskDefinitionKey, "assignValue");
-    }
-
-    /**
      * 从模板获取 nodeConfig JSON 字符串。
      */
     private String getNodeConfigJson(Long templateId) {
@@ -349,18 +276,6 @@ public class TaskRuntimeServiceImpl implements TaskRuntimeService {
 
     private String safeMessage(Exception ex) {
         return hasText(ex.getMessage()) ? ex.getMessage() : ex.getClass().getSimpleName();
-    }
-
-    // ========================================================================
-    // 多实例判断
-    // ========================================================================
-
-    /**
-     * 判断指定节点是否为多实例（会签/或签）。
-     */
-    private boolean isMultiInstanceNode(Long templateId, String nodeKey) {
-        String mode = nodeConfigParser.getStringField(getNodeConfigJson(templateId), nodeKey, "approvalMode");
-        return "ALL".equalsIgnoreCase(mode) || "ANY".equalsIgnoreCase(mode);
     }
 
     // ========================================================================

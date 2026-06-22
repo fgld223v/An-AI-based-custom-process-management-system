@@ -118,11 +118,26 @@ public class SingleAssigneeListener implements TaskListener {
             throw new IllegalStateException("审批节点未解析到有效处理人，nodeKey=" + nodeKey);
         }
 
-        // 单人审批取第一个审批人
+        if (isWorkflowRoleStrategy(assignStrategy)) {
+            List<String> candidateIds = approverIds.stream().map(String::valueOf).toList();
+            task.addCandidateUsers(candidateIds);
+            log.info("SingleAssigneeListener: 审批节点 {} 已分配候选人={}（strategy={}, value={}）",
+                    nodeKey, candidateIds, assignStrategy, assignValue);
+            return;
+        }
+
         String assigneeId = String.valueOf(approverIds.get(0));
         task.setAssignee(assigneeId);
         log.info("SingleAssigneeListener: 审批节点 {} 已分配 assignee={}（strategy={}, value={}）",
                 nodeKey, assigneeId, assignStrategy, assignValue);
+    }
+
+    private boolean isWorkflowRoleStrategy(String strategy) {
+        if (!hasText(strategy)) return false;
+        return switch (strategy.trim().toUpperCase()) {
+            case "ROLE", "ROLE_IN_APPLICANT_DEPT", "ROLE_IN_SPECIFIED_DEPT", "GLOBAL_ROLE" -> true;
+            default -> false;
+        };
     }
 
     /**

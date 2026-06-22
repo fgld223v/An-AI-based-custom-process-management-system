@@ -91,10 +91,12 @@ public class RuleEvaluatorServiceImpl implements RuleEvaluatorService {
     }
 
     private Task currentTask(ProcessInstance instance) {
-        return taskService.createTaskQuery()
+        List<Task> activeTasks = taskService.createTaskQuery()
                 .processInstanceId(instance.getFlowableProcessInstanceId())
                 .active()
-                .singleResult();
+                .orderByTaskCreateTime().asc()
+                .list();
+        return activeTasks.isEmpty() ? null : activeTasks.get(0);
     }
 
     private void refreshProcessInstanceState(ProcessInstance instance, Task currentTask, LocalDateTime now) {
