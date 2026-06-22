@@ -6,6 +6,12 @@ export interface LoginRequest {
   password: string
 }
 
+export interface ResetPasswordRequest {
+  username: string
+  newPassword: string
+  confirmPassword: string
+}
+
 export interface LoginResponse {
   token: string
   tokenType: string
