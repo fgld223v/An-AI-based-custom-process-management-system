@@ -31,5 +31,7 @@ public interface ProcessTemplateService {
     /** 停用已发布版本，保留 Flowable 部署信息供历史实例追溯。 */
     ProcessTemplate unpublishTemplate(Long id);
 
+    void deleteTemplate(Long id);
+
     ProcessTemplate copyTemplate(ProcessTemplate sourceTemplate, Long createdBy, String newTemplateName);
 }

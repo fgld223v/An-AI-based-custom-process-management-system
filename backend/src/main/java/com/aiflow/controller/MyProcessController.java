@@ -14,6 +14,7 @@ import com.aiflow.service.ProcessTemplateService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -107,6 +108,13 @@ public class MyProcessController {
         getOwnedTemplate(id);
         ProcessTemplate saved = processTemplateService.unpublishTemplate(id);
         return ApiResponse.success(DtoMapper.toProcessTemplateDTO(saved));
+    }
+
+    @DeleteMapping("/{id}")
+    public ApiResponse<Void> deleteMyProcess(@PathVariable Long id) {
+        getOwnedTemplate(id);
+        processTemplateService.deleteTemplate(id);
+        return ApiResponse.success();
     }
 
     private ProcessTemplate getOwnedTemplate(Long id) {

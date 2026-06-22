@@ -12,6 +12,7 @@ import com.aiflow.model.ProcessTemplate;
 import com.aiflow.model.SysUser;
 import com.aiflow.repository.DepartmentRepository;
 import com.aiflow.repository.FormDefinitionRepository;
+import com.aiflow.repository.ProcessInstanceRepository;
 import com.aiflow.repository.ProcessTemplateRepository;
 import com.aiflow.repository.SysUserRepository;
 import com.aiflow.service.FlowableDeploymentService;
@@ -41,6 +42,7 @@ public class ProcessTemplateServiceImpl implements ProcessTemplateService {
     private static final DateTimeFormatter COPY_CODE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS");
 
     private final ProcessTemplateRepository processTemplateRepository;
+    private final ProcessInstanceRepository processInstanceRepository;
     private final FormDefinitionRepository formDefinitionRepository;
     private final FlowableDeploymentService flowableDeploymentService;
     private final ProcessAuthorizationService processAuthorizationService;
@@ -167,10 +169,11 @@ public class ProcessTemplateServiceImpl implements ProcessTemplateService {
                 .filter(item -> item.getStatus() == TemplateStatus.PUBLISHED)
                 .findFirst()
                 .orElse(requestedVersion);
-        int nextVersion = versions.stream()
+        int nextVersion = processTemplateRepository
+                .findFirstByTemplateCodeAndResourceTypeOrderByVersionDesc(
+                        requestedVersion.getTemplateCode(), requestedVersion.getResourceType())
                 .map(ProcessTemplate::getVersion)
                 .filter(java.util.Objects::nonNull)
-                .max(Integer::compareTo)
                 .orElse(0) + 1;
         LocalDateTime now = LocalDateTime.now();
         ProcessTemplate draft = ProcessTemplate.builder()
@@ -263,6 +266,21 @@ public class ProcessTemplateServiceImpl implements ProcessTemplateService {
         existing.setStatus(TemplateStatus.DISABLED);
         existing.setUpdatedAt(now);
         return processTemplateRepository.save(existing);
+    }
+
+    @Override
+    public void deleteTemplate(Long id) {
+        requireId(id, "id must not be null");
+        ProcessTemplate existing = getRequiredTemplate(id);
+        if (existing.getStatus() == TemplateStatus.PUBLISHED) {
+            throw new IllegalStateException("已发布流程请先停用后再删除");
+        }
+        if (processInstanceRepository.existsByTemplateIdAndDeleted(id, 0)) {
+            throw new IllegalStateException("该流程版本已有流程实例，不能删除；可保持停用状态以保留历史记录");
+        }
+        existing.setDeleted(1);
+        existing.setUpdatedAt(LocalDateTime.now());
+        processTemplateRepository.save(existing);
     }
 
     @Override

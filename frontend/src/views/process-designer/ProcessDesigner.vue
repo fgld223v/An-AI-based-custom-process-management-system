@@ -162,20 +162,34 @@
           </el-form-item>
           <el-form-item label="发起权限">
             <el-select v-model="selectedConfig.startPermission" @change="handleStartPermissionChange">
-              <el-option label="所有人" value="ALL" />
-              <el-option label="指定角色" value="ROLE" />
+              <el-option label="全体用户" value="ALL" />
+              <el-option label="创建人所在部门" value="CREATOR_DEPARTMENT" />
               <el-option label="指定部门" value="DEPARTMENT" />
+              <el-option label="指定系统角色" value="SYSTEM_ROLE" />
+              <el-option label="指定流程角色" value="WORKFLOW_ROLE" />
             </el-select>
           </el-form-item>
-          <el-form-item v-if="selectedConfig.startPermission === 'ROLE'" label="允许发起的角色">
-            <el-select v-model="selectedConfig.startPermissionValue" placeholder="请选择角色" @change="syncNodeConfig">
+          <el-form-item v-if="selectedConfig.startPermission === 'SYSTEM_ROLE'" label="允许发起的系统角色">
+            <el-select v-model="selectedStartSystemRoles" multiple placeholder="请选择系统角色">
               <el-option label="普通用户" value="normal_user" />
               <el-option label="业务管理员" value="biz_admin" />
               <el-option label="超级管理员" value="super_admin" />
             </el-select>
           </el-form-item>
           <el-form-item v-if="selectedConfig.startPermission === 'DEPARTMENT'" label="允许发起的部门">
-            <el-input v-model="selectedConfig.startPermissionValue" placeholder="请输入部门 ID，多个用逗号分隔" @change="syncNodeConfig" />
+            <el-select v-model="selectedStartDepartmentIds" multiple filterable placeholder="请选择部门">
+              <el-option v-for="item in organizationDepartments" :key="item.id" :label="item.name" :value="item.id" />
+            </el-select>
+          </el-form-item>
+          <el-form-item v-if="selectedConfig.startPermission === 'WORKFLOW_ROLE'" label="允许发起的流程角色">
+            <el-select v-model="selectedStartWorkflowRoles" multiple filterable placeholder="请选择流程角色">
+              <el-option
+                v-for="item in workflowRoles"
+                :key="item.id"
+                :label="`${item.roleName} (${item.roleCode})`"
+                :value="item.roleCode"
+              />
+            </el-select>
           </el-form-item>
           <el-form-item label="是否需要登录">
             <el-switch v-model="selectedConfig.loginRequired" active-text="需要" inactive-text="不需要" @change="syncNodeConfig" />
@@ -772,6 +786,9 @@ const availableAssigneeRoles = computed(() => {
   }
   return workflowRoles.value.filter(item => item.roleScope === 'department')
 })
+const selectedStartSystemRoles = csvStringModel(() => selectedConfig.value?.startPermissionValue, false)
+const selectedStartDepartmentIds = csvStringModel(() => selectedConfig.value?.startPermissionValue, true)
+const selectedStartWorkflowRoles = csvStringModel(() => selectedConfig.value?.startPermissionValue, false)
 
 watch(
   () => props.modelValue,
@@ -1453,7 +1470,7 @@ function createDefaultNodeConfig(element: BpmnElement, businessType: BusinessTyp
     },
     endStatus: 'COMPLETED',
     startMode: 'MANUAL',
-    startPermission: 'ALL',
+    startPermission: 'CREATOR_DEPARTMENT',
     startPermissionValue: '',
     loginRequired: true,
     formMode: 'edit',
@@ -1722,6 +1739,9 @@ function applyDefaultFormBinding(config: NodeBusinessConfig, businessType: Busin
 
 function normalizeNodeFormConfig(config: NodeBusinessConfig): NodeBusinessConfig {
   const normalized = config
+  if (normalized.startPermission === 'ROLE') {
+    normalized.startPermission = 'SYSTEM_ROLE'
+  }
   normalized.approvalRule = {
     enabled: normalized.approvalRule?.enabled ?? false,
     field: normalized.approvalRule?.field || 'leaveDays',
@@ -1908,6 +1928,20 @@ function handleStartPermissionChange() {
   if (!selectedConfig.value) return
   selectedConfig.value.startPermissionValue = ''
   syncNodeConfig()
+}
+
+function csvStringModel(getValue: () => string | undefined, numeric: boolean) {
+  return computed<Array<string | number>>({
+    get: () => {
+      const values = (getValue() || '').split(',').map(value => value.trim()).filter(Boolean)
+      return numeric ? values.map(Number).filter(Number.isFinite) : values
+    },
+    set: values => {
+      if (!selectedConfig.value) return
+      selectedConfig.value.startPermissionValue = values.join(',')
+      syncNodeConfig()
+    }
+  })
 }
 
 function deleteSelected() {
