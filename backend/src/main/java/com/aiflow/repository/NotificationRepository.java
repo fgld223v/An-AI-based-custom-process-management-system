@@ -31,4 +31,7 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
     long countByReceiverIdAndIsReadAndDeleted(Long receiverId, Boolean isRead, Integer deleted);
 
     boolean existsByTypeAndTargetTypeAndDeleted(String type, String targetType, Integer deleted);
+
+    boolean existsByTypeAndReceiverIdAndTargetTypeAndDeleted(
+            String type, Long receiverId, String targetType, Integer deleted);
 }

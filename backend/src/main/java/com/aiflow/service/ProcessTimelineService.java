@@ -42,7 +42,9 @@ public class ProcessTimelineService {
         @SuppressWarnings("unchecked")
         List<Object[]> records = entityManager.createNativeQuery("""
                         SELECT ar.node_key, ar.action, ar.comment_text, ar.operated_at,
-                               COALESCE(su.nickname, CONCAT('用户#', ar.approver_id)) AS approver_name
+                               COALESCE(su.nickname,
+                                        CASE WHEN ar.approver_id IS NULL THEN '系统'
+                                             ELSE CONCAT('用户#', ar.approver_id) END) AS approver_name
                         FROM approval_record ar
                         LEFT JOIN sys_user su ON ar.approver_id = su.id
                         WHERE ar.instance_id = :instanceId

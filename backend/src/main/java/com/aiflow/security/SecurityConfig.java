@@ -44,7 +44,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/health").permitAll()
                         .requestMatchers("/error").permitAll()
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
-                        .requestMatchers("/ws/notifications").permitAll()
+                        .requestMatchers("/ws/notifications").authenticated()
                         .requestMatchers("/api/admin/**").hasRole("SUPER_ADMIN")
                         .requestMatchers("/api/business-monitor/**").hasAnyRole("BIZ_ADMIN", "SUPER_ADMIN")
                         .requestMatchers("/api/runtime-monitor/**").hasRole("SUPER_ADMIN")

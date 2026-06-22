@@ -7,6 +7,7 @@ import com.aiflow.dto.TaskRejectRequest;
 import com.aiflow.service.TaskQueryService;
 import com.aiflow.service.TaskRuntimeService;
 import lombok.RequiredArgsConstructor;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -45,7 +46,7 @@ public class TaskController {
     /** 完成任务 */
     @PostMapping("/{taskId}/complete")
     public ApiResponse<TaskDTO> completeTask(@PathVariable String taskId,
-                                             @RequestBody TaskCompleteRequest request) {
+                                             @Valid @RequestBody TaskCompleteRequest request) {
         TaskDTO nextTask = taskRuntimeService.completeTask(taskId, request);
         return ApiResponse.success(nextTask);
     }
@@ -53,7 +54,7 @@ public class TaskController {
     /** 驳回任务 */
     @PostMapping("/{taskId}/reject")
     public ApiResponse<Void> rejectTask(@PathVariable String taskId,
-                                        @RequestBody TaskRejectRequest request) {
+                                        @Valid @RequestBody TaskRejectRequest request) {
         taskRuntimeService.rejectTask(taskId, request.getInstanceId(), request.getRejectReason());
         return ApiResponse.success();
     }

@@ -1,5 +1,7 @@
 package com.aiflow.dto;
 
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 import java.util.Map;
@@ -11,9 +13,11 @@ import java.util.Map;
 public class TaskCompleteRequest {
 
     /** 业务 ProcessInstance 主键 */
+    @NotNull
     private Long instanceId;
 
     /** 当前节点 key（Flowable taskDefinitionKey） */
+    @NotBlank
     private String nodeKey;
 
     /** 当前节点对应的表单 ID */

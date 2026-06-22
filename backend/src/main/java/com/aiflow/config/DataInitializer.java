@@ -51,15 +51,16 @@ public class DataInitializer implements CommandLineRunner {
 
     private Department initDepartment(Long parentId, String code, String name, int sort, Long leaderId) {
         Department dept = departmentRepository.findFirstByDeptCode(code);
-        LocalDateTime now = LocalDateTime.now();
-        if (dept == null) {
-            dept = Department.builder()
-                    .parentId(parentId)
-                    .deptCode(code)
-                    .createdAt(now)
-                    .deleted(0)
-                    .build();
+        if (dept != null) {
+            return dept;
         }
+        LocalDateTime now = LocalDateTime.now();
+        dept = Department.builder()
+                .parentId(parentId)
+                .deptCode(code)
+                .createdAt(now)
+                .deleted(0)
+                .build();
         dept.setDeptName(name);
         dept.setSortOrder(sort);
         dept.setLeaderUserId(leaderId);
@@ -73,9 +74,10 @@ public class DataInitializer implements CommandLineRunner {
     /** 超级管理员：admin/admin123 */
     private SysUser ensureDefaultAdmin(Long deptId) {
         SysUser user = sysUserRepository.findByUsername("admin").orElse(null);
-        if (user == null) {
-            user = SysUser.builder().username("admin").createdTime(LocalDateTime.now()).build();
+        if (user != null) {
+            return user;
         }
+        user = SysUser.builder().username("admin").createdTime(LocalDateTime.now()).build();
         user.setPassword(passwordEncoder.encode("admin123"));
         user.setNickname("系统管理员");
         user.setRole("ADMIN");
@@ -94,9 +96,10 @@ public class DataInitializer implements CommandLineRunner {
     /** 业务管理员：bizadmin/bizadmin123 */
     private SysUser ensureBizAdmin(Long deptId) {
         SysUser user = sysUserRepository.findByUsername("bizadmin").orElse(null);
-        if (user == null) {
-            user = SysUser.builder().username("bizadmin").createdTime(LocalDateTime.now()).build();
+        if (user != null) {
+            return user;
         }
+        user = SysUser.builder().username("bizadmin").createdTime(LocalDateTime.now()).build();
         user.setPassword(passwordEncoder.encode("bizadmin123"));
         user.setNickname("业务管理员");
         user.setRole("MANAGER");
@@ -115,9 +118,10 @@ public class DataInitializer implements CommandLineRunner {
     /** 普通用户：user1/user123、user2/user123 */
     private SysUser ensureNormalUser(String username, String nickname, Long deptId, Long supervisorId) {
         SysUser user = sysUserRepository.findByUsername(username).orElse(null);
-        if (user == null) {
-            user = SysUser.builder().username(username).createdTime(LocalDateTime.now()).build();
+        if (user != null) {
+            return user;
         }
+        user = SysUser.builder().username(username).createdTime(LocalDateTime.now()).build();
         user.setPassword(passwordEncoder.encode("user123"));
         user.setNickname(nickname);
         user.setRole("USER");
@@ -148,14 +152,15 @@ public class DataInitializer implements CommandLineRunner {
 
     private BizTypeDict initBizType(Long parentId, String typeCode, String typeName, String description, Integer sortOrder) {
         BizTypeDict item = bizTypeDictRepository.findByTypeCode(typeCode).orElse(null);
-        LocalDateTime now = LocalDateTime.now();
-        if (item == null) {
-            item = BizTypeDict.builder()
-                    .typeCode(typeCode)
-                    .createdAt(now)
-                    .deleted(0)
-                    .build();
+        if (item != null) {
+            return item;
         }
+        LocalDateTime now = LocalDateTime.now();
+        item = BizTypeDict.builder()
+                .typeCode(typeCode)
+                .createdAt(now)
+                .deleted(0)
+                .build();
         item.setParentId(parentId);
         item.setTypeName(typeName);
         item.setDescription(description);

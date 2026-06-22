@@ -11,8 +11,12 @@ import com.aiflow.repository.FormSubmissionRepository;
 import com.aiflow.repository.ProcessInstanceRepository;
 import com.aiflow.repository.ProcessTemplateRepository;
 import com.aiflow.service.ApproverResolverService;
+import com.aiflow.service.ApprovalRecordService;
+import com.aiflow.service.ApprovalVariableService;
 import com.aiflow.service.RuleEvaluatorService;
 import com.aiflow.service.TaskRuntimeService;
+import com.aiflow.service.TaskAuthorizationService;
+import com.aiflow.security.SecurityUtils;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -62,18 +66,31 @@ public class TaskRuntimeServiceImpl implements TaskRuntimeService {
     private final RuleEvaluatorService ruleEvaluatorService;
     private final ObjectMapper objectMapper;
     private final NodeConfigParser nodeConfigParser;
+    private final TaskAuthorizationService taskAuthorizationService;
+    private final ApprovalVariableService approvalVariableService;
+    private final ApprovalRecordService approvalRecordService;
 
     @Override
     public TaskDTO completeTask(String taskId, TaskCompleteRequest request) {
+        if (request == null) {
+            throw new IllegalArgumentException("request must not be null");
+        }
+        if (request.getInstanceId() == null) {
+            throw new IllegalArgumentException("instanceId must not be null");
+        }
+        if (!hasText(request.getNodeKey())) {
+            throw new IllegalArgumentException("nodeKey must not be blank");
+        }
         // ================================================================
         // 1. 查询 Flowable Task
         // ================================================================
-        Task task = taskService.createTaskQuery()
+        Task queriedTask = taskService.createTaskQuery()
                 .taskId(taskId)
                 .singleResult();
-        if (task == null) {
+        if (queriedTask == null) {
             throw new IllegalArgumentException("任务不存在或已完成。");
         }
+        taskAuthorizationService.assertCanView(queriedTask);
 
         // ================================================================
         // 2. 查询业务 ProcessInstance
@@ -87,30 +104,40 @@ public class TaskRuntimeServiceImpl implements TaskRuntimeService {
                     "当前实例状态为【" + instance.getStatus() + "】，仅 running 状态可完成任务。");
         }
 
-        if (!task.getProcessInstanceId().equals(instance.getFlowableProcessInstanceId())) {
+        if (!queriedTask.getProcessInstanceId().equals(instance.getFlowableProcessInstanceId())) {
             throw new IllegalArgumentException("任务不属于该流程实例。");
         }
+        if (!queriedTask.getTaskDefinitionKey().equals(request.getNodeKey())) {
+            throw new IllegalArgumentException("nodeKey 与当前任务节点不一致。");
+        }
+
+        String trustedNodeKey = queriedTask.getTaskDefinitionKey();
+        Long boundFormId = resolveFormId(instance.getTemplateId(), trustedNodeKey);
+        if (request.getFormId() != null && !request.getFormId().equals(boundFormId)) {
+            throw new IllegalArgumentException("formId 与当前任务绑定表单不一致。");
+        }
+        Task task = taskAuthorizationService.requireOperableTask(queriedTask);
 
         // ================================================================
         // 3. 保存 FormSubmission（历史保留 — upsert by processInstanceId + nodeKey）
         // ================================================================
         LocalDateTime now = LocalDateTime.now();
         String formDataJson = toJson(request.getFormData());
-        String businessType = resolveBusinessType(instance.getTemplateId(), request.getNodeKey());
+        String businessType = resolveBusinessType(instance.getTemplateId(), trustedNodeKey);
 
         FormSubmission submission = formSubmissionRepository
-                .findByProcessInstanceIdAndNodeKeyAndDeleted(instance.getId(), request.getNodeKey(), 0)
+                .findByProcessInstanceIdAndNodeKeyAndDeleted(instance.getId(), trustedNodeKey, 0)
                 .orElseGet(() -> FormSubmission.builder()
                         .processInstanceId(instance.getId())
                         .templateId(instance.getTemplateId())
-                        .nodeKey(request.getNodeKey())
+                        .nodeKey(trustedNodeKey)
                         .createdAt(now)
                         .deleted(0)
                         .build());
 
         submission.setNodeName(task.getName());
         submission.setBusinessType(businessType);
-        submission.setFormId(request.getFormId());
+        submission.setFormId(boundFormId);
         submission.setFormDataJson(formDataJson);
         submission.setStatus(STATUS_SUBMITTED);
         submission.setUpdatedAt(now);
@@ -119,19 +146,23 @@ public class TaskRuntimeServiceImpl implements TaskRuntimeService {
         // ================================================================
         // 4. 更新 Flowable Variables（合并 allFormData）
         // ================================================================
-        Map<String, Object> variables = new HashMap<>();
-        try {
-            Map<String, Object> existingVars = runtimeService.getVariables(task.getProcessInstanceId());
-            @SuppressWarnings("unchecked")
-            Map<String, Object> allFormData = (Map<String, Object>) existingVars.getOrDefault(
-                    "allFormData", new HashMap<>());
-            allFormData.put(request.getNodeKey(), request.getFormData());
-            variables.put("allFormData", allFormData);
-        } catch (Exception ex) {
-            // 首次添加时兜底
-            Map<String, Object> allFormData = new HashMap<>();
-            allFormData.put(request.getNodeKey(), request.getFormData());
-            variables.put("allFormData", allFormData);
+        boolean approvalNode = "approval".equalsIgnoreCase(businessType);
+        String approvalComment = null;
+        Map<String, Object> variables;
+        if (approvalNode) {
+            String approvalResult = mapText(request.getFormData(), "approvalResult");
+            if ("reject".equalsIgnoreCase(approvalResult)) {
+                throw new IllegalArgumentException("驳回审批必须使用 reject 接口。");
+            }
+            approvalComment = firstMapText(request.getFormData(), "approvalComment", "approvalOpinion", "comment");
+            variables = approvalVariableService.build(
+                    task.getProcessInstanceId(), trustedNodeKey, approvalResult,
+                    approvalComment, false, null, now);
+            if (hasText(approvalComment)) {
+                taskService.addComment(taskId, task.getProcessInstanceId(), approvalComment);
+            }
+        } else {
+            variables = mergeNodeFormVariables(task.getProcessInstanceId(), trustedNodeKey, request.getFormData());
         }
 
         // ================================================================
@@ -142,6 +173,10 @@ public class TaskRuntimeServiceImpl implements TaskRuntimeService {
         } catch (Exception ex) {
             throw new IllegalStateException(
                     "任务完成失败：" + safeMessage(ex), ex);
+        }
+        if (approvalNode) {
+            approvalRecordService.record(instance.getId(), taskId, trustedNodeKey,
+                    SecurityUtils.currentUserId(), "approve", approvalComment, now);
         }
 
         // ================================================================
@@ -161,7 +196,7 @@ public class TaskRuntimeServiceImpl implements TaskRuntimeService {
             boolean isNextTaskSameMultiInstance = isMultiInstance
                     && nextTask.getTaskDefinitionKey().equals(task.getTaskDefinitionKey());
 
-            if (!isNextTaskSameMultiInstance) {
+            if (!isNextTaskSameMultiInstance && !hasText(nextTask.getAssignee())) {
                 String strategy = resolveAssignStrategy(instance.getTemplateId(), nextTask.getTaskDefinitionKey());
                 String assignValue = resolveAssignValue(instance.getTemplateId(), nextTask.getTaskDefinitionKey());
 
@@ -244,25 +279,27 @@ public class TaskRuntimeServiceImpl implements TaskRuntimeService {
         ProcessTemplate template = processTemplateRepository
                 .findByIdAndDeleted(templateId, 0)
                 .orElse(null);
-        if (template == null || !hasText(template.getFormBindConfig())) {
+        if (template == null) {
             return null;
         }
-        try {
-            Map<String, Map<String, Object>> bindConfig = objectMapper.readValue(
-                    template.getFormBindConfig(),
-                    new TypeReference<Map<String, Map<String, Object>>>() {}
-            );
-            Map<String, Object> nodeBinding = bindConfig.get(taskDefinitionKey);
-            if (nodeBinding != null && nodeBinding.get("formId") != null) {
-                Object formIdObj = nodeBinding.get("formId");
-                if (formIdObj instanceof Number) {
-                    return ((Number) formIdObj).longValue();
+        if (hasText(template.getFormBindConfig())) {
+            try {
+                Map<String, Map<String, Object>> bindConfig = objectMapper.readValue(
+                        template.getFormBindConfig(),
+                        new TypeReference<Map<String, Map<String, Object>>>() {}
+                );
+                Map<String, Object> nodeBinding = bindConfig.get(taskDefinitionKey);
+                if (nodeBinding != null && nodeBinding.get("formId") != null) {
+                    Object formIdObj = nodeBinding.get("formId");
+                    if (formIdObj instanceof Number) {
+                        return ((Number) formIdObj).longValue();
+                    }
                 }
+            } catch (Exception ignored) {
+                // Invalid binding is rejected at publish time; use the template fallback here.
             }
-        } catch (Exception ignored) {
-            // ignore parse errors
         }
-        return null;
+        return template.getFormId();
     }
 
     /**
@@ -332,11 +369,14 @@ public class TaskRuntimeServiceImpl implements TaskRuntimeService {
 
     @Override
     public void rejectTask(String taskId, Long instanceId, String rejectReason) {
+        if (instanceId == null) throw new IllegalArgumentException("instanceId must not be null");
+        if (!hasText(rejectReason)) throw new IllegalArgumentException("rejectReason must not be blank");
         // 1. 查询 Flowable Task
-        Task task = taskService.createTaskQuery().taskId(taskId).singleResult();
-        if (task == null) {
+        Task queriedTask = taskService.createTaskQuery().taskId(taskId).singleResult();
+        if (queriedTask == null) {
             throw new IllegalArgumentException("任务不存在或已完成。");
         }
+        taskAuthorizationService.assertCanView(queriedTask);
 
         // 2. 查询业务 ProcessInstance
         ProcessInstance instance = processInstanceRepository
@@ -346,26 +386,12 @@ public class TaskRuntimeServiceImpl implements TaskRuntimeService {
             throw new IllegalStateException(
                     "当前实例状态为【" + instance.getStatus() + "】，仅 running 状态可驳回。");
         }
-
-        // 2.5 多实例（会签/或签）驳回：需先取消所有兄弟任务
-        boolean isMultiInstance = isMultiInstanceNode(
-                instance.getTemplateId(), task.getTaskDefinitionKey());
-        if (isMultiInstance) {
-            // 删除 Flowable 流程实例以取消所有剩余多实例任务
-            try {
-                runtimeService.deleteProcessInstance(
-                        task.getProcessInstanceId(), "会签/或签驳回：驳回人=" + rejectReason);
-            } catch (Exception ex) {
-                log.warn("删除多实例流程失败（可能已结束）: {}", ex.getMessage());
-            }
+        if (!queriedTask.getProcessInstanceId().equals(instance.getFlowableProcessInstanceId())) {
+            throw new IllegalArgumentException("任务不属于该流程实例。");
         }
+        Task task = taskAuthorizationService.requireOperableTask(queriedTask);
 
-        // 3. 确定退回目标节点（nodeConfig 中当前节点的上一个）
-        String previousNodeKey = resolvePreviousNodeKey(instance.getTemplateId(), task.getTaskDefinitionKey());
-        String previousNodeName = nodeConfigParser.getStringField(
-                getNodeConfigJson(instance.getTemplateId()), previousNodeKey, "nodeName");
-
-        // 4. 保存驳回 FormSubmission（upsert by instanceId + nodeKey，永久保留）
+        // 3. 保存驳回 FormSubmission（upsert by instanceId + nodeKey，永久保留）
         LocalDateTime now = LocalDateTime.now();
         Map<String, Object> rejectData = new HashMap<>();
         rejectData.put("rejectReason", rejectReason);
@@ -388,28 +414,21 @@ public class TaskRuntimeServiceImpl implements TaskRuntimeService {
         submission.setUpdatedAt(now);
         formSubmissionRepository.save(submission);
 
-        // 5. 完成 Flowable 任务（传入驳回变量）
-        // 多实例场景：processInstance 已被删除，不需要再 complete task
-        if (!isMultiInstance) {
-            Map<String, Object> variables = new HashMap<>();
-            variables.put("rejected", true);
-            variables.put("rejectReason", rejectReason);
-            try {
-                taskService.complete(taskId, variables);
-            } catch (Exception ex) {
-                throw new IllegalStateException("驳回操作失败：" + safeMessage(ex), ex);
-            }
+        // 4. 完成 Flowable 任务，由 BPMN 条件网关决定驳回后的真实去向。
+        Map<String, Object> variables = approvalVariableService.build(
+                task.getProcessInstanceId(), task.getTaskDefinitionKey(), "reject",
+                rejectReason, false, null, now);
+        try {
+            taskService.addComment(taskId, task.getProcessInstanceId(), rejectReason.trim());
+            taskService.complete(taskId, variables);
+        } catch (Exception ex) {
+            throw new IllegalStateException("驳回操作失败：" + safeMessage(ex), ex);
         }
+        approvalRecordService.record(instance.getId(), taskId, task.getTaskDefinitionKey(),
+                SecurityUtils.currentUserId(), "reject", rejectReason, now);
 
-        // 6. 回退 ProcessInstance 状态
-        instance.setCurrentNodeKey(previousNodeKey);
-        instance.setCurrentNodeName(previousNodeName);
-        instance.setStatus("rejected");
-        instance.setFlowableProcessInstanceId(null);
-        instance.setFlowableDefinitionId(null);
-        instance.setFlowableDeploymentId(null);
-        instance.setUpdatedAt(now);
-        processInstanceRepository.save(instance);
+        // 5. 按 Flowable 的实际活动节点刷新业务实例，避免出现业务状态与引擎状态分裂。
+        ruleEvaluatorService.evaluateAndAutoComplete(instance);
     }
 
     /**
@@ -441,5 +460,43 @@ public class TaskRuntimeServiceImpl implements TaskRuntimeService {
 
     private String stringValue(Object value) {
         return value == null ? null : value.toString().trim();
+    }
+
+    private Map<String, Object> mergeNodeFormVariables(String flowableProcessInstanceId,
+                                                        String nodeKey,
+                                                        Map<String, Object> formData) {
+        Map<String, Object> variables = new HashMap<>();
+        Map<String, Object> allFormData = new HashMap<>();
+        try {
+            Map<String, Object> existingVars = runtimeService.getVariables(flowableProcessInstanceId);
+            Object existing = existingVars.get("allFormData");
+            if (existing instanceof Map<?, ?> map) {
+                map.forEach((key, value) -> allFormData.put(String.valueOf(key), value));
+            }
+        } catch (Exception ignored) {
+            // Start with an empty form variable map.
+        }
+        Map<String, Object> trustedFormData = formData == null ? Map.of() : formData;
+        allFormData.put(nodeKey, trustedFormData);
+        variables.put("allFormData", allFormData);
+        trustedFormData.forEach((key, value) -> {
+            if (hasText(key) && (value instanceof Number || value instanceof String || value instanceof Boolean)) {
+                variables.put(key, value);
+            }
+        });
+        return variables;
+    }
+
+    private String firstMapText(Map<String, Object> values, String... keys) {
+        for (String key : keys) {
+            String value = mapText(values, key);
+            if (hasText(value)) return value;
+        }
+        return null;
+    }
+
+    private String mapText(Map<String, Object> values, String key) {
+        if (values == null || values.get(key) == null) return null;
+        return values.get(key).toString().trim();
     }
 }

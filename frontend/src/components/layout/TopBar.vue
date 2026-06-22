@@ -149,7 +149,8 @@ function connectNotificationSocket() {
   try {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     const host = window.location.hostname || 'localhost'
-    socket = new WebSocket(`${protocol}//${host}:8080/ws/notifications`)
+    const accessToken = encodeURIComponent(authStore.token)
+    socket = new WebSocket(`${protocol}//${host}:8080/ws/notifications?access_token=${accessToken}`)
     socket.onopen = () => {
       websocketReady.value = true
     }
@@ -205,6 +206,7 @@ function typeLabel(type?: string) {
     task_remind: '任务提醒',
     timeout_warning: '超时预警',
     approval_result: '审批结果',
+    process_completed: '流程完成',
     system_notice: '系统通知'
   }
   return map[type || ''] || type || '-'
@@ -213,6 +215,7 @@ function typeLabel(type?: string) {
 function typeTag(type?: string): 'primary' | 'success' | 'warning' | 'danger' | 'info' {
   if (type === 'timeout_warning') return 'danger'
   if (type === 'approval_result') return 'success'
+  if (type === 'process_completed') return 'success'
   if (type === 'task_remind') return 'warning'
   return 'info'
 }

@@ -5,11 +5,13 @@ import com.aiflow.dto.NotificationDTO;
 import com.aiflow.dto.NotificationUpdateRequest;
 import com.aiflow.model.Notification;
 import com.aiflow.repository.NotificationRepository;
+import com.aiflow.security.CurrentUser;
 import com.aiflow.security.SecurityUtils;
 import com.aiflow.service.NotificationService;
 import com.aiflow.websocket.NotificationWebSocketHandler;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
@@ -28,7 +30,7 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     @Transactional(readOnly = true)
     public List<NotificationDTO> listNotifications(Long receiverId, String type, Boolean isRead, String keyword) {
-        Long resolvedReceiverId = receiverId == null ? SecurityUtils.currentUserId() : receiverId;
+        Long resolvedReceiverId = resolveReadableReceiverId(receiverId);
         return notificationRepository
                 .listNotifications(resolvedReceiverId, normalize(type), isRead, normalize(keyword))
                 .stream()
@@ -39,7 +41,7 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     @Transactional(readOnly = true)
     public NotificationDTO getNotification(Long id) {
-        return toDto(getRequiredNotification(id));
+        return toDto(getReadableNotification(id));
     }
 
     @Override
@@ -82,6 +84,7 @@ public class NotificationServiceImpl implements NotificationService {
         if (request == null) {
             throw new IllegalArgumentException("request must not be null");
         }
+        requireSuperAdmin();
         Notification notification = getRequiredNotification(id);
         if (hasText(request.getType())) {
             notification.setType(request.getType().trim());
@@ -104,7 +107,7 @@ public class NotificationServiceImpl implements NotificationService {
 
     @Override
     public NotificationDTO markRead(Long id) {
-        Notification notification = getRequiredNotification(id);
+        Notification notification = getReadableNotification(id);
         LocalDateTime now = LocalDateTime.now();
         applyReadStatus(notification, true, now);
         notification.setUpdatedAt(now);
@@ -115,7 +118,7 @@ public class NotificationServiceImpl implements NotificationService {
 
     @Override
     public NotificationDTO markUnread(Long id) {
-        Notification notification = getRequiredNotification(id);
+        Notification notification = getReadableNotification(id);
         LocalDateTime now = LocalDateTime.now();
         applyReadStatus(notification, false, now);
         notification.setUpdatedAt(now);
@@ -127,16 +130,13 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     @Transactional(readOnly = true)
     public long countUnread(Long receiverId) {
-        Long resolvedReceiverId = receiverId == null ? SecurityUtils.currentUserId() : receiverId;
-        if (resolvedReceiverId == null) {
-            resolvedReceiverId = DEFAULT_RECEIVER_ID;
-        }
+        Long resolvedReceiverId = resolveReadableReceiverId(receiverId);
         return notificationRepository.countByReceiverIdAndIsReadAndDeleted(resolvedReceiverId, false, 0);
     }
 
     @Override
     public void deleteNotification(Long id) {
-        Notification notification = getRequiredNotification(id);
+        Notification notification = getReadableNotification(id);
         Long receiverId = notification.getReceiverId();
         LocalDateTime now = LocalDateTime.now();
         notification.setDeleted(1);
@@ -151,6 +151,43 @@ public class NotificationServiceImpl implements NotificationService {
         }
         return notificationRepository.findByIdAndDeleted(id, 0)
                 .orElseThrow(() -> new IllegalArgumentException("notification not found"));
+    }
+
+    private Notification getReadableNotification(Long id) {
+        Notification notification = getRequiredNotification(id);
+        assertCanAccessReceiver(notification.getReceiverId());
+        return notification;
+    }
+
+    private Long resolveReadableReceiverId(Long receiverId) {
+        CurrentUser currentUser = requireCurrentUser();
+        Long resolvedReceiverId = receiverId == null ? currentUser.getId() : receiverId;
+        if (!SecurityUtils.isSuperAdmin() && !currentUser.getId().equals(resolvedReceiverId)) {
+            throw new AccessDeniedException("cannot access another user's notifications");
+        }
+        return resolvedReceiverId;
+    }
+
+    private void assertCanAccessReceiver(Long receiverId) {
+        CurrentUser currentUser = requireCurrentUser();
+        if (!SecurityUtils.isSuperAdmin() && !currentUser.getId().equals(receiverId)) {
+            throw new AccessDeniedException("cannot access another user's notification");
+        }
+    }
+
+    private void requireSuperAdmin() {
+        requireCurrentUser();
+        if (!SecurityUtils.isSuperAdmin()) {
+            throw new AccessDeniedException("only super administrators can edit notification content");
+        }
+    }
+
+    private CurrentUser requireCurrentUser() {
+        CurrentUser currentUser = SecurityUtils.currentUser();
+        if (currentUser == null) {
+            throw new AccessDeniedException("authentication required");
+        }
+        return currentUser;
     }
 
     private void applyReadStatus(Notification notification, boolean isRead, LocalDateTime now) {

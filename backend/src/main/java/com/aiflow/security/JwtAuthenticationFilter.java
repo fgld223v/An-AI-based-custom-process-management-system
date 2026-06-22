@@ -61,6 +61,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (StringUtils.hasText(bearerToken) && bearerToken.startsWith("Bearer ")) {
             return bearerToken.substring(7);
         }
+        if ("/ws/notifications".equals(request.getRequestURI())) {
+            return request.getParameter("access_token");
+        }
         return null;
     }
 }

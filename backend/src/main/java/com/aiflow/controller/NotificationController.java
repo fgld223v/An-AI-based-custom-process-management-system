@@ -4,6 +4,7 @@ import com.aiflow.common.ApiResponse;
 import com.aiflow.dto.NotificationCreateRequest;
 import com.aiflow.dto.NotificationDTO;
 import com.aiflow.dto.NotificationUpdateRequest;
+import com.aiflow.security.SecurityUtils;
 import com.aiflow.service.NotificationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.security.access.AccessDeniedException;
 
 import java.util.List;
 import java.util.Map;
@@ -46,12 +48,14 @@ public class NotificationController {
 
     @PostMapping
     public ApiResponse<NotificationDTO> createNotification(@RequestBody NotificationCreateRequest request) {
+        requireSuperAdmin();
         return ApiResponse.success(notificationService.createNotification(request));
     }
 
     @PutMapping("/{id}")
     public ApiResponse<NotificationDTO> updateNotification(@PathVariable Long id,
                                                            @RequestBody NotificationUpdateRequest request) {
+        requireSuperAdmin();
         return ApiResponse.success(notificationService.updateNotification(id, request));
     }
 
@@ -69,5 +73,11 @@ public class NotificationController {
     public ApiResponse<Void> deleteNotification(@PathVariable Long id) {
         notificationService.deleteNotification(id);
         return ApiResponse.success();
+    }
+
+    private void requireSuperAdmin() {
+        if (!SecurityUtils.isSuperAdmin()) {
+            throw new AccessDeniedException("only super administrators can create or edit notification content");
+        }
     }
 }

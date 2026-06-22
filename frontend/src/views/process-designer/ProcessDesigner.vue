@@ -222,15 +222,35 @@
 
         <template v-else-if="selectedConfig.businessType === 'approval'">
           <el-form-item label="审批人类型">
-            <el-select v-model="selectedConfig.assigneeType" @change="syncNodeConfig">
+            <el-select v-model="selectedConfig.assigneeType" @change="handleAssigneeTypeChange">
               <el-option label="指定用户" value="USER" />
-              <el-option label="指定角色" value="ROLE" />
-              <el-option label="发起人主管" value="MANAGER" />
-              <el-option label="部门负责人" value="DEPT_LEADER" />
+              <el-option label="发起人直属上级" value="MANAGER" />
+              <el-option label="发起人部门负责人" value="DEPT_LEADER" />
+              <el-option label="发起人部门流程角色" value="ROLE" />
+              <el-option label="指定部门负责人" value="SPECIFIED_DEPT_LEADER" />
+              <el-option label="指定部门流程角色" value="ROLE_IN_SPECIFIED_DEPT" />
+              <el-option label="全局流程角色" value="GLOBAL_ROLE" />
             </el-select>
           </el-form-item>
-          <el-form-item label="审批人或角色">
-            <el-input v-model="selectedConfig.assigneeValue" placeholder="用户ID、角色编码或部门编码" @change="syncNodeConfig" />
+          <el-form-item v-if="selectedConfig.assigneeType === 'USER'" label="指定用户">
+            <el-select v-model="selectedConfig.assigneeUserIds" multiple filterable collapse-tags @change="syncNodeConfig">
+              <el-option v-for="item in organizationUsers" :key="item.id" :label="item.name" :value="item.id" />
+            </el-select>
+          </el-form-item>
+          <el-form-item v-if="['SPECIFIED_DEPT_LEADER', 'ROLE_IN_SPECIFIED_DEPT'].includes(selectedConfig.assigneeType)" label="指定部门">
+            <el-select v-model="selectedConfig.assigneeDepartmentId" filterable @change="syncNodeConfig">
+              <el-option v-for="item in organizationDepartments" :key="item.id" :label="item.name" :value="item.id" />
+            </el-select>
+          </el-form-item>
+          <el-form-item v-if="['ROLE', 'ROLE_IN_SPECIFIED_DEPT', 'GLOBAL_ROLE'].includes(selectedConfig.assigneeType)" label="流程角色">
+            <el-select v-model="selectedConfig.assigneeRoleCode" filterable @change="syncNodeConfig">
+              <el-option
+                v-for="item in availableAssigneeRoles"
+                :key="item.id"
+                :label="`${item.roleName} (${item.roleCode})`"
+                :value="item.roleCode"
+              />
+            </el-select>
           </el-form-item>
           <el-form-item label="审批方式">
             <el-select v-model="selectedConfig.approvalMode" @change="syncNodeConfig">
@@ -508,6 +528,14 @@ import 'bpmn-js/dist/assets/bpmn-font/css/bpmn.css'
 import { showComingSoon } from '@/utils/feedback'
 import { getBizTypes } from '@/api/bizType'
 import { getPublishedForms } from '@/api/formDefinition'
+import {
+  getOrganizationDepartments,
+  getOrganizationUsers,
+  getWorkflowRoleOptions,
+  type OrganizationDepartmentOption,
+  type OrganizationUserOption,
+  type WorkflowRoleOption
+} from '@/api/organizationDirectory'
 import { createProcessTemplate, getProcessTemplateDetail, publishProcessTemplate, updateProcessTemplate } from '@/api/processTemplate'
 import { createMyProcess, getMyProcessDetail, publishMyProcess, updateMyProcess } from '@/api/myProcess'
 import { useTemplateStore } from '@/stores/template'
@@ -549,6 +577,9 @@ interface NodeBusinessConfig {
   validateOnSubmit: boolean
   assigneeType: string
   assigneeValue: string
+  assigneeUserIds: number[]
+  assigneeDepartmentId: number | null
+  assigneeRoleCode: string
   approvalMode: string
   rejectRule: string
   conditionField: string
@@ -695,6 +726,9 @@ const templateSaving = ref(false)
 const savedTemplateId = ref<number | null>(null)
 const bizTypes = ref<BizType[]>([])
 const forms = ref<FormDefinition[]>([])
+const organizationDepartments = ref<OrganizationDepartmentOption[]>([])
+const organizationUsers = ref<OrganizationUserOption[]>([])
+const workflowRoles = ref<WorkflowRoleOption[]>([])
 const formsLoading = ref(false)
 const aiFormDialogVisible = ref(false)
 const aiFormPrompt = ref('')
@@ -731,6 +765,12 @@ const templateSaveForm = reactive({
 const selectedConfig = computed(() => {
   if (!selectedElement.value) return null
   return ensureNodeConfig(selectedElement.value)
+})
+const availableAssigneeRoles = computed(() => {
+  if (selectedConfig.value?.assigneeType === 'GLOBAL_ROLE') {
+    return workflowRoles.value.filter(item => item.roleScope === 'global')
+  }
+  return workflowRoles.value.filter(item => item.roleScope === 'department')
 })
 
 watch(
@@ -828,7 +868,7 @@ onMounted(async () => {
   // 导入成功后的后处理
   const canvas = modeler.value.get('canvas')
   canvas.zoom('fit-viewport', 'auto')
-  hydrateNodeConfigMapFromCanvas()
+  reconcileNodeConfigMapWithCanvas()
 
   // 把 AI 返回的 nodeConfig 灌进 nodeConfigMap（array 或 map 格式都兼容）
   const aiNodeConfigRaw = window.sessionStorage.getItem('ai-generated-nodeconfig')
@@ -843,7 +883,11 @@ onMounted(async () => {
         DIRECT_SUPERVISOR: 'MANAGER',
         DEPARTMENT_MANAGER: 'DEPT_LEADER',
         SPECIFIC_USERS: 'USER',
-        ROLE: 'ROLE'
+        ROLE: 'ROLE',
+        ROLE_IN_APPLICANT_DEPT: 'ROLE',
+        SPECIFIED_DEPARTMENT_MANAGER: 'SPECIFIED_DEPT_LEADER',
+        ROLE_IN_SPECIFIED_DEPT: 'ROLE_IN_SPECIFIED_DEPT',
+        GLOBAL_ROLE: 'GLOBAL_ROLE'
       }
       for (const [nodeKey, ai] of entries) {
         const ac = ai as any
@@ -937,9 +981,7 @@ onMounted(async () => {
   if (returnNodeConfigRaw) {
     try {
       const configMap = JSON.parse(returnNodeConfigRaw)
-      for (const [nodeId, config] of Object.entries(configMap)) {
-        nodeConfigMap[nodeId] = normalizeNodeFormConfig(config as NodeBusinessConfig)
-      }
+      mergeStoredNodeConfig(configMap)
     } catch { /* ignore */ }
     window.sessionStorage.removeItem(RETURN_NODE_CONFIG_KEY)
   }
@@ -956,7 +998,7 @@ onMounted(async () => {
   }
   setTimeout(addPaletteTooltips, 0)
 
-  await Promise.all([loadBizTypeOptions(), loadPublishedFormOptions()])
+  await Promise.all([loadBizTypeOptions(), loadPublishedFormOptions(), loadAssigneeOptions()])
 })
 
 onBeforeUnmount(() => {
@@ -975,6 +1017,7 @@ function bindModelerEvents() {
     }
   })
   eventBus.on('commandStack.changed', async () => {
+    reconcileNodeConfigMapWithCanvas()
     await syncXml(false)
     refreshStats()
     addPaletteTooltips()
@@ -988,6 +1031,7 @@ function bindModelerEvents() {
 async function importDiagram(xml: string) {
   try {
     await modeler.value.importXML(xml)
+    reconcileNodeConfigMapWithCanvas()
     const canvas = modeler.value.get('canvas')
     canvas.zoom('fit-viewport', 'auto')
     currentXml.value = xml
@@ -1095,7 +1139,7 @@ function goBack() {
 }
 
 async function ensureTemplateOptionsLoaded() {
-  await Promise.all([loadBizTypeOptions(), loadPublishedFormOptions()])
+  await Promise.all([loadBizTypeOptions(), loadPublishedFormOptions(), loadAssigneeOptions()])
 }
 
 async function loadBizTypeOptions() {
@@ -1116,6 +1160,22 @@ async function loadPublishedFormOptions(force = false) {
     ElMessage.warning('已发布表单加载失败，请检查后端服务。')
   } finally {
     formsLoading.value = false
+  }
+}
+
+async function loadAssigneeOptions() {
+  if (organizationDepartments.value.length || organizationUsers.value.length || workflowRoles.value.length) return
+  try {
+    const [departments, users, roles] = await Promise.all([
+      getOrganizationDepartments(),
+      getOrganizationUsers(),
+      getWorkflowRoleOptions()
+    ])
+    organizationDepartments.value = departments
+    organizationUsers.value = users
+    workflowRoles.value = roles
+  } catch {
+    ElMessage.warning('组织与流程角色选项加载失败，请检查后端服务。')
   }
 }
 
@@ -1325,13 +1385,23 @@ function ensureNodeConfigById(nodeId: string, fallbackName?: string, businessTyp
   return ensureNodeConfig(element, fallbackName, businessType)
 }
 
-function hydrateNodeConfigMapFromCanvas() {
+function reconcileNodeConfigMapWithCanvas() {
   if (!modeler.value) return
   const elementRegistry = modeler.value.get('elementRegistry')
   const elements = elementRegistry.filter((element: BpmnElement) => isManagedBpmnElement(element))
-  elements.forEach((element: BpmnElement) => {
-    ensureNodeConfig(element)
-  })
+  const elementsById = new Map(elements.map((element: BpmnElement) => [element.id, element]))
+
+  for (const nodeId of Object.keys(nodeConfigMap)) {
+    if (!elementsById.has(nodeId)) {
+      delete nodeConfigMap[nodeId]
+    }
+  }
+
+  for (const element of elements) {
+    const config = ensureNodeConfig(element)
+    config.nodeId = element.id
+    config.bpmnType = element.type
+  }
 }
 
 function createDefaultNodeConfig(element: BpmnElement, businessType: BusinessType, nodeName: string): NodeBusinessConfig {
@@ -1350,6 +1420,9 @@ function createDefaultNodeConfig(element: BpmnElement, businessType: BusinessTyp
     validateOnSubmit: true,
     assigneeType: 'ROLE',
     assigneeValue: '',
+    assigneeUserIds: [],
+    assigneeDepartmentId: null,
+    assigneeRoleCode: '',
     assignStrategy: '',
     assignValue: '',
     approvalMode: 'SINGLE',
@@ -1656,6 +1729,7 @@ function normalizeNodeFormConfig(config: NodeBusinessConfig): NodeBusinessConfig
     value: normalized.approvalRule?.value ?? 3,
     action: normalized.approvalRule?.action || 'approve'
   }
+  normalizeAssigneeConfig(normalized)
   if (!isFormBindableNode(normalized)) {
     delete (normalized as Partial<NodeBusinessConfig>).formId
     delete (normalized as Partial<NodeBusinessConfig>).formBindingMode
@@ -1676,6 +1750,32 @@ function normalizeNodeFormConfig(config: NodeBusinessConfig): NodeBusinessConfig
   return normalized
 }
 
+function normalizeAssigneeConfig(config: NodeBusinessConfig) {
+  config.assigneeUserIds = config.assigneeUserIds || []
+  config.assigneeDepartmentId = config.assigneeDepartmentId || null
+  config.assigneeRoleCode = config.assigneeRoleCode || ''
+  const raw = config.assignValue || config.assigneeValue || ''
+  if (!raw) return
+  if (config.assigneeType === 'USER' && config.assigneeUserIds.length === 0) {
+    try {
+      const values = JSON.parse(raw)
+      config.assigneeUserIds = Array.isArray(values) ? values.map(Number).filter(Boolean) : []
+    } catch { /* keep empty */ }
+    return
+  }
+  if ((config.assigneeType === 'ROLE' || config.assigneeType === 'GLOBAL_ROLE') && !config.assigneeRoleCode) {
+    config.assigneeRoleCode = raw
+    return
+  }
+  if (config.assigneeType === 'SPECIFIED_DEPT_LEADER' || config.assigneeType === 'ROLE_IN_SPECIFIED_DEPT') {
+    try {
+      const value = JSON.parse(raw)
+      config.assigneeDepartmentId = Number(value.departmentId) || null
+      config.assigneeRoleCode = value.roleCode || config.assigneeRoleCode
+    } catch { /* keep structured fields empty */ }
+  }
+}
+
 function buildPersistableNodeConfig() {
   return Object.fromEntries(
     Object.entries(nodeConfigMap).map(([nodeId, config]) => [nodeId, normalizeNodeFormConfig({ ...config })])
@@ -1693,6 +1793,7 @@ function buildFormBindConfig() {
 }
 
 function validateTemplateForFlowablePreparation() {
+  reconcileNodeConfigMapWithCanvas()
   if (!validateBpmnXmlReady()) return false
   if (!validateNodeConfigAlignment()) return false
   if (!validateNodeFormBindings()) return false
@@ -1766,16 +1867,41 @@ function syncNodeConfig() {
       'MANAGER': 'DIRECT_SUPERVISOR',
       'DEPT_LEADER': 'DEPARTMENT_MANAGER',
       'USER': 'SPECIFIC_USERS',
-      'ROLE': 'ROLE'
+      'ROLE': 'ROLE_IN_APPLICANT_DEPT',
+      'SPECIFIED_DEPT_LEADER': 'SPECIFIED_DEPARTMENT_MANAGER',
+      'ROLE_IN_SPECIFIED_DEPT': 'ROLE_IN_SPECIFIED_DEPT',
+      'GLOBAL_ROLE': 'GLOBAL_ROLE'
     }
     if (selectedConfig.value.assigneeType) {
       selectedConfig.value.assignStrategy = typeMap[selectedConfig.value.assigneeType] || ''
     }
-    if (selectedConfig.value.assigneeValue) {
-      selectedConfig.value.assignValue = selectedConfig.value.assigneeValue
+    const config = selectedConfig.value
+    if (config.assigneeType === 'USER') {
+      config.assigneeValue = JSON.stringify(config.assigneeUserIds || [])
+    } else if (config.assigneeType === 'ROLE' || config.assigneeType === 'GLOBAL_ROLE') {
+      config.assigneeValue = config.assigneeRoleCode || ''
+    } else if (config.assigneeType === 'SPECIFIED_DEPT_LEADER') {
+      config.assigneeValue = config.assigneeDepartmentId
+        ? JSON.stringify({ departmentId: config.assigneeDepartmentId }) : ''
+    } else if (config.assigneeType === 'ROLE_IN_SPECIFIED_DEPT') {
+      config.assigneeValue = config.assigneeDepartmentId && config.assigneeRoleCode
+        ? JSON.stringify({ departmentId: config.assigneeDepartmentId, roleCode: config.assigneeRoleCode }) : ''
+    } else {
+      config.assigneeValue = ''
     }
+    config.assignValue = config.assigneeValue
   }
   void syncXml(false)
+}
+
+function handleAssigneeTypeChange() {
+  if (!selectedConfig.value) return
+  selectedConfig.value.assigneeUserIds = []
+  selectedConfig.value.assigneeDepartmentId = null
+  selectedConfig.value.assigneeRoleCode = ''
+  selectedConfig.value.assigneeValue = ''
+  selectedConfig.value.assignValue = ''
+  syncNodeConfig()
 }
 
 function handleStartPermissionChange() {

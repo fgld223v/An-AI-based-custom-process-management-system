@@ -1,6 +1,7 @@
 package com.aiflow.websocket;
 
 import com.aiflow.dto.NotificationDTO;
+import com.aiflow.security.CurrentUser;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +16,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import org.springframework.security.core.Authentication;
 
 @Slf4j
 @Component
@@ -46,7 +48,7 @@ public class NotificationWebSocketHandler extends TextWebSocketHandler {
         if (notification == null) {
             return;
         }
-        broadcast(Map.of(
+        broadcast(notification.getReceiverId(), Map.of(
                 "event", "notification.changed",
                 "action", action,
                 "notificationId", notification.getId(),
@@ -56,7 +58,7 @@ public class NotificationWebSocketHandler extends TextWebSocketHandler {
     }
 
     public void broadcastDeleted(Long notificationId, Long receiverId) {
-        broadcast(Map.of(
+        broadcast(receiverId, Map.of(
                 "event", "notification.changed",
                 "action", "deleted",
                 "notificationId", notificationId,
@@ -64,7 +66,7 @@ public class NotificationWebSocketHandler extends TextWebSocketHandler {
         ));
     }
 
-    private void broadcast(Map<String, Object> payload) {
+    private void broadcast(Long receiverId, Map<String, Object> payload) {
         if (sessions.isEmpty()) {
             return;
         }
@@ -78,6 +80,9 @@ public class NotificationWebSocketHandler extends TextWebSocketHandler {
         TextMessage message = new TextMessage(body);
         sessions.removeIf(session -> !session.isOpen());
         for (WebSocketSession session : sessions) {
+            if (!isReceiverSession(session, receiverId)) {
+                continue;
+            }
             try {
                 synchronized (session) {
                     session.sendMessage(message);
@@ -86,5 +91,13 @@ public class NotificationWebSocketHandler extends TextWebSocketHandler {
                 log.warn("Failed to send notification websocket message", ex);
             }
         }
+    }
+
+    private boolean isReceiverSession(WebSocketSession session, Long receiverId) {
+        if (!(session.getPrincipal() instanceof Authentication authentication)
+                || !(authentication.getPrincipal() instanceof CurrentUser currentUser)) {
+            return false;
+        }
+        return currentUser.getId().equals(receiverId);
     }
 }
