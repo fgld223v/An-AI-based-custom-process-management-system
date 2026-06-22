@@ -30,4 +30,9 @@ public interface StatisticsService {
      * 节点效率排名：每个节点的平均停留时长 / 超时率
      */
     NodeEfficiencyDTO getNodeEfficiency();
+
+    /**
+     * 导出统计报表为 Excel 字节数组，可选时间范围
+     */
+    byte[] exportExcel(LocalDate start, LocalDate end);
 }

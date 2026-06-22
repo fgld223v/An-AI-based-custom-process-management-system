@@ -55,4 +55,18 @@ public class StatisticsController {
     public ApiResponse<NodeEfficiencyDTO> getNodeEfficiency() {
         return ApiResponse.success(statisticsService.getNodeEfficiency());
     }
+
+    @GetMapping("/export")
+    public void exportExcel(@RequestParam(defaultValue = "excel") String format,
+                            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate start,
+                            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate end,
+                            jakarta.servlet.http.HttpServletResponse response) throws Exception {
+        byte[] data = statisticsService.exportExcel(start, end);
+        String filename = (start != null && end != null)
+                ? "statistics_" + start + "_" + end + ".xlsx"
+                : "statistics.xlsx";
+        response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        response.setHeader("Content-Disposition", "attachment; filename=" + filename);
+        response.getOutputStream().write(data);
+    }
 }
