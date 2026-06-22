@@ -9,8 +9,8 @@ import lombok.Data;
 public class WorkflowRoleCreateRequest {
 
     @NotBlank
-    @Pattern(regexp = "^[A-Za-z][A-Za-z0-9_]{1,63}$",
-            message = "must start with a letter and contain only letters, numbers, and underscores")
+    @Pattern(regexp = "^[A-Za-z][A-Za-z0-9_]{0,63}$",
+            message = "必须以英文字母开头，且只能包含英文字母、数字和下划线")
     private String roleCode;
 
     @NotBlank
@@ -21,7 +21,7 @@ public class WorkflowRoleCreateRequest {
     private String description;
 
     @NotBlank
-    @Pattern(regexp = "(?i)global|department", message = "must be global or department")
+    @Pattern(regexp = "(?i)global|department", message = "作用范围必须为全局或部门")
     private String roleScope;
 
     private Integer enabled;

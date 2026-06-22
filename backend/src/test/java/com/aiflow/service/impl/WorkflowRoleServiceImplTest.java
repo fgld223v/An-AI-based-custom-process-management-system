@@ -81,6 +81,7 @@ class WorkflowRoleServiceImplTest {
     void assignsDepartmentScopedRoleToUser() {
         WorkflowRole role = role(3L, "DEPT_APPROVER", "department");
         SysUser user = user(10L, 1);
+        user.setDepartmentId(6L);
         Department department = Department.builder()
                 .id(6L).deptName("财务部").status(1).deleted(0).build();
         when(workflowRoleRepository.findByIdAndDeleted(3L, 0)).thenReturn(Optional.of(role));

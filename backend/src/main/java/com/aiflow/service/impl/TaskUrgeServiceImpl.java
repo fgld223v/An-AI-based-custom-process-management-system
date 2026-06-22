@@ -12,6 +12,7 @@ import com.aiflow.service.NotificationService;
 import com.aiflow.service.TaskUrgeService;
 import lombok.RequiredArgsConstructor;
 import org.flowable.engine.TaskService;
+import org.flowable.identitylink.api.IdentityLink;
 import org.flowable.task.api.Task;
 import org.springframework.stereotype.Service;
 import org.springframework.security.access.AccessDeniedException;
@@ -20,7 +21,11 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -49,14 +54,20 @@ public class TaskUrgeServiceImpl implements TaskUrgeService {
         if (!"running".equals(instance.getStatus()) || !hasText(instance.getFlowableProcessInstanceId())) {
             throw new IllegalStateException("仅运行中的流程实例支持催办。");
         }
-        Task task = taskService.createTaskQuery()
+        List<Task> tasks = taskService.createTaskQuery()
                 .processInstanceId(instance.getFlowableProcessInstanceId())
                 .active()
-                .singleResult();
-        if (task == null) {
+                .orderByTaskCreateTime().asc()
+                .list();
+        if (tasks.isEmpty()) {
             throw new IllegalStateException("当前流程没有待办任务，无法催办。");
         }
-        return createUrgeNotification(task, instance, false);
+        List<NotificationDTO> notifications = new ArrayList<>();
+        tasks.forEach(task -> notifications.addAll(createUrgeNotifications(task, instance, false)));
+        if (notifications.isEmpty()) {
+            throw new IllegalStateException("当前任务没有可通知的处理人。");
+        }
+        return notifications.get(0);
     }
 
     @Override
@@ -71,20 +82,22 @@ public class TaskUrgeServiceImpl implements TaskUrgeService {
         if (exists) {
             return false;
         }
-        createUrgeNotification(task, instance, true);
-        return true;
+        return !createUrgeNotifications(task, instance, true).isEmpty();
     }
 
-    private NotificationDTO createUrgeNotification(Task task, ProcessInstance instance, boolean automatic) {
-        NotificationCreateRequest request = new NotificationCreateRequest();
-        request.setReceiverId(resolveReceiverId(task));
-        request.setType(NOTIFICATION_TYPE);
-        request.setTitle(automatic ? "任务超时催办" : "任务催办提醒");
-        request.setContent(buildContent(task, instance, automatic));
-        request.setTargetType(targetType(task));
-        request.setTargetId(instance.getId());
-        request.setTargetUrl("/tasks/" + task.getId());
-        return notificationService.createNotification(request);
+    private List<NotificationDTO> createUrgeNotifications(
+            Task task, ProcessInstance instance, boolean automatic) {
+        return resolveReceiverIds(task).stream().map(receiverId -> {
+            NotificationCreateRequest request = new NotificationCreateRequest();
+            request.setReceiverId(receiverId);
+            request.setType(NOTIFICATION_TYPE);
+            request.setTitle(automatic ? "任务超时催办" : "任务催办提醒");
+            request.setContent(buildContent(task, instance, automatic));
+            request.setTargetType(targetType(task));
+            request.setTargetId(instance.getId());
+            request.setTargetUrl("/tasks/" + task.getId());
+            return notificationService.createNotification(request);
+        }).toList();
     }
 
     private String buildContent(Task task, ProcessInstance instance, boolean automatic) {
@@ -107,15 +120,25 @@ public class TaskUrgeServiceImpl implements TaskUrgeService {
         return TARGET_TYPE_PREFIX + task.getId();
     }
 
-    private Long resolveReceiverId(Task task) {
+    private List<Long> resolveReceiverIds(Task task) {
         String assignee = task.getAssignee();
-        if (!hasText(assignee)) {
-            return DEFAULT_RECEIVER_ID;
+        if (hasText(assignee)) {
+            return List.of(resolveUserId(assignee));
         }
+        Set<Long> candidateIds = new LinkedHashSet<>();
+        for (IdentityLink link : taskService.getIdentityLinksForTask(task.getId())) {
+            if (hasText(link.getUserId())) {
+                candidateIds.add(resolveUserId(link.getUserId()));
+            }
+        }
+        return candidateIds.isEmpty() ? List.of(DEFAULT_RECEIVER_ID) : List.copyOf(candidateIds);
+    }
+
+    private Long resolveUserId(String actor) {
         try {
-            return Long.parseLong(assignee.trim());
+            return Long.parseLong(actor.trim());
         } catch (NumberFormatException ignored) {
-            Optional<SysUser> user = sysUserRepository.findByUsername(assignee.trim());
+            Optional<SysUser> user = sysUserRepository.findByUsername(actor.trim());
             return user.map(SysUser::getId).orElse(DEFAULT_RECEIVER_ID);
         }
     }

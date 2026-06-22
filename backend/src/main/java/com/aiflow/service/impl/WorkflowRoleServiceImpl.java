@@ -129,6 +129,10 @@ public class WorkflowRoleServiceImpl implements WorkflowRoleService {
         }
         SysUser user = getRequiredUser(request.getUserId());
         Long departmentId = resolveAssignmentDepartment(role, request.getDepartmentId());
+        if (DEPARTMENT_SCOPE.equals(role.getRoleScope())
+                && !Objects.equals(user.getDepartmentId(), departmentId)) {
+            throw new IllegalArgumentException("用户必须属于授权部门，不能创建跨部门角色授权");
+        }
 
         UserWorkflowRole existing = userWorkflowRoleRepository
                 .findByUserIdAndRoleIdAndDepartmentId(user.getId(), roleId, departmentId)

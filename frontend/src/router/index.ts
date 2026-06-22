@@ -169,6 +169,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '部门管理', group: '系统', roles: SUPER_ADMIN }
       },
       {
+        path: 'admin/workflow-roles',
+        name: 'WorkflowRoleAdmin',
+        component: () => import('@/views/admin/WorkflowRoleAdmin.vue'),
+        meta: { title: '流程角色管理', group: '系统', roles: SUPER_ADMIN }
+      },
+      {
         path: 'settings',
         name: 'Settings',
         component: () => import('@/views/settings/Settings.vue'),
