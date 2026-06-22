@@ -32,6 +32,12 @@ public class StatisticsOverviewDTO {
     /** 各状态实例数量，key: 状态(draft/submitted/running/completed), value: 数量 */
     private Map<String, Long> statusDistribution;
 
+    /** 今日新增实例数 */
+    private Long todayNewInstances;
+
+    /** 待处理任务数（pending + processing） */
+    private Long pendingTaskCount;
+
     /** 各业务类型实例数量 */
     private List<BizTypeCount> bizTypeDistribution;
 
