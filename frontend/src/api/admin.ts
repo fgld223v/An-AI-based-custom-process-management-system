@@ -53,6 +53,8 @@ export interface CreateUserPayload {
 
 export interface UpdateUserPayload {
   nickname?: string
+  phone?: string
+  email?: string
   systemRole?: string
   password?: string
   departmentId?: number | null

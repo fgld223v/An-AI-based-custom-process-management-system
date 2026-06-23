@@ -82,7 +82,7 @@ const allMenuGroups: MenuGroup[] = [
   {
     title: '概览',
     items: [
-      { label: '工作台', path: '/workbench', icon: DataAnalysis, available: true ,roles: superAdminOnly }
+      { label: '工作台', path: '/workbench', icon: DataAnalysis, available: true }
     ]
   },
   {
@@ -124,11 +124,12 @@ const allMenuGroups: MenuGroup[] = [
   {
     title: '系统',
     items: [
+      { label: '个人设置', path: '/settings', icon: Setting, available: true },
       { label: '用户管理', path: '/admin/users', icon: UserFilled, available: true, roles: superAdminOnly },
       { label: '部门管理', path: '/admin/departments', icon: OfficeBuilding, available: true, roles: superAdminOnly },
       { label: '流程角色管理', path: '/admin/workflow-roles', icon: UserFilled, available: true, roles: superAdminOnly },
       { label: '自动化策略', path: '/settings/automation', icon: Operation, available: true, roles: adminRoles },
-      { label: '个人设置', path: '/settings', icon: Setting, available: true }
+      { label: '系统设置', path: '/settings/system', icon: Setting, available: true, roles: superAdminOnly }
     ]
   }
 ]

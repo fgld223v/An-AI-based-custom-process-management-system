@@ -19,6 +19,15 @@
         <el-form-item prop="username">
           <el-input v-model="form.username" placeholder="请输入用户名" :prefix-icon="User" />
         </el-form-item>
+        <el-form-item>
+          <el-radio-group v-model="form.verifyType" @change="form.verifyValue = ''">
+            <el-radio-button value="phone">手机号验证</el-radio-button>
+            <el-radio-button value="email">邮箱验证</el-radio-button>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item prop="verifyValue">
+          <el-input v-model="form.verifyValue" :placeholder="form.verifyType==='email' ? '请输入绑定邮箱' : '请输入绑定手机号'" :prefix-icon="Message" />
+        </el-form-item>
         <el-form-item prop="newPassword">
           <el-input v-model="form.newPassword" placeholder="请输入新密码" type="password" show-password :prefix-icon="Lock" />
         </el-form-item>
@@ -42,7 +51,7 @@ import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import type { FormInstance, FormRules } from 'element-plus'
 import { ElMessage } from 'element-plus'
-import { Lock, User } from '@element-plus/icons-vue'
+import { Lock, Message, User } from '@element-plus/icons-vue'
 import { resetPasswordApi } from '@/api/auth'
 
 const router = useRouter()
@@ -51,6 +60,8 @@ const loading = ref(false)
 
 const form = reactive({
   username: '',
+  verifyType: 'phone' as 'phone' | 'email',
+  verifyValue: '',
   newPassword: '',
   confirmPassword: ''
 })
@@ -66,6 +77,9 @@ const validateConfirm = (_rule: any, value: string, callback: Function) => {
 const rules: FormRules = {
   username: [
     { required: true, message: '请输入用户名', trigger: 'blur' }
+  ],
+  verifyValue: [
+    { required: true, message: '请输入绑定的手机号或邮箱', trigger: 'blur' }
   ],
   newPassword: [
     { required: true, message: '请输入新密码', trigger: 'blur' },
@@ -87,6 +101,8 @@ async function submit() {
   try {
     await resetPasswordApi({
       username: form.username.trim(),
+      verifyType: form.verifyType,
+      verifyValue: form.verifyValue.trim(),
       newPassword: form.newPassword,
       confirmPassword: form.confirmPassword
     })

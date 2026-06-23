@@ -86,6 +86,8 @@ public class AdminController {
                 .orElseThrow(() -> new IllegalArgumentException("用户不存在"));
 
         if (request.getNickname() != null) user.setNickname(request.getNickname().trim());
+        if (request.getPhone() != null) user.setPhone(request.getPhone().trim());
+        if (request.getEmail() != null) user.setEmail(request.getEmail().trim());
         if (request.getSystemRole() != null) {
             user.setSystemRole(request.getSystemRole());
             user.setRole(mapLegacyRole(request.getSystemRole()));
@@ -378,6 +380,8 @@ public class AdminController {
     @Data
     public static class UpdateUserRequest {
         private String nickname;
+        private String phone;
+        private String email;
         private String systemRole;
         private String password;
         private Long departmentId;

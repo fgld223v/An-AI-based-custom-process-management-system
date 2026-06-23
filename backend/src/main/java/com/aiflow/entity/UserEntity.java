@@ -24,6 +24,10 @@ public class UserEntity {
 
     private String nickname;
 
+    private String phone;
+
+    private String email;
+
     private String role;
 
     /** 系统角色：super_admin / biz_admin / normal_user */
