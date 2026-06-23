@@ -29,4 +29,7 @@ public interface ApproverResolverService {
      */
     List<Long> resolveApprovers(Long instanceId, String taskDefinitionKey,
                                 String assignStrategy, String assignValue);
+
+    List<Long> resolveApproversForApplicant(Long applicantId, String taskDefinitionKey,
+                                            String assignStrategy, String assignValue);
 }

@@ -11,6 +11,8 @@ import java.util.Optional;
 
 public interface ProcessInstanceRepository extends JpaRepository<ProcessInstance, Long> {
 
+    boolean existsByTemplateIdAndDeleted(Long templateId, Integer deleted);
+
     Optional<ProcessInstance> findByIdAndDeleted(Long id, Integer deleted);
 
     Optional<ProcessInstance> findByFlowableProcessInstanceIdAndDeleted(String flowableProcessInstanceId, Integer deleted);

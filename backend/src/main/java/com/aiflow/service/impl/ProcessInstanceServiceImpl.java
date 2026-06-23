@@ -13,9 +13,6 @@ import com.aiflow.repository.FormSubmissionRepository;
 import com.aiflow.repository.ProcessInstanceRepository;
 import com.aiflow.repository.ProcessTemplateRepository;
 import com.aiflow.security.SecurityUtils;
-import com.aiflow.entity.UserEntity;
-import com.aiflow.mapper.SysUserMapper;
-import com.aiflow.service.ApproverResolverService;
 import com.aiflow.service.FlowableRuntimeService;
 import com.aiflow.service.ProcessInstanceService;
 import com.aiflow.service.ProcessAuthorizationService;
@@ -23,7 +20,6 @@ import com.aiflow.service.ProcessTimelineService;
 import com.aiflow.service.RuleEvaluatorService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.flowable.engine.TaskService;
 import org.flowable.task.api.Task;
 import org.springframework.security.access.AccessDeniedException;
@@ -34,7 +30,6 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 
-@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -51,13 +46,10 @@ public class ProcessInstanceServiceImpl implements ProcessInstanceService {
     private final ProcessAuthorizationService processAuthorizationService;
     private final FlowableRuntimeService flowableRuntimeService;
     private final RuleEvaluatorService ruleEvaluatorService;
-    private final ApproverResolverService approverResolverService;
-    private final SysUserMapper sysUserMapper;
     private final TaskService taskService;
     private final ObjectMapper objectMapper;
     private final FormBindConfigParser formBindConfigParser;
     private final ProcessTimelineService processTimelineService;
-    private final NodeConfigParser nodeConfigParser;
 
     @Override
     @Transactional(readOnly = true)
@@ -197,10 +189,12 @@ public class ProcessInstanceServiceImpl implements ProcessInstanceService {
 
         // 检查 Flowable 流程是否已立即结束（如排他网关条件直接路由到 EndEvent）
         if (hasText(instance.getFlowableProcessInstanceId())) {
-            Task activeTask = taskService.createTaskQuery()
+            List<Task> activeTasks = taskService.createTaskQuery()
                     .processInstanceId(instance.getFlowableProcessInstanceId())
-                    .singleResult();
-            if (activeTask == null) {
+                    .active()
+                    .orderByTaskCreateTime().asc()
+                    .list();
+            if (activeTasks.isEmpty()) {
                 instance.setStatus("completed");
                 instance.setEndedAt(now);
                 instance.setCurrentNodeKey(null);
@@ -210,19 +204,6 @@ public class ProcessInstanceServiceImpl implements ProcessInstanceService {
                 processInstanceRepository.save(instance);
             } else {
                 ruleEvaluatorService.evaluateAndAutoComplete(instance);
-
-                // 如果第一个任务是审批节点（无 form_fill 前置），立即分配审批人
-                if (activeTask.getAssignee() == null) {
-                    ProcessTemplate tpl = processTemplateRepository
-                            .findByIdAndDeleted(instance.getTemplateId(), 0).orElse(null);
-                    if (tpl != null) {
-                        String businessType = nodeConfigParser.getStringField(
-                                tpl.getNodeConfig(), activeTask.getTaskDefinitionKey(), "businessType");
-                        if ("approval".equals(businessType)) {
-                            assignFirstApprovalTask(activeTask, tpl, instance);
-                        }
-                    }
-                }
             }
         }
 
@@ -242,11 +223,13 @@ public class ProcessInstanceServiceImpl implements ProcessInstanceService {
         }
 
         // 2. 使用 Flowable TaskQuery 查询当前任务
-        Task task = taskService.createTaskQuery()
+        List<Task> activeTasks = taskService.createTaskQuery()
                 .processInstanceId(flowableProcessInstanceId)
-                .singleResult();
+                .active()
+                .orderByTaskCreateTime().asc()
+                .list();
 
-        if (task == null) {
+        if (activeTasks.isEmpty()) {
             // 流程已结束 — 返回 completed=true 而非抛异常
             return RuntimeStateDTO.builder()
                     .businessInstanceId(instance.getId())
@@ -254,6 +237,7 @@ public class ProcessInstanceServiceImpl implements ProcessInstanceService {
                     .completed(true)
                     .build();
         }
+        Task task = activeTasks.get(0);
 
         // 3. 查询 ProcessTemplate，解析 formBindConfig 获取当前节点的 formId
         ProcessTemplate template = processTemplateRepository
@@ -369,28 +353,6 @@ public class ProcessInstanceServiceImpl implements ProcessInstanceService {
 
     private String normalize(String value) {
         return hasText(value) ? value.trim() : null;
-    }
-
-    /**
-     * 流程启动后第一个任务即为审批节点时，解析并分配审批人。
-     */
-    private void assignFirstApprovalTask(Task task, ProcessTemplate template, ProcessInstance instance) {
-        String nodeKey = task.getTaskDefinitionKey();
-        String strategy = nodeConfigParser.getStringField(template.getNodeConfig(), nodeKey, "assignStrategy");
-        String assignValue = nodeConfigParser.getStringField(template.getNodeConfig(), nodeKey, "assignValue");
-        if (strategy == null || strategy.isBlank()) {
-            strategy = "DEPARTMENT_MANAGER"; // 兜底
-        }
-        List<Long> approverIds = approverResolverService.resolveApprovers(
-                instance.getId(), nodeKey, strategy, assignValue);
-        if (!approverIds.isEmpty()) {
-            UserEntity approver = sysUserMapper.selectById(approverIds.get(0));
-            if (approver != null) {
-                taskService.setAssignee(task.getId(), String.valueOf(approver.getId()));
-                log.info("启动时分配审批人：task={}, assignee={}(id={})",
-                        task.getName(), approver.getNickname(), approver.getId());
-            }
-        }
     }
 
     private void requireId(Long id, String message) {

@@ -41,6 +41,9 @@ public interface ProcessTemplateRepository extends JpaRepository<ProcessTemplate
     List<ProcessTemplate> findByTemplateCodeAndResourceTypeAndDeletedOrderByVersionDesc(
             String templateCode, ProcessResourceType resourceType, Integer deleted);
 
+    Optional<ProcessTemplate> findFirstByTemplateCodeAndResourceTypeOrderByVersionDesc(
+            String templateCode, ProcessResourceType resourceType);
+
     List<ProcessTemplate> findByTemplateCodeAndResourceTypeAndStatusAndDeleted(
             String templateCode, ProcessResourceType resourceType, TemplateStatus status, Integer deleted);
 }

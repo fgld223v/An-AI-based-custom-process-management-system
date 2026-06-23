@@ -7,11 +7,18 @@ import com.aiflow.enums.ProcessResourceType;
 import com.aiflow.enums.TemplateSourceType;
 import com.aiflow.enums.TemplateStatus;
 import com.aiflow.model.FormDefinition;
+import com.aiflow.model.Department;
 import com.aiflow.model.ProcessTemplate;
+import com.aiflow.model.SysUser;
+import com.aiflow.repository.DepartmentRepository;
 import com.aiflow.repository.FormDefinitionRepository;
+import com.aiflow.repository.ProcessInstanceRepository;
 import com.aiflow.repository.ProcessTemplateRepository;
+import com.aiflow.repository.SysUserRepository;
 import com.aiflow.service.FlowableDeploymentService;
 import com.aiflow.service.ProcessAuthorizationService;
+import com.aiflow.service.WorkflowRoleService;
+import com.aiflow.dto.WorkflowRoleDTO;
 import com.aiflow.service.ProcessTemplateService;
 import com.aiflow.common.BusinessException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -35,12 +42,16 @@ public class ProcessTemplateServiceImpl implements ProcessTemplateService {
     private static final DateTimeFormatter COPY_CODE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS");
 
     private final ProcessTemplateRepository processTemplateRepository;
+    private final ProcessInstanceRepository processInstanceRepository;
     private final FormDefinitionRepository formDefinitionRepository;
     private final FlowableDeploymentService flowableDeploymentService;
     private final ProcessAuthorizationService processAuthorizationService;
     private final ObjectMapper objectMapper;
     private final FormBindConfigParser formBindConfigParser;
     private final NodeConfigParser nodeConfigParser;
+    private final WorkflowRoleService workflowRoleService;
+    private final DepartmentRepository departmentRepository;
+    private final SysUserRepository sysUserRepository;
 
     @Override
     public ProcessTemplate createTemplate(ProcessTemplate template) {
@@ -158,10 +169,11 @@ public class ProcessTemplateServiceImpl implements ProcessTemplateService {
                 .filter(item -> item.getStatus() == TemplateStatus.PUBLISHED)
                 .findFirst()
                 .orElse(requestedVersion);
-        int nextVersion = versions.stream()
+        int nextVersion = processTemplateRepository
+                .findFirstByTemplateCodeAndResourceTypeOrderByVersionDesc(
+                        requestedVersion.getTemplateCode(), requestedVersion.getResourceType())
                 .map(ProcessTemplate::getVersion)
                 .filter(java.util.Objects::nonNull)
-                .max(Integer::compareTo)
                 .orElse(0) + 1;
         LocalDateTime now = LocalDateTime.now();
         ProcessTemplate draft = ProcessTemplate.builder()
@@ -257,6 +269,21 @@ public class ProcessTemplateServiceImpl implements ProcessTemplateService {
     }
 
     @Override
+    public void deleteTemplate(Long id) {
+        requireId(id, "id must not be null");
+        ProcessTemplate existing = getRequiredTemplate(id);
+        if (existing.getStatus() == TemplateStatus.PUBLISHED) {
+            throw new IllegalStateException("已发布流程请先停用后再删除");
+        }
+        if (processInstanceRepository.existsByTemplateIdAndDeleted(id, 0)) {
+            throw new IllegalStateException("该流程版本已有流程实例，不能删除；可保持停用状态以保留历史记录");
+        }
+        existing.setDeleted(1);
+        existing.setUpdatedAt(LocalDateTime.now());
+        processTemplateRepository.save(existing);
+    }
+
+    @Override
     public ProcessTemplate copyTemplate(ProcessTemplate sourceTemplate, Long createdBy, String newTemplateName) {
         if (sourceTemplate == null) {
             throw new IllegalArgumentException("sourceTemplate must not be null");
@@ -311,7 +338,7 @@ public class ProcessTemplateServiceImpl implements ProcessTemplateService {
             }
             String nodeName = firstText(config.get("nodeName"), config.get("nodeKey"), config.get("nodeId"));
             String strategy = stringValue(config.get("assignStrategy"));
-            String assignValue = firstText(config.get("assignValue"), config.get("assigneeValue"));
+            String assignValue = firstTextOrNull(config.get("assignValue"), config.get("assigneeValue"));
             if (!hasText(strategy)) {
                 throw new IllegalStateException("审批节点【" + nodeName + "】未配置审批人策略。");
             }
@@ -320,7 +347,95 @@ public class ProcessTemplateServiceImpl implements ProcessTemplateService {
                     && !hasText(assignValue)) {
                 throw new IllegalStateException("审批节点【" + nodeName + "】未完整配置审批人范围。");
             }
+            validateWorkflowRoleReference(nodeName, strategy, assignValue);
+            validateSpecifiedDepartmentReference(nodeName, strategy, assignValue);
         }
+    }
+
+    private void validateWorkflowRoleReference(String nodeName, String strategy, String assignValue) {
+        String normalizedStrategy = hasText(strategy) ? strategy.trim().toUpperCase() : "";
+        if (!List.of("ROLE", "ROLE_IN_APPLICANT_DEPT", "ROLE_IN_SPECIFIED_DEPT", "GLOBAL_ROLE")
+                .contains(normalizedStrategy)) {
+            return;
+        }
+        String roleCode = extractRoleCode(assignValue);
+        String requiredScope = "GLOBAL_ROLE".equals(normalizedStrategy) ? "global" : "department";
+        List<WorkflowRoleDTO> enabledRoles = workflowRoleService.listRoles(true);
+        boolean valid = enabledRoles != null && enabledRoles.stream().anyMatch(role ->
+                roleCode.equalsIgnoreCase(role.getRoleCode())
+                        && requiredScope.equalsIgnoreCase(role.getRoleScope()));
+        if (!valid) {
+            throw new IllegalStateException("审批节点【" + nodeName + "】引用的流程角色不存在、已停用或范围不匹配："
+                    + roleCode);
+        }
+        if ("GLOBAL_ROLE".equals(normalizedStrategy)
+                && workflowRoleService.resolveActiveUserIds(roleCode, null).isEmpty()) {
+            throw new IllegalStateException("审批节点【" + nodeName + "】引用的全局流程角色没有有效成员："
+                    + roleCode);
+        }
+    }
+
+    private void validateSpecifiedDepartmentReference(
+            String nodeName, String strategy, String assignValue) {
+        String normalizedStrategy = hasText(strategy) ? strategy.trim().toUpperCase() : "";
+        if (!List.of("ROLE_IN_SPECIFIED_DEPT", "SPECIFIED_DEPARTMENT_MANAGER")
+                .contains(normalizedStrategy)) {
+            return;
+        }
+        Long departmentId = extractDepartmentId(assignValue);
+        if (departmentId == null) {
+            throw new IllegalStateException("审批节点【" + nodeName + "】未配置有效的指定部门。");
+        }
+        Department department = departmentRepository.findByIdAndDeleted(departmentId, 0)
+                .filter(item -> Integer.valueOf(1).equals(item.getStatus()))
+                .orElseThrow(() -> new IllegalStateException(
+                        "审批节点【" + nodeName + "】指定的部门不存在或已停用：" + departmentId));
+
+        if ("ROLE_IN_SPECIFIED_DEPT".equals(normalizedStrategy)) {
+            String roleCode = extractRoleCode(assignValue);
+            if (workflowRoleService.resolveActiveUserIds(roleCode, departmentId).isEmpty()) {
+                throw new IllegalStateException("审批节点【" + nodeName + "】指定部门内没有有效的流程角色成员："
+                        + roleCode);
+            }
+            return;
+        }
+
+        Long leaderId = department.getLeaderUserId();
+        SysUser leader = leaderId == null ? null : sysUserRepository.findById(leaderId).orElse(null);
+        if (leader == null || Integer.valueOf(1).equals(leader.getDeleted())
+                || !Integer.valueOf(1).equals(leader.getEnabled())) {
+            throw new IllegalStateException("审批节点【" + nodeName + "】指定部门未配置有效负责人："
+                    + departmentId);
+        }
+    }
+
+    private String extractRoleCode(String assignValue) {
+        if (!hasText(assignValue)) return "";
+        String normalized = assignValue.trim();
+        if (!normalized.startsWith("{")) return normalized;
+        try {
+            return objectMapper.readTree(normalized).path("roleCode").asText("").trim();
+        } catch (Exception ignored) {
+            return "";
+        }
+    }
+
+    private Long extractDepartmentId(String assignValue) {
+        if (!hasText(assignValue) || !assignValue.trim().startsWith("{")) return null;
+        try {
+            String value = objectMapper.readTree(assignValue).path("departmentId").asText("").trim();
+            return hasText(value) ? Long.valueOf(value) : null;
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private String firstTextOrNull(Object... values) {
+        for (Object value : values) {
+            String text = stringValue(value);
+            if (hasText(text)) return text;
+        }
+        return null;
     }
 
     private String firstText(Object... values) {

@@ -3,20 +3,28 @@ package com.aiflow.service.impl;
 import com.aiflow.enums.ProcessResourceType;
 import com.aiflow.enums.TemplateStatus;
 import com.aiflow.model.ProcessTemplate;
+import com.aiflow.model.Department;
+import com.aiflow.repository.DepartmentRepository;
 import com.aiflow.repository.ProcessTemplateRepository;
+import com.aiflow.repository.ProcessInstanceRepository;
 import com.aiflow.repository.FormDefinitionRepository;
+import com.aiflow.repository.SysUserRepository;
 import com.aiflow.service.FlowableDeploymentService;
 import com.aiflow.service.ProcessAuthorizationService;
+import com.aiflow.service.WorkflowRoleService;
+import com.aiflow.dto.WorkflowRoleDTO;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.never;
@@ -29,6 +37,9 @@ class ProcessTemplateServiceImplTest {
     private ProcessTemplateRepository processTemplateRepository;
 
     @Mock
+    private ProcessInstanceRepository processInstanceRepository;
+
+    @Mock
     private FormDefinitionRepository formDefinitionRepository;
 
     @Mock
@@ -37,14 +48,23 @@ class ProcessTemplateServiceImplTest {
     @Mock
     private ProcessAuthorizationService processAuthorizationService;
 
-    @Mock
-    private ObjectMapper objectMapper;
+    @Spy
+    private ObjectMapper objectMapper = new ObjectMapper();
 
     @Mock
     private FormBindConfigParser formBindConfigParser;
 
     @Mock
     private NodeConfigParser nodeConfigParser;
+
+    @Mock
+    private WorkflowRoleService workflowRoleService;
+
+    @Mock
+    private DepartmentRepository departmentRepository;
+
+    @Mock
+    private SysUserRepository sysUserRepository;
 
     @InjectMocks
     private ProcessTemplateServiceImpl service;
@@ -100,6 +120,8 @@ class ProcessTemplateServiceImplTest {
         when(processTemplateRepository.findByIdAndDeleted(1L, 0)).thenReturn(java.util.Optional.of(published));
         when(processTemplateRepository.findByTemplateCodeAndResourceTypeAndDeletedOrderByVersionDesc(
                 "leave-flow", ProcessResourceType.BUSINESS_PROCESS, 0)).thenReturn(List.of(published));
+        when(processTemplateRepository.findFirstByTemplateCodeAndResourceTypeOrderByVersionDesc(
+                "leave-flow", ProcessResourceType.BUSINESS_PROCESS)).thenReturn(java.util.Optional.of(published));
         when(processTemplateRepository.save(any(ProcessTemplate.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -153,6 +175,118 @@ class ProcessTemplateServiceImplTest {
         assertThat(disabled.getStatus()).isEqualTo(TemplateStatus.DISABLED);
         assertThat(disabled.getFlowableDeploymentId()).isEqualTo("deployment-1");
         assertThat(disabled.getFlowableProcessDefinitionId()).isEqualTo("definition-1");
+    }
+
+    @Test
+    void deletingDraftSoftDeletesVersionWithoutInstances() {
+        ProcessTemplate draft = version(2L, 2, TemplateStatus.DRAFT);
+        when(processTemplateRepository.findByIdAndDeleted(2L, 0)).thenReturn(java.util.Optional.of(draft));
+
+        service.deleteTemplate(2L);
+
+        assertThat(draft.getDeleted()).isEqualTo(1);
+        verify(processTemplateRepository).save(draft);
+    }
+
+    @Test
+    void deletingPublishedVersionRequiresDisablingFirst() {
+        ProcessTemplate published = version(1L, 1, TemplateStatus.PUBLISHED);
+        when(processTemplateRepository.findByIdAndDeleted(1L, 0)).thenReturn(java.util.Optional.of(published));
+
+        assertThatThrownBy(() -> service.deleteTemplate(1L))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("先停用");
+        verify(processTemplateRepository, never()).save(any(ProcessTemplate.class));
+    }
+
+    @Test
+    void deletingVersionWithHistoricalInstancesIsRejected() {
+        ProcessTemplate disabled = version(1L, 1, TemplateStatus.DISABLED);
+        when(processTemplateRepository.findByIdAndDeleted(1L, 0)).thenReturn(java.util.Optional.of(disabled));
+        when(processInstanceRepository.existsByTemplateIdAndDeleted(1L, 0)).thenReturn(true);
+
+        assertThatThrownBy(() -> service.deleteTemplate(1L))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("已有流程实例");
+    }
+
+    @Test
+    void nextVersionSkipsSoftDeletedVersionNumber() {
+        ProcessTemplate published = version(1L, 1, TemplateStatus.PUBLISHED);
+        ProcessTemplate deletedV2 = version(2L, 2, TemplateStatus.DRAFT);
+        deletedV2.setDeleted(1);
+        when(processTemplateRepository.findByIdAndDeleted(1L, 0)).thenReturn(java.util.Optional.of(published));
+        when(processTemplateRepository.findByTemplateCodeAndResourceTypeAndDeletedOrderByVersionDesc(
+                "leave-flow", ProcessResourceType.BUSINESS_PROCESS, 0)).thenReturn(List.of(published));
+        when(processTemplateRepository.findFirstByTemplateCodeAndResourceTypeOrderByVersionDesc(
+                "leave-flow", ProcessResourceType.BUSINESS_PROCESS)).thenReturn(java.util.Optional.of(deletedV2));
+        when(processTemplateRepository.save(any(ProcessTemplate.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        assertThat(service.createNextVersion(1L).getVersion()).isEqualTo(3);
+    }
+
+    @Test
+    void publishingRejectsMissingDepartmentWorkflowRole() {
+        ProcessTemplate draft = version(2L, 2, TemplateStatus.DRAFT);
+        draft.setNodeConfig("{}");
+        when(processTemplateRepository.findByIdAndDeleted(2L, 0))
+                .thenReturn(java.util.Optional.of(draft));
+        when(nodeConfigParser.asOrderedList("{}")).thenReturn(List.of(java.util.Map.of(
+                "businessType", "approval",
+                "nodeName", "Finance approval",
+                "assignStrategy", "ROLE_IN_APPLICANT_DEPT",
+                "assignValue", "FINANCE_APPROVER")));
+        when(workflowRoleService.listRoles(true)).thenReturn(List.of());
+
+        assertThatThrownBy(() -> service.publishTemplate(2L))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("FINANCE_APPROVER");
+    }
+
+    @Test
+    void publishingAcceptsEnabledRoleWithMatchingScope() {
+        ProcessTemplate draft = version(2L, 2, TemplateStatus.DRAFT);
+        draft.setNodeConfig("{}");
+        when(processTemplateRepository.findByIdAndDeleted(2L, 0))
+                .thenReturn(java.util.Optional.of(draft));
+        when(processTemplateRepository.findByTemplateCodeAndResourceTypeAndStatusAndDeleted(
+                "leave-flow", ProcessResourceType.BUSINESS_PROCESS, TemplateStatus.PUBLISHED, 0))
+                .thenReturn(List.of());
+        when(processTemplateRepository.save(any(ProcessTemplate.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(nodeConfigParser.asOrderedList("{}")).thenReturn(List.of(java.util.Map.of(
+                "businessType", "approval",
+                "nodeName", "Finance approval",
+                "assignStrategy", "ROLE_IN_APPLICANT_DEPT",
+                "assignValue", "FINANCE_APPROVER")));
+        when(workflowRoleService.listRoles(true)).thenReturn(List.of(WorkflowRoleDTO.builder()
+                .roleCode("FINANCE_APPROVER").roleScope("department").enabled(1).build()));
+
+        assertThat(service.publishTemplate(2L).getStatus()).isEqualTo(TemplateStatus.PUBLISHED);
+    }
+
+    @Test
+    void publishingRejectsSpecifiedDepartmentRoleWithoutActiveMembers() {
+        ProcessTemplate draft = version(2L, 2, TemplateStatus.DRAFT);
+        draft.setNodeConfig("{}");
+        String assignValue = "{\"departmentId\":8,\"roleCode\":\"FINANCE_APPROVER\"}";
+        when(processTemplateRepository.findByIdAndDeleted(2L, 0))
+                .thenReturn(java.util.Optional.of(draft));
+        when(nodeConfigParser.asOrderedList("{}")).thenReturn(List.of(java.util.Map.of(
+                "businessType", "approval",
+                "nodeName", "Finance approval",
+                "assignStrategy", "ROLE_IN_SPECIFIED_DEPT",
+                "assignValue", assignValue)));
+        when(workflowRoleService.listRoles(true)).thenReturn(List.of(WorkflowRoleDTO.builder()
+                .roleCode("FINANCE_APPROVER").roleScope("department").enabled(1).build()));
+        when(departmentRepository.findByIdAndDeleted(8L, 0)).thenReturn(java.util.Optional.of(
+                Department.builder().id(8L).status(1).deleted(0).build()));
+        when(workflowRoleService.resolveActiveUserIds("FINANCE_APPROVER", 8L)).thenReturn(List.of());
+
+        assertThatThrownBy(() -> service.publishTemplate(2L))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("没有有效的流程角色成员");
     }
 
     private ProcessTemplate version(Long id, int version, TemplateStatus status) {

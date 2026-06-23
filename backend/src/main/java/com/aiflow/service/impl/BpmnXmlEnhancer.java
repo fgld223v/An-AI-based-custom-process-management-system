@@ -151,17 +151,37 @@ public class BpmnXmlEnhancer {
                 "bpmn:tFormalExpression");
         multiInstance.appendChild(completionCondition);
 
-        // 注入 executionListener — 在 multiInstance 启动时解析审批人列表
-        Element executionListener = doc.createElementNS(FLOWABLE_NS,
-                FLOWABLE_PREFIX + ":executionListener");
-        executionListener.setAttribute("event", "start");
-        executionListener.setAttributeNS(FLOWABLE_NS, FLOWABLE_PREFIX + ":delegateExpression",
-                "${multiInstanceAssigneeListener}");
-        multiInstance.appendChild(executionListener);
-
+        injectMultiInstanceAssigneeListener(doc, userTask);
         userTask.appendChild(multiInstance);
         log.info("已为节点 {} 注入多实例特性，approvalMode={}，allMustComplete={}",
                 nodeId, config.get("approvalMode"), allMustComplete);
+    }
+
+    private void injectMultiInstanceAssigneeListener(Document doc, Element userTask) {
+        Element extElements = findExtensionElements(doc, userTask);
+        if (extElements == null) {
+            extElements = doc.createElementNS(BPMN_NS, "bpmn:extensionElements");
+            org.w3c.dom.Node firstChild = userTask.getFirstChild();
+            if (firstChild != null) userTask.insertBefore(extElements, firstChild);
+            else userTask.appendChild(extElements);
+        }
+
+        NodeList listeners = extElements.getElementsByTagNameNS(FLOWABLE_NS, "executionListener");
+        for (int i = 0; i < listeners.getLength(); i++) {
+            Element listener = (Element) listeners.item(i);
+            if ("start".equals(listener.getAttribute("event"))
+                    && "${multiInstanceAssigneeListener}".equals(
+                    listener.getAttributeNS(FLOWABLE_NS, "delegateExpression"))) {
+                return;
+            }
+        }
+
+        Element listener = doc.createElementNS(FLOWABLE_NS,
+                FLOWABLE_PREFIX + ":executionListener");
+        listener.setAttribute("event", "start");
+        listener.setAttributeNS(FLOWABLE_NS, FLOWABLE_PREFIX + ":delegateExpression",
+                "${multiInstanceAssigneeListener}");
+        extElements.appendChild(listener);
     }
 
     /**
