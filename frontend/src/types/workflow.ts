@@ -22,6 +22,9 @@ export interface FormDefinition {
   status?: string
   fieldList?: string
   formSchema?: string
+  createdBy?: number | null
+  sourceType?: string
+  sourceFormId?: number | null
   publishedAt?: string
   createdAt?: string
   updatedAt?: string

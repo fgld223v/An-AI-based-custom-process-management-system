@@ -2,7 +2,6 @@
   <div class="task-page">
     <section class="page-head">
       <div>
-        <el-tag type="warning" effect="plain">待办中心</el-tag>
         <h1>待办任务</h1>
         <p>处理待审批的任务。数据来源：Flowable ACT_RU_TASK。</p>
       </div>

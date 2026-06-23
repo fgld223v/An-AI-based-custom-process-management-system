@@ -2,7 +2,6 @@
   <div class="detail-page">
     <section class="page-head">
       <div>
-        <el-tag type="success" effect="plain">实例详情</el-tag>
         <h1>{{ instance?.instanceTitle || '流程实例详情' }}</h1>
         <p>查看流程实例、Flowable 关联信息与节点表单提交记录。</p>
       </div>

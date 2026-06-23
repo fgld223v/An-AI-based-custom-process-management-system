@@ -2,7 +2,6 @@
   <div class="template-page">
     <section class="template-hero">
       <div>
-        <el-tag type="success" effect="plain">流程模板管理</el-tag>
         <h1>流程模板库</h1>
         <p>集中管理流程模板，绑定业务类型和表单，完成发布后可上架到模板市场。</p>
       </div>

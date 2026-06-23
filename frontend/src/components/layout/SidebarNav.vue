@@ -33,19 +33,37 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   Bell,
+  CircleCheck,
   CirclePlus,
+<<<<<<< Updated upstream
   Cpu,
   DataAnalysis,
+=======
+  Clock,
+  Collection,
+  Connection,
+  DataBoard,
+  DataLine,
+  Document,
+  DocumentAdd,
+  EditPen,
+>>>>>>> Stashed changes
   Files,
+  Goods,
+  Guide,
+  Histogram,
   MagicStick,
   Monitor,
   OfficeBuilding,
-  Operation,
   Setting,
+<<<<<<< Updated upstream
   Share,
   Tickets,
   Timer,
   Tools,
+=======
+  SetUp,
+>>>>>>> Stashed changes
   TrendCharts,
   UserFilled
 } from '@element-plus/icons-vue'
@@ -86,22 +104,22 @@ const allMenuGroups: MenuGroup[] = [
   {
     title: '概览',
     items: [
-      { label: '工作台', path: '/workbench', icon: DataAnalysis, available: true ,roles: superAdminOnly }
+      { label: '工作台', path: '/workbench', icon: DataBoard, available: true, roles: superAdminOnly }
     ]
   },
   {
     title: '流程',
     items: [
-      { label: '我的流程', path: '/my-processes', icon: Share, available: true, roles: bizAdminOnly },
+      { label: '我的流程', path: '/my-processes', icon: Guide, available: true, roles: bizAdminOnly },
       { label: '表单设计器', path: '/form-designer', icon: Files, available: true, roles: adminRoles },
-      { label: '流程编辑器', path: '/process-designer', icon: Share, available: true, roles: adminRoles }
+      { label: '流程编辑器', path: '/process-designer', icon: EditPen, available: true, roles: adminRoles }
     ]
   },
   {
     title: 'AI',
     items: [
       { label: 'AI 生成流程', path: '/ai/generate-process', icon: MagicStick, available: true, roles: adminRoles },
-      { label: 'AI 生成表单', path: '/ai/generate-form', icon: MagicStick, available: true, roles: adminRoles },
+      { label: 'AI 生成表单', path: '/ai/generate-form', icon: DocumentAdd, available: true, roles: adminRoles },
       { label: 'AI 流程优化', path: '/ai/optimize', icon: TrendCharts, available: true, roles: adminRoles }
     ]
   },
@@ -109,21 +127,26 @@ const allMenuGroups: MenuGroup[] = [
     title: '运行',
     items: [
       { label: '业务监控', path: '/business-monitor', icon: Monitor, available: true, roles: bizAdminOnly },
-      { label: '运行监控', path: '/runtime-monitor', icon: Monitor, available: true, roles: superAdminOnly },
+      { label: '运行监控', path: '/runtime-monitor', icon: DataLine, available: true, roles: superAdminOnly },
       { label: '流程发起', path: '/process/start-preview', icon: CirclePlus, available: true },
-      { label: '我的申请', path: '/process/instances', icon: Tickets, available: true },
-      { label: '待办任务', path: '/tasks/todo', icon: Tickets, available: true, badge: '' },
-      { label: '已办任务', path: '/tasks/done', icon: Tickets, available: true },
+      { label: '我的申请', path: '/process/instances', icon: Document, available: true },
+      { label: '待办任务', path: '/tasks/todo', icon: Clock, available: true, badge: '' },
+      { label: '已办任务', path: '/tasks/done', icon: CircleCheck, available: true },
       { label: '通知中心', path: '/notifications', icon: Bell, available: true },
-      { label: '执行追踪', path: '/dashboard', icon: TrendCharts, available: true,roles: superAdminOnly  }
+      { label: '执行追踪', path: '/dashboard', icon: Histogram, available: true, roles: superAdminOnly }
     ]
   },
   {
     title: '资源',
     items: [
+<<<<<<< Updated upstream
       { label: '流程模板管理', path: '/templates', icon: Files, available: true, roles: superAdminOnly },
       { label: '模板市场', path: '/template-market', icon: Files, available: true, roles: adminRoles },
       { label: '节点/工具库', path: '/placeholder/tools', icon: Tools, roles: adminRoles }
+=======
+      { label: '流程模板管理', path: '/templates', icon: Collection, available: true, roles: superAdminOnly },
+      { label: '模板市场', path: '/template-market', icon: Goods, available: true, roles: adminRoles }
+>>>>>>> Stashed changes
     ]
   },
   {
@@ -131,12 +154,18 @@ const allMenuGroups: MenuGroup[] = [
     items: [
       { label: '用户管理', path: '/admin/users', icon: UserFilled, available: true, roles: superAdminOnly },
       { label: '部门管理', path: '/admin/departments', icon: OfficeBuilding, available: true, roles: superAdminOnly },
+<<<<<<< Updated upstream
       { label: '流程角色管理', path: '/admin/workflow-roles', icon: UserFilled, available: true, roles: superAdminOnly },
       { label: '自动化策略', path: '/settings/automation', icon: Operation, available: true, roles: adminRoles },
       { label: '个人设置', path: '/settings', icon: Setting, available: true },
       { label: 'AI 资源池', path: '/placeholder/ai-pool', icon: Cpu, roles: adminRoles },
       { label: '定时任务', path: '/placeholder/schedule', icon: Timer, roles: adminRoles }
       
+=======
+      { label: '流程角色管理', path: '/admin/workflow-roles', icon: Connection, available: true, roles: superAdminOnly },
+      { label: '自动化策略', path: '/settings/automation', icon: SetUp, available: true, roles: adminRoles },
+      { label: '个人设置', path: '/settings', icon: Setting, available: true }
+>>>>>>> Stashed changes
     ]
   }
 ]

@@ -2,7 +2,6 @@
   <div class="market-page">
     <section class="market-hero">
       <div>
-        <el-tag type="success" effect="plain">模板市场</el-tag>
         <h1>可复用流程模板</h1>
         <p>从已上架的流程模板中快速复制，沉淀请假、报销、采购、合同审批等常用流程。</p>
       </div>

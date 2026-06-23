@@ -114,6 +114,8 @@ CREATE TABLE IF NOT EXISTS form_definition (
   field_list JSON NULL,
   form_schema JSON NULL,
   created_by BIGINT UNSIGNED NULL,
+  source_type VARCHAR(32) NOT NULL DEFAULT 'manual',
+  source_form_id BIGINT UNSIGNED NULL,
   published_at DATETIME NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -124,6 +126,7 @@ CREATE TABLE IF NOT EXISTS form_definition (
   KEY idx_form_definition_biz_type_id (biz_type_id),
   KEY idx_form_definition_status (status),
   KEY idx_form_definition_created_by (created_by),
+  KEY idx_form_definition_source_form_id (source_form_id),
   KEY idx_form_definition_deleted (deleted),
   KEY idx_form_definition_created_at (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Form definition';

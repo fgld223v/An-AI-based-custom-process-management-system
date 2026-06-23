@@ -2,7 +2,6 @@
   <div class="start-page">
     <header class="page-heading">
       <div>
-        <el-tag type="success" effect="plain">发起申请</el-tag>
         <h1>{{ templateDetail?.templateName || '发起业务流程' }}</h1>
         <p>填写申请信息并确认审批路径，提交后可在“我的申请”中查看进度。</p>
       </div>

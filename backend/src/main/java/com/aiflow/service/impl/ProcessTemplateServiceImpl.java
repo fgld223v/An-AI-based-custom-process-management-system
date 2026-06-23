@@ -15,6 +15,7 @@ import com.aiflow.repository.FormDefinitionRepository;
 import com.aiflow.repository.ProcessInstanceRepository;
 import com.aiflow.repository.ProcessTemplateRepository;
 import com.aiflow.repository.SysUserRepository;
+import com.aiflow.security.SecurityUtils;
 import com.aiflow.service.FlowableDeploymentService;
 import com.aiflow.service.ProcessAuthorizationService;
 import com.aiflow.service.WorkflowRoleService;
@@ -22,16 +23,22 @@ import com.aiflow.dto.WorkflowRoleDTO;
 import com.aiflow.service.ProcessTemplateService;
 import com.aiflow.common.BusinessException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.security.access.AccessDeniedException;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 @Slf4j
 @Service
@@ -67,8 +74,8 @@ public class ProcessTemplateServiceImpl implements ProcessTemplateService {
         if (processTemplateRepository.existsByTemplateCodeAndVersion(template.getTemplateCode(), template.getVersion())) {
             throw new IllegalStateException("templateCode and version already exist");
         }
-        validatePublishedForm(template.getFormId());
-        validateFormBindConfig(template.getFormBindConfig());
+        validatePublishedForm(template.getFormId(), false);
+        validateFormBindConfig(template.getFormBindConfig(), false);
 
         LocalDateTime now = LocalDateTime.now();
         if (template.getStatus() == null) {
@@ -98,8 +105,8 @@ public class ProcessTemplateServiceImpl implements ProcessTemplateService {
             throw new IllegalStateException("only draft or reviewing template can be updated");
         }
         requireText(template.getTemplateName(), "templateName must not be blank");
-        validatePublishedForm(template.getFormId());
-        validateFormBindConfig(template.getFormBindConfig());
+        validatePublishedForm(template.getFormId(), false);
+        validateFormBindConfig(template.getFormBindConfig(), false);
 
         existing.setTemplateName(template.getTemplateName().trim());
         existing.setBizTypeId(template.getBizTypeId());
@@ -122,8 +129,8 @@ public class ProcessTemplateServiceImpl implements ProcessTemplateService {
         processAuthorizationService.assertCanPublish(existing);
         validateBpmnXmlForPublish(existing.getBpmnXml());
         validateNodeConfigForPublish(existing.getNodeConfig());
-        validatePublishedForm(existing.getFormId());
-        validateFormBindConfig(existing.getFormBindConfig());
+        validatePublishedForm(existing.getFormId(), true);
+        validateFormBindConfig(existing.getFormBindConfig(), true);
         flowableDeploymentService.deployProcessTemplate(existing);
 
         LocalDateTime now = LocalDateTime.now();
@@ -292,24 +299,133 @@ public class ProcessTemplateServiceImpl implements ProcessTemplateService {
         requireText(sourceTemplate.getTemplateName(), "source templateName must not be blank");
 
         LocalDateTime now = LocalDateTime.now();
+        Map<Long, Long> copiedFormIds = copyBoundForms(sourceTemplate, createdBy, now);
         ProcessTemplate copied = ProcessTemplate.builder()
                 .templateCode("COPY_" + sourceTemplate.getTemplateCode() + "_" + now.format(COPY_CODE_TIME_FORMATTER))
                 .templateName(hasText(newTemplateName) ? newTemplateName : sourceTemplate.getTemplateName() + "-copy")
                 .bizTypeId(sourceTemplate.getBizTypeId())
-                .formId(sourceTemplate.getFormId())
+                .formId(remapFormId(sourceTemplate.getFormId(), copiedFormIds))
                 .version(1)
                 .status(TemplateStatus.DRAFT)
                 .sourceType(TemplateSourceType.MARKET_COPY)
                 .resourceType(ProcessResourceType.BUSINESS_PROCESS)
                 .bpmnXml(sourceTemplate.getBpmnXml())
-                .nodeConfig(sourceTemplate.getNodeConfig())
-                .formBindConfig(sourceTemplate.getFormBindConfig())
+                .nodeConfig(rewriteFormReferences(sourceTemplate.getNodeConfig(), copiedFormIds))
+                .formBindConfig(rewriteFormReferences(sourceTemplate.getFormBindConfig(), copiedFormIds))
                 .createdBy(createdBy)
                 .createdAt(now)
                 .updatedAt(now)
                 .deleted(0)
                 .build();
         return processTemplateRepository.save(copied);
+    }
+
+    private Map<Long, Long> copyBoundForms(ProcessTemplate sourceTemplate, Long createdBy, LocalDateTime now) {
+        Set<Long> sourceFormIds = new LinkedHashSet<>();
+        if (sourceTemplate.getFormId() != null) {
+            sourceFormIds.add(sourceTemplate.getFormId());
+        }
+        collectFormIds(sourceTemplate.getNodeConfig(), sourceFormIds);
+        collectFormIds(sourceTemplate.getFormBindConfig(), sourceFormIds);
+
+        Map<Long, Long> copiedFormIds = new LinkedHashMap<>();
+        int sequence = 0;
+        for (Long sourceFormId : sourceFormIds) {
+            FormDefinition sourceForm = formDefinitionRepository.findByIdAndDeleted(sourceFormId, 0)
+                    .orElseThrow(() -> new IllegalStateException(
+                            "market template references missing form: " + sourceFormId));
+            if (sourceForm.getStatus() != FormStatus.PUBLISHED) {
+                throw new IllegalStateException(
+                        "market template references unpublished form: " + sourceFormId);
+            }
+
+            FormDefinition copiedForm = FormDefinition.builder()
+                    .formCode(marketCopyFormCode(sourceFormId, now, sequence++))
+                    .formName(sourceForm.getFormName() + "（市场复制）")
+                    .bizTypeId(sourceForm.getBizTypeId())
+                    .version(1)
+                    .status(FormStatus.DRAFT)
+                    .fieldList(sourceForm.getFieldList())
+                    .formSchema(sourceForm.getFormSchema())
+                    .createdBy(createdBy)
+                    .sourceType("market_copy")
+                    .sourceFormId(sourceFormId)
+                    .createdAt(now)
+                    .updatedAt(now)
+                    .deleted(0)
+                    .build();
+            FormDefinition savedForm = formDefinitionRepository.save(copiedForm);
+            if (savedForm.getId() == null) {
+                throw new IllegalStateException("copied market form id was not generated");
+            }
+            copiedFormIds.put(sourceFormId, savedForm.getId());
+        }
+        return copiedFormIds;
+    }
+
+    private String marketCopyFormCode(Long sourceFormId, LocalDateTime now, int sequence) {
+        return "MKT_" + sourceFormId + "_" + now.format(COPY_CODE_TIME_FORMATTER) + "_" + sequence;
+    }
+
+    private void collectFormIds(String json, Set<Long> formIds) {
+        if (!hasText(json)) return;
+        try {
+            collectFormIds(objectMapper.readTree(json), formIds);
+        } catch (Exception ex) {
+            throw new IllegalStateException("form binding JSON is invalid", ex);
+        }
+    }
+
+    private void collectFormIds(JsonNode node, Set<Long> formIds) {
+        if (node == null) return;
+        if (node.isObject()) {
+            node.fields().forEachRemaining(entry -> {
+                if ("formId".equals(entry.getKey()) && entry.getValue().canConvertToLong()) {
+                    formIds.add(entry.getValue().longValue());
+                } else {
+                    collectFormIds(entry.getValue(), formIds);
+                }
+            });
+            return;
+        }
+        if (node.isArray()) {
+            node.forEach(child -> collectFormIds(child, formIds));
+        }
+    }
+
+    private String rewriteFormReferences(String json, Map<Long, Long> copiedFormIds) {
+        if (!hasText(json) || copiedFormIds.isEmpty()) return json;
+        try {
+            JsonNode root = objectMapper.readTree(json);
+            rewriteFormReferences(root, copiedFormIds);
+            return objectMapper.writeValueAsString(root);
+        } catch (Exception ex) {
+            throw new IllegalStateException("form binding JSON is invalid", ex);
+        }
+    }
+
+    private void rewriteFormReferences(JsonNode node, Map<Long, Long> copiedFormIds) {
+        if (node == null) return;
+        if (node.isObject()) {
+            ObjectNode objectNode = (ObjectNode) node;
+            objectNode.fields().forEachRemaining(entry -> {
+                JsonNode value = entry.getValue();
+                if ("formId".equals(entry.getKey()) && value.canConvertToLong()) {
+                    Long replacement = copiedFormIds.get(value.longValue());
+                    if (replacement != null) objectNode.put(entry.getKey(), replacement);
+                } else {
+                    rewriteFormReferences(value, copiedFormIds);
+                }
+            });
+            return;
+        }
+        if (node.isArray()) {
+            node.forEach(child -> rewriteFormReferences(child, copiedFormIds));
+        }
+    }
+
+    private Long remapFormId(Long sourceFormId, Map<Long, Long> copiedFormIds) {
+        return sourceFormId == null ? null : copiedFormIds.getOrDefault(sourceFormId, sourceFormId);
     }
 
     private void validateBpmnXmlForPublish(String bpmnXml) {
@@ -461,11 +577,12 @@ public class ProcessTemplateServiceImpl implements ProcessTemplateService {
      * 仅记录警告，不抛出异常 —— 草稿阶段的模板允许绑定未发布的表单。
      * 发布模板时（publishTemplate）仍会严格校验。
      */
-    private void validatePublishedForm(Long formId) {
+    private void validatePublishedForm(Long formId, boolean strict) {
         if (formId != null) {
             try {
-                getPublishedForm(formId);
+                assertCanBindForm(getPublishedForm(formId));
             } catch (IllegalStateException e) {
+                if (strict) throw e;
                 log.warn("模板顶层绑定的表单尚未发布 (formId={})，草稿阶段容忍此状态", formId);
             }
         }
@@ -475,7 +592,7 @@ public class ProcessTemplateServiceImpl implements ProcessTemplateService {
      * 校验节点级别的表单绑定配置。
      * 草稿阶段仅记录警告，不阻塞保存；发布时 publishTemplate 会再次严格校验。
      */
-    private void validateFormBindConfig(String formBindConfigJson) {
+    private void validateFormBindConfig(String formBindConfigJson, boolean strict) {
         if (formBindConfigJson == null || formBindConfigJson.isBlank()) return;
 
         // 1. 格式校验（由工具类统一处理，不暴露原始 JSON）
@@ -491,12 +608,12 @@ public class ProcessTemplateServiceImpl implements ProcessTemplateService {
             for (Map.Entry<String, Map<String, Object>> entry : standardMap.entrySet()) {
                 Object formIdObj = entry.getValue().get("formId");
                 if (formIdObj != null) {
-                    Long formId = formIdObj instanceof Integer
-                        ? ((Integer) formIdObj).longValue()
-                        : (Long) formIdObj;
+                    Long formId = formIdObj instanceof Number number ? number.longValue() : null;
+                    if (formId == null) continue;
                     try {
-                        getPublishedForm(formId);
+                        assertCanBindForm(getPublishedForm(formId));
                     } catch (IllegalStateException e) {
+                        if (strict) throw e;
                         log.warn("节点 [{}] 绑定的表单尚未发布 (formId={})，草稿阶段容忍此状态", entry.getKey(), formId);
                     }
                 }
@@ -509,7 +626,8 @@ public class ProcessTemplateServiceImpl implements ProcessTemplateService {
         if (flatMap != null) {
             Object formIdObj = flatMap.get("formId");
             if (formIdObj instanceof Number) {
-                getPublishedForm(((Number) formIdObj).longValue());
+                FormDefinition form = getPublishedForm(((Number) formIdObj).longValue());
+                assertCanBindForm(form);
             }
         }
     }
@@ -521,6 +639,17 @@ public class ProcessTemplateServiceImpl implements ProcessTemplateService {
             throw new IllegalStateException("bound form (id=" + formId + ") must be published");
         }
         return form;
+    }
+
+    private void assertCanBindForm(FormDefinition form) {
+        if (SecurityUtils.isSuperAdmin()) return;
+        Long currentUserId = SecurityUtils.currentUserId();
+        if (currentUserId == null) {
+            throw new AccessDeniedException("authenticated user is required");
+        }
+        if (form.getCreatedBy() == null || !form.getCreatedBy().equals(currentUserId)) {
+            throw new AccessDeniedException("no permission to bind form " + form.getId());
+        }
     }
 
     private void requireId(Long id, String message) {
