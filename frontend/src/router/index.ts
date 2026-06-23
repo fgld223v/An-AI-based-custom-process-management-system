@@ -186,6 +186,12 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/settings/AutomationSettings.vue'),
         meta: { title: '自动化策略', group: '系统', roles: ADMIN_ROLES }
       },
+      {
+        path: 'settings/system',
+        name: 'SystemSettings',
+        component: () => import('@/views/settings/SystemSettings.vue'),
+        meta: { title: '系统设置', group: '系统', roles: SUPER_ADMIN }
+      },
       // ---- 占位页面 ----
       {
         path: 'placeholder/:feature',

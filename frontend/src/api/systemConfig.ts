@@ -33,3 +33,34 @@ export async function saveAutomationRules(rules: AutomationRule[]): Promise<void
     rules: JSON.stringify(rules)
   })
 }
+
+/** 获取所有系统配置项 */
+export async function getSystemConfigList(): Promise<any[]> {
+  return await request.get('/api/system-config') || []
+}
+
+/** 获取单个配置项 */
+export async function getSystemConfig(key: string): Promise<any> {
+  return await request.get(`/api/system-config/${key}`)
+}
+
+/** 更新配置项 */
+export async function updateSystemConfig(key: string, configValue: string): Promise<void> {
+  return await request.put(`/api/system-config/${key}`, { configValue })
+}
+
+/** 新增配置项 */
+export async function createSystemConfig(data: {
+  configKey: string
+  configName: string
+  configValue: string
+  valueType: string
+  description: string
+}): Promise<any> {
+  return await request.post('/api/system-config', data)
+}
+
+/** 删除配置项 */
+export async function deleteSystemConfig(key: string): Promise<void> {
+  return await request.delete(`/api/system-config/${key}`)
+}

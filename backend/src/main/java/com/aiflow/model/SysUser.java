@@ -35,6 +35,12 @@ public class SysUser {
     @Column(name = "nickname")
     private String nickname;
 
+    @Column(name = "phone")
+    private String phone;
+
+    @Column(name = "email")
+    private String email;
+
     @Column(name = "role")
     private String role;
 

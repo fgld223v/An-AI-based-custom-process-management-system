@@ -8,6 +8,8 @@ export interface LoginRequest {
 
 export interface ResetPasswordRequest {
   username: string
+  verifyType?: 'phone' | 'email'
+  verifyValue?: string
   newPassword: string
   confirmPassword: string
 }
@@ -29,6 +31,8 @@ export interface UserInfo {
   id: number
   username: string
   nickname: string
+  phone?: string | null
+  email?: string | null
   role: string
   systemRole: SystemRole
   departmentId?: number | null

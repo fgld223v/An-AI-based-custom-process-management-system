@@ -89,6 +89,22 @@ public class AuthController {
             return ApiResponse.fail(404, "用户不存在");
         }
 
+        // 验证手机号或邮箱（二选一）
+        String verifyType = request.getVerifyType();
+        String verifyValue = request.getVerifyValue();
+        if (verifyType == null || verifyType.isBlank() || verifyValue == null || verifyValue.isBlank()) {
+            return ApiResponse.fail(400, "请填写手机号或邮箱进行身份验证");
+        }
+        boolean verified = false;
+        if ("phone".equals(verifyType)) {
+            verified = verifyValue.trim().equals(user.getPhone());
+        } else if ("email".equals(verifyType)) {
+            verified = verifyValue.trim().equalsIgnoreCase(user.getEmail());
+        }
+        if (!verified) {
+            return ApiResponse.fail(400, "身份验证失败，请检查手机号或邮箱是否正确");
+        }
+
         // 更新密码（BCrypt 加密后存储）
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
         user.setUpdatedTime(LocalDateTime.now());

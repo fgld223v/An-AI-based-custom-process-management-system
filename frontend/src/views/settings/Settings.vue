@@ -78,6 +78,25 @@
       </el-form>
     </section>
 
+    <!-- 联系信息 -->
+    <section class="form-card">
+      <div class="form-card-head">
+        <h3>联系信息</h3>
+        <p>填写个人电话与邮箱，用于密码重置等身份验证场景。</p>
+      </div>
+
+      <el-form label-position="top" class="settings-form" :disabled="saving">
+        <div class="form-row">
+          <el-form-item label="手机号码">
+            <el-input v-model="form.phone" placeholder="请输入手机号" maxlength="32" clearable />
+          </el-form-item>
+          <el-form-item label="电子邮箱">
+            <el-input v-model="form.email" placeholder="请输入邮箱地址" maxlength="128" clearable />
+          </el-form-item>
+        </div>
+      </el-form>
+    </section>
+
     <!-- 账号信息只读 -->
     <section class="form-card">
       <div class="form-card-head">
@@ -132,6 +151,8 @@ const departments = ref<DepartmentItem[]>([])
 const userList = ref<UserBrief[]>([])
 
 const form = reactive({
+  phone: '' as string,
+  email: '' as string,
   departmentId: null as number | null,
   supervisorId: null as number | null
 })
@@ -169,6 +190,8 @@ async function loadData() {
   saveMsg.value = ''
   try {
     await authStore.fetchMe()
+    form.phone = authStore.user?.phone || ''
+    form.email = authStore.user?.email || ''
     form.departmentId = authStore.user?.departmentId ?? null
     form.supervisorId = authStore.user?.supervisorId ?? null
     await Promise.all([loadDepartments(), loadUserList()])
@@ -203,6 +226,8 @@ async function saveProfile() {
   saveError.value = false
   try {
     await updateUser(authStore.user.id, {
+      phone: form.phone || undefined,
+      email: form.email || undefined,
       departmentId: form.departmentId,
       supervisorId: form.supervisorId
     })
