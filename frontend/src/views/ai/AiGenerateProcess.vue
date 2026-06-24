@@ -154,15 +154,12 @@ import { useRouter } from 'vue-router'
 import { MagicStick, Edit } from '@element-plus/icons-vue'
 import BpmnViewerPanel from '@/components/ai/BpmnViewerPanel.vue'
 import type { AiGenerateProcessResult } from '@/api/ai'
-import { createProcessTemplate } from '@/api/processTemplate'
 import { createMyProcess } from '@/api/myProcess'
 import { getBizTypes } from '@/api/bizType'
-import { useAuthStore } from '@/stores/auth'
 import { ElMessage } from 'element-plus'
 
 const STORAGE_KEY = 'ai-generate-process-state'
 const router = useRouter()
-const authStore = useAuthStore()
 
 interface BizType {
   id: number
@@ -295,8 +292,7 @@ async function submitCreateTemplate() {
   }
   creating.value = true
   try {
-    const createApi = authStore.user?.systemRole === 'biz_admin' ? createMyProcess : createProcessTemplate
-    await createApi({
+    await createMyProcess({
       templateName: createForm.value.templateName,
       templateCode: createForm.value.templateCode,
       bizTypeId: createForm.value.bizTypeId ?? undefined,
@@ -305,8 +301,8 @@ async function submitCreateTemplate() {
       nodeConfig: JSON.stringify(result.value.nodeConfig)
     } as any)
     createDialogVisible.value = false
-    ElMessage.success(authStore.user?.systemRole === 'biz_admin' ? '流程已创建到我的流程' : '模板创建成功')
-    router.push(authStore.user?.systemRole === 'biz_admin' ? '/my-processes' : '/templates')
+    ElMessage.success('流程已创建到我的流程')
+    router.push('/my-processes')
   } catch (e: any) {
     const msg = e?.response?.data?.message || e?.message || '创建失败'
     ElMessage.error(msg)
