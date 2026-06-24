@@ -139,7 +139,7 @@ const allMenuGroups: MenuGroup[] = [
       { label: '部门管理', path: '/admin/departments', icon: OfficeBuilding, available: true, roles: superAdminOnly },
       { label: '流程角色管理', path: '/admin/workflow-roles', icon: Connection, available: true, roles: superAdminOnly },
       { label: '自动化策略', path: '/settings/automation', icon: SetUp, available: true, roles: adminRoles },
-      { label: '系统设置', path: '/settings/system', icon: Setting, available: true, roles: superAdminOnly }
+      { label: '系统设置', path: '/settings/system', icon: DataAnalysis, available: true, roles: superAdminOnly }
     ]
   }
 ]
