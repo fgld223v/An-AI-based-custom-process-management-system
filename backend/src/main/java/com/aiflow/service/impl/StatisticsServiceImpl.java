@@ -5,8 +5,10 @@ import com.aiflow.dto.StatisticsOverviewDTO;
 import com.aiflow.dto.StatisticsTrendDTO;
 import com.aiflow.security.SecurityUtils;
 import com.aiflow.service.StatisticsService;
+import com.aiflow.service.support.OptionalTableQuerySupport;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.stereotype.Service;
@@ -24,6 +26,7 @@ import java.util.stream.Collectors;
 /**
  * 统计看板服务实现 — 使用原生 SQL 聚合查询，不依赖额外实体类
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -73,20 +76,7 @@ public class StatisticsServiceImpl implements StatisticsService {
                 : 0.0;
 
         // 4. 异常数 — 超时任务 + 高度瓶颈预警 + 驳回审批，按 instance_id 去重
-        Number anomalyCount = (Number) entityManager
-                .createNativeQuery("""
-                        SELECT COUNT(DISTINCT si.instance_id) FROM (
-                            SELECT t.instance_id FROM task t
-                             WHERE t.deleted = 0 AND t.status = 'timeout'
-                            UNION
-                            SELECT bp.instance_id FROM bottleneck_prediction bp
-                             WHERE bp.prediction_level = 'high_prob_timeout'
-                            UNION
-                            SELECT ar.instance_id FROM approval_record ar
-                             WHERE ar.action = 'reject'
-                        ) si
-                        """)
-                .getSingleResult();
+        Number anomalyCount = queryAnomalyCount();
 
         // 5. 各状态分布（draft / submitted / running / completed）
         @SuppressWarnings("unchecked")
@@ -330,6 +320,37 @@ public class StatisticsServiceImpl implements StatisticsService {
     private Long getCurrentUserId() { Long uid = SecurityUtils.currentUserId(); return uid != null ? uid : 1L; }
 
     private record TrendRow(String period, Long bizTypeId, String typeName, Long cnt) {}
+
+    private Number queryAnomalyCount() {
+        try {
+            return (Number) entityManager.createNativeQuery("""
+                    SELECT COUNT(DISTINCT si.instance_id) FROM (
+                        SELECT t.instance_id FROM task t
+                         WHERE t.deleted = 0 AND t.status = 'timeout'
+                        UNION
+                        SELECT bp.instance_id FROM bottleneck_prediction bp
+                         WHERE bp.prediction_level = 'high_prob_timeout'
+                        UNION
+                        SELECT ar.instance_id FROM approval_record ar
+                         WHERE ar.action = 'reject'
+                    ) si
+                    """).getSingleResult();
+        } catch (RuntimeException ex) {
+            if (!OptionalTableQuerySupport.isMissingOptionalTable(ex, "bottleneck_prediction")) {
+                throw ex;
+            }
+            log.warn("bottleneck_prediction table is unavailable; overview anomaly count will skip prediction data");
+            return (Number) entityManager.createNativeQuery("""
+                    SELECT COUNT(DISTINCT si.instance_id) FROM (
+                        SELECT t.instance_id FROM task t
+                         WHERE t.deleted = 0 AND t.status = 'timeout'
+                        UNION
+                        SELECT ar.instance_id FROM approval_record ar
+                         WHERE ar.action = 'reject'
+                    ) si
+                    """).getSingleResult();
+        }
+    }
 
     @Override
     public NodeEfficiencyDTO getNodeEfficiency() {

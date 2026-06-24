@@ -68,7 +68,7 @@ const routes: RouteRecordRaw[] = [
         path: 'my-processes',
         name: 'MyProcessList',
         component: () => import('@/views/process/MyProcessList.vue'),
-        meta: { title: '我的流程', group: '流程', roles: BIZ_ADMIN }
+        meta: { title: '我的流程', group: '流程', roles: ADMIN_ROLES }
       },
       {
         path: 'templates',
