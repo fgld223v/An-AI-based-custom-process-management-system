@@ -1,5 +1,5 @@
 <template>
-  <div class="page-shell dept-admin-page">
+  <div class="admin-page dept-admin-page">
     <div class="page-head">
       <div>
         <h1>部门管理</h1>
@@ -13,14 +13,14 @@
     </div>
 
     <section class="table-panel" v-loading="loading">
-      <el-table :data="departments" border stripe>
-        <el-table-column prop="id" label="ID" width="70" />
-        <el-table-column label="父部门" width="130">
+      <el-table :data="departments" border stripe table-layout="fixed">
+        <el-table-column prop="id" label="ID" width="72" align="center" />
+        <el-table-column label="父部门" min-width="140">
           <template #default="{ row }">{{ deptName(row.parentId) }}</template>
         </el-table-column>
-        <el-table-column prop="deptCode" label="部门编码" min-width="130" />
-        <el-table-column prop="deptName" label="部门名称" min-width="150" />
-        <el-table-column label="负责人" min-width="130">
+        <el-table-column prop="deptCode" label="部门编码" min-width="150" />
+        <el-table-column prop="deptName" label="部门名称" min-width="160" />
+        <el-table-column label="负责人" min-width="150">
           <template #default="{ row }">{{ userName(row.leaderUserId) }}</template>
         </el-table-column>
         <el-table-column prop="sortOrder" label="排序" width="80" />
@@ -31,10 +31,12 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="160" fixed="right">
+        <el-table-column label="操作" width="150" fixed="right" align="center">
           <template #default="{ row }">
-            <el-button text type="primary" size="small" @click="openEdit(row)">编辑</el-button>
-            <el-button text type="danger" size="small" @click="handleDelete(row)">删除</el-button>
+            <div class="table-actions">
+              <el-button text type="primary" size="small" @click="openEdit(row)">编辑</el-button>
+              <el-button text type="danger" size="small" @click="handleDelete(row)">删除</el-button>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -236,7 +238,8 @@ async function handleDelete(row: Department) {
 
 <style scoped>
 .dept-admin-page {
-  max-width: 1000px;
+  width: 100%;
+  max-width: 1160px;
   margin: 0 auto;
 }
 
@@ -245,6 +248,7 @@ async function handleDelete(row: Department) {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 20px;
+  gap: 20px;
 }
 
 .page-head h1 {
@@ -259,6 +263,8 @@ async function handleDelete(row: Department) {
 }
 
 .table-panel {
+  width: 100%;
+  min-width: 0;
   padding: 16px;
   border: 1px solid var(--line);
   border-radius: 18px;
@@ -266,9 +272,33 @@ async function handleDelete(row: Department) {
   box-shadow: var(--shadow);
 }
 
+.table-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.table-actions :deep(.el-button + .el-button) {
+  margin-left: 0;
+}
+
 .head-actions {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+@media (max-width: 760px) {
+  .page-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .head-actions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
 }
 </style>

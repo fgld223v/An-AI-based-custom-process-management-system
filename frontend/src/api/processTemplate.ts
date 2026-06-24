@@ -32,3 +32,7 @@ export async function createProcessTemplateVersion(id: number) {
 export async function unpublishProcessTemplate(id: number) {
   return await request.post<ProcessTemplate>(`/api/process-templates/${id}/unpublish`)
 }
+
+export async function deleteProcessTemplate(id: number) {
+  return await request.delete<void>(`/api/process-templates/${id}`)
+}

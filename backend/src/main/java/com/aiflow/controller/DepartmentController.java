@@ -75,6 +75,13 @@ public class DepartmentController {
     public ApiResponse<Map<String, Object>> deleteDepartment(@PathVariable Long id) {
         Department dept = departmentRepository.findByIdAndDeleted(id, 0)
                 .orElseThrow(() -> new IllegalArgumentException("部门不存在"));
+        if (departmentRepository.existsByParentIdAndDeleted(id, 0)) {
+            throw new IllegalStateException("该部门仍有下级部门，请先调整组织层级");
+        }
+        if (sysUserRepository.existsByDepartmentIdAndDeleted(id, 0)) {
+            throw new IllegalStateException("该部门仍有在职用户，请先转移或删除部门成员");
+        }
+        dept.setStatus(0);
         dept.setDeleted(1);
         dept.setUpdatedAt(LocalDateTime.now());
         departmentRepository.save(dept);

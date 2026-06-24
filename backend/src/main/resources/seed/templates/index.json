@@ -1,0 +1,47 @@
+{
+  "publisherUsername": "admin",
+  "templates": [
+    {
+      "templateCode": "SYS_LEAVE_REQUEST",
+      "templateName": "员工请假申请",
+      "bizTypeCode": "leave",
+      "formCode": "SYS_FORM_LEAVE_REQUEST",
+      "formName": "请假申请表",
+      "title": "员工请假审批",
+      "description": "适用于员工请假，由直属上级和人事审核员依次审批。",
+      "rating": "4.80",
+      "tags": ["人事", "请假", "两级审批"],
+      "formResource": "classpath:seed/templates/leave-request/form.json",
+      "bpmnResource": "classpath:seed/templates/leave-request/process.bpmn20.xml",
+      "nodeConfigResource": "classpath:seed/templates/leave-request/node-config.json"
+    },
+    {
+      "templateCode": "SYS_EXPENSE_REIMBURSEMENT",
+      "templateName": "费用报销申请",
+      "bizTypeCode": "reimbursement",
+      "formCode": "SYS_FORM_EXPENSE_REIMBURSEMENT",
+      "formName": "费用报销申请表",
+      "title": "费用报销审批",
+      "description": "覆盖申请人部门负责人、财务审核员和财务负责人的跨部门审批。",
+      "rating": "4.90",
+      "tags": ["财务", "报销", "跨部门"],
+      "formResource": "classpath:seed/templates/reimbursement/form.json",
+      "bpmnResource": "classpath:seed/templates/reimbursement/process.bpmn20.xml",
+      "nodeConfigResource": "classpath:seed/templates/reimbursement/node-config.json"
+    },
+    {
+      "templateCode": "SYS_PURCHASE_REQUEST",
+      "templateName": "采购申请",
+      "bizTypeCode": "purchase",
+      "formCode": "SYS_FORM_PURCHASE_REQUEST",
+      "formName": "采购申请表",
+      "title": "采购申请审批",
+      "description": "适用于日常物资采购，由部门负责人和采购审核员依次审批。",
+      "rating": "4.70",
+      "tags": ["采购", "后勤", "跨部门"],
+      "formResource": "classpath:seed/templates/purchase-request/form.json",
+      "bpmnResource": "classpath:seed/templates/purchase-request/process.bpmn20.xml",
+      "nodeConfigResource": "classpath:seed/templates/purchase-request/node-config.json"
+    }
+  ]
+}

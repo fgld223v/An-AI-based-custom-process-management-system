@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  id="Definitions_Reimbursement" targetNamespace="http://aiflow.com/seed">
+  <bpmn:process id="Process_Expense_Reimbursement" name="费用报销审批" isExecutable="true">
+    <bpmn:startEvent id="Start_Reimbursement" name="提交申请"><bpmn:outgoing>Flow_R1</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:userTask id="Approve_Department" name="部门负责人审批"><bpmn:incoming>Flow_R1</bpmn:incoming><bpmn:outgoing>Flow_R2</bpmn:outgoing></bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_Department" default="Flow_RReject1"><bpmn:incoming>Flow_R2</bpmn:incoming><bpmn:outgoing>Flow_R3</bpmn:outgoing><bpmn:outgoing>Flow_RReject1</bpmn:outgoing></bpmn:exclusiveGateway>
+    <bpmn:userTask id="Approve_Finance_Reviewer" name="财务审核"><bpmn:incoming>Flow_R3</bpmn:incoming><bpmn:outgoing>Flow_R4</bpmn:outgoing></bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_Finance_Reviewer" default="Flow_RReject2"><bpmn:incoming>Flow_R4</bpmn:incoming><bpmn:outgoing>Flow_R5</bpmn:outgoing><bpmn:outgoing>Flow_RReject2</bpmn:outgoing></bpmn:exclusiveGateway>
+    <bpmn:userTask id="Approve_Finance_Manager" name="财务负责人审批"><bpmn:incoming>Flow_R5</bpmn:incoming><bpmn:outgoing>Flow_R6</bpmn:outgoing></bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_Finance_Manager" default="Flow_RReject3"><bpmn:incoming>Flow_R6</bpmn:incoming><bpmn:outgoing>Flow_R7</bpmn:outgoing><bpmn:outgoing>Flow_RReject3</bpmn:outgoing></bpmn:exclusiveGateway>
+    <bpmn:endEvent id="End_Approved" name="审批通过"><bpmn:incoming>Flow_R7</bpmn:incoming></bpmn:endEvent>
+    <bpmn:endEvent id="End_Rejected" name="申请驳回"><bpmn:incoming>Flow_RReject1</bpmn:incoming><bpmn:incoming>Flow_RReject2</bpmn:incoming><bpmn:incoming>Flow_RReject3</bpmn:incoming></bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_R1" sourceRef="Start_Reimbursement" targetRef="Approve_Department" />
+    <bpmn:sequenceFlow id="Flow_R2" sourceRef="Approve_Department" targetRef="Gateway_Department" />
+    <bpmn:sequenceFlow id="Flow_R3" sourceRef="Gateway_Department" targetRef="Approve_Finance_Reviewer"><bpmn:conditionExpression xsi:type="bpmn:tFormalExpression" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><![CDATA[${Approve_Department_approved == true}]]></bpmn:conditionExpression></bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_RReject1" sourceRef="Gateway_Department" targetRef="End_Rejected" />
+    <bpmn:sequenceFlow id="Flow_R4" sourceRef="Approve_Finance_Reviewer" targetRef="Gateway_Finance_Reviewer" />
+    <bpmn:sequenceFlow id="Flow_R5" sourceRef="Gateway_Finance_Reviewer" targetRef="Approve_Finance_Manager"><bpmn:conditionExpression xsi:type="bpmn:tFormalExpression" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><![CDATA[${Approve_Finance_Reviewer_approved == true}]]></bpmn:conditionExpression></bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_RReject2" sourceRef="Gateway_Finance_Reviewer" targetRef="End_Rejected" />
+    <bpmn:sequenceFlow id="Flow_R6" sourceRef="Approve_Finance_Manager" targetRef="Gateway_Finance_Manager" />
+    <bpmn:sequenceFlow id="Flow_R7" sourceRef="Gateway_Finance_Manager" targetRef="End_Approved"><bpmn:conditionExpression xsi:type="bpmn:tFormalExpression" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><![CDATA[${Approve_Finance_Manager_approved == true}]]></bpmn:conditionExpression></bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_RReject3" sourceRef="Gateway_Finance_Manager" targetRef="End_Rejected" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_Reimbursement"><bpmndi:BPMNPlane id="Plane_Reimbursement" bpmnElement="Process_Expense_Reimbursement">
+    <bpmndi:BPMNShape id="Start_Reimbursement_di" bpmnElement="Start_Reimbursement"><dc:Bounds x="60" y="100" width="36" height="36" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="Approve_Department_di" bpmnElement="Approve_Department"><dc:Bounds x="140" y="78" width="110" height="80" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="Gateway_Department_di" bpmnElement="Gateway_Department" isMarkerVisible="true"><dc:Bounds x="290" y="93" width="50" height="50" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="Approve_Finance_Reviewer_di" bpmnElement="Approve_Finance_Reviewer"><dc:Bounds x="380" y="78" width="110" height="80" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="Gateway_Finance_Reviewer_di" bpmnElement="Gateway_Finance_Reviewer" isMarkerVisible="true"><dc:Bounds x="530" y="93" width="50" height="50" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="Approve_Finance_Manager_di" bpmnElement="Approve_Finance_Manager"><dc:Bounds x="620" y="78" width="110" height="80" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="Gateway_Finance_Manager_di" bpmnElement="Gateway_Finance_Manager" isMarkerVisible="true"><dc:Bounds x="770" y="93" width="50" height="50" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="End_Approved_di" bpmnElement="End_Approved"><dc:Bounds x="870" y="100" width="36" height="36" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="End_Rejected_di" bpmnElement="End_Rejected"><dc:Bounds x="770" y="230" width="36" height="36" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNEdge id="Flow_R1_di" bpmnElement="Flow_R1"><di:waypoint x="96" y="118" /><di:waypoint x="140" y="118" /></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge id="Flow_R2_di" bpmnElement="Flow_R2"><di:waypoint x="250" y="118" /><di:waypoint x="290" y="118" /></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge id="Flow_R3_di" bpmnElement="Flow_R3"><di:waypoint x="340" y="118" /><di:waypoint x="380" y="118" /></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge id="Flow_R4_di" bpmnElement="Flow_R4"><di:waypoint x="490" y="118" /><di:waypoint x="530" y="118" /></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge id="Flow_R5_di" bpmnElement="Flow_R5"><di:waypoint x="580" y="118" /><di:waypoint x="620" y="118" /></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge id="Flow_R6_di" bpmnElement="Flow_R6"><di:waypoint x="730" y="118" /><di:waypoint x="770" y="118" /></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge id="Flow_R7_di" bpmnElement="Flow_R7"><di:waypoint x="820" y="118" /><di:waypoint x="870" y="118" /></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge id="Flow_RReject1_di" bpmnElement="Flow_RReject1"><di:waypoint x="315" y="143" /><di:waypoint x="315" y="248" /><di:waypoint x="770" y="248" /></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge id="Flow_RReject2_di" bpmnElement="Flow_RReject2"><di:waypoint x="555" y="143" /><di:waypoint x="555" y="248" /><di:waypoint x="770" y="248" /></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge id="Flow_RReject3_di" bpmnElement="Flow_RReject3"><di:waypoint x="795" y="143" /><di:waypoint x="788" y="230" /></bpmndi:BPMNEdge>
+  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
+</bpmn:definitions>

@@ -3,6 +3,7 @@ package com.aiflow.service.impl;
 import com.aiflow.dto.DtoMapper;
 import com.aiflow.dto.TemplateFormBindingDTO;
 import com.aiflow.enums.FormStatus;
+import com.aiflow.enums.MarketType;
 import com.aiflow.enums.ProcessResourceType;
 import com.aiflow.enums.TemplateSourceType;
 import com.aiflow.enums.TemplateStatus;
@@ -15,6 +16,7 @@ import com.aiflow.repository.FormDefinitionRepository;
 import com.aiflow.repository.ProcessInstanceRepository;
 import com.aiflow.repository.ProcessTemplateRepository;
 import com.aiflow.repository.SysUserRepository;
+import com.aiflow.repository.TemplateMarketRepository;
 import com.aiflow.security.SecurityUtils;
 import com.aiflow.service.FlowableDeploymentService;
 import com.aiflow.service.ProcessAuthorizationService;
@@ -59,6 +61,7 @@ public class ProcessTemplateServiceImpl implements ProcessTemplateService {
     private final WorkflowRoleService workflowRoleService;
     private final DepartmentRepository departmentRepository;
     private final SysUserRepository sysUserRepository;
+    private final TemplateMarketRepository templateMarketRepository;
 
     @Override
     public ProcessTemplate createTemplate(ProcessTemplate template) {
@@ -281,6 +284,9 @@ public class ProcessTemplateServiceImpl implements ProcessTemplateService {
         ProcessTemplate existing = getRequiredTemplate(id);
         if (existing.getStatus() == TemplateStatus.PUBLISHED) {
             throw new IllegalStateException("已发布流程请先停用后再删除");
+        }
+        if (templateMarketRepository.findByTypeAndSourceIdAndDeleted(MarketType.TEMPLATE, id, 0).isPresent()) {
+            throw new IllegalStateException("该模板仍在模板市场上架，请先下架后再删除");
         }
         if (processInstanceRepository.existsByTemplateIdAndDeleted(id, 0)) {
             throw new IllegalStateException("该流程版本已有流程实例，不能删除；可保持停用状态以保留历史记录");

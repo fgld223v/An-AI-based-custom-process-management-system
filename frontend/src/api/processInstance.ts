@@ -3,6 +3,7 @@ import type {
   FormSubmission,
   NotificationItem,
   ProcessInstance,
+  ProcessDiagram,
   ProcessInstanceListParams,
   RuntimeState,
   SaveNodeFormPayload,
@@ -27,6 +28,10 @@ export async function submitProcessInstance(id: number) {
 
 export async function getProcessInstanceDetail(id: number) {
   return await request.get<ProcessInstance>(`/api/process-instances/${id}`)
+}
+
+export async function getProcessInstanceDiagram(id: number) {
+  return await request.get<ProcessDiagram>(`/api/process-instances/${id}/diagram`)
 }
 
 export async function getProcessInstanceSubmissions(id: number) {

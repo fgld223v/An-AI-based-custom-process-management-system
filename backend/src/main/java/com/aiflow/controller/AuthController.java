@@ -84,7 +84,7 @@ public class AuthController {
         }
 
         String username = request.getUsername().trim();
-        SysUser user = sysUserRepository.findByUsername(username).orElse(null);
+        SysUser user = sysUserRepository.findByUsernameAndDeleted(username, 0).orElse(null);
         if (user == null) {
             return ApiResponse.fail(404, "用户不存在");
         }

@@ -1,0 +1,22 @@
+{
+  "fieldList": [
+    {"field":"itemName","label":"采购物品","type":"input","required":true,"placeholder":"请输入物品名称"},
+    {"field":"quantity","label":"采购数量","type":"number","required":true,"placeholder":"请输入采购数量"},
+    {"field":"estimatedAmount","label":"预计金额","type":"number","required":true,"placeholder":"请输入预计总金额"},
+    {"field":"expectedDate","label":"期望到货日期","type":"date","required":true,"placeholder":"请选择期望到货日期"},
+    {"field":"purpose","label":"采购用途","type":"textarea","required":true,"placeholder":"请说明采购用途和必要性"},
+    {"field":"specification","label":"规格或询价材料","type":"upload","required":false,"placeholder":"可上传规格说明或询价文件","maxCount":5}
+  ],
+  "formSchema": {
+    "layout":"vertical",
+    "fields":[
+      {"field":"itemName","label":"采购物品","type":"input","required":true,"placeholder":"请输入物品名称"},
+      {"field":"quantity","label":"采购数量","type":"number","required":true,"placeholder":"请输入采购数量"},
+      {"field":"estimatedAmount","label":"预计金额","type":"number","required":true,"placeholder":"请输入预计总金额"},
+      {"field":"expectedDate","label":"期望到货日期","type":"date","required":true,"placeholder":"请选择期望到货日期"},
+      {"field":"purpose","label":"采购用途","type":"textarea","required":true,"placeholder":"请说明采购用途和必要性"},
+      {"field":"specification","label":"规格或询价材料","type":"upload","required":false,"placeholder":"可上传规格说明或询价文件","maxCount":5}
+    ],
+    "meta":{"description":"日常物资与服务采购申请"}
+  }
+}

@@ -2,6 +2,7 @@ package com.aiflow.service;
 
 import com.aiflow.dto.FormSubmissionDTO;
 import com.aiflow.dto.ProcessInstanceDTO;
+import com.aiflow.dto.ProcessDiagramDTO;
 import com.aiflow.dto.RuntimeStateDTO;
 import com.aiflow.dto.SaveNodeFormRequest;
 import com.aiflow.dto.StartProcessPreviewRequest;
@@ -14,6 +15,8 @@ public interface ProcessInstanceService {
     List<ProcessInstanceDTO> listInstances(Long templateId, String status, String keyword);
 
     ProcessInstanceDTO getInstance(Long id);
+
+    ProcessDiagramDTO getDiagram(Long processInstanceId);
 
     List<FormSubmissionDTO> listSubmissions(Long processInstanceId);
 

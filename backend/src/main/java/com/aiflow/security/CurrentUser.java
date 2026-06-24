@@ -66,6 +66,7 @@ public class CurrentUser implements UserDetails {
 
     @Override
     public boolean isEnabled() {
-        return user.getEnabled() != null && user.getEnabled() == 1;
+        return user.getEnabled() != null && user.getEnabled() == 1
+                && !Integer.valueOf(1).equals(user.getDeleted());
     }
 }

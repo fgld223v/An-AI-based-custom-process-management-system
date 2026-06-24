@@ -4,6 +4,7 @@ import com.aiflow.common.ApiResponse;
 import com.aiflow.dto.FormSubmissionDTO;
 import com.aiflow.dto.NotificationDTO;
 import com.aiflow.dto.ProcessInstanceDTO;
+import com.aiflow.dto.ProcessDiagramDTO;
 import com.aiflow.dto.RuntimeStateDTO;
 import com.aiflow.dto.SaveNodeFormRequest;
 import com.aiflow.dto.TimelineDTO;
@@ -40,6 +41,11 @@ public class ProcessInstanceController {
     @GetMapping("/{id}")
     public ApiResponse<ProcessInstanceDTO> getInstance(@PathVariable Long id) {
         return ApiResponse.success(processInstanceService.getInstance(id));
+    }
+
+    @GetMapping("/{id}/diagram")
+    public ApiResponse<ProcessDiagramDTO> getDiagram(@PathVariable Long id) {
+        return ApiResponse.success(processInstanceService.getDiagram(id));
     }
 
     @GetMapping("/{id}/submissions")
