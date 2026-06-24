@@ -2,7 +2,6 @@
   <div class="my-process-page">
     <section class="page-head">
       <div>
-        <el-tag type="success" effect="plain">业务流程</el-tag>
         <h1>我的流程</h1>
         <p>创建并维护我负责的业务流程，发布后用户可在流程发起入口提交申请。</p>
       </div>

@@ -2,7 +2,6 @@
   <div class="automation-page">
     <section class="page-head">
       <div>
-        <el-tag type="success" effect="plain">自动化策略</el-tag>
         <h1>自动化策略配置</h1>
         <p>维护审批自动通过规则，支持按金额、天数等字段配置阈值，并可随时启用或停用。</p>
       </div>

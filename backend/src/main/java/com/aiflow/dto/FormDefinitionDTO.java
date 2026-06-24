@@ -21,6 +21,9 @@ public class FormDefinitionDTO {
     private String status;
     private String fieldList;
     private String formSchema;
+    private Long createdBy;
+    private String sourceType;
+    private Long sourceFormId;
     private LocalDateTime publishedAt;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

@@ -3,9 +3,8 @@
     <!-- 顶部 -->
     <div class="page-head">
       <div>
-        <div class="eyebrow">流程优化</div>
         <h1>AI 优化建议</h1>
-        <p class="desc">AI 自动扫描全部模板，基于历史运行数据生成优化建议。请逐条审核后采纳或忽略。</p>
+        <p class="desc">AI 自动扫描全部业务流程，基于历史运行数据生成优化建议。请逐条审核后采纳或忽略。</p>
       </div>
       <div class="head-btns">
         <el-button :icon="Refresh" :loading="scanning" round @click="handleScan">重新扫描</el-button>
@@ -26,9 +25,9 @@
 
     <!-- 三栏布局 -->
     <div v-if="!scanning && allResults.length > 0" class="opt-layout">
-      <!-- 左：模板列表 -->
+      <!-- 左：流程列表 -->
       <div class="left-col">
-        <div class="col-title">模板列表</div>
+        <div class="col-title">流程列表</div>
         <div
           v-for="r in allResults"
           :key="r.templateId"
@@ -48,7 +47,7 @@
         <div class="col-title">优化建议（{{ selectedResult?.suggestions?.length || 0 }} 条）</div>
 
         <div v-if="!selectedResult" style="color:var(--muted);padding:40px;text-align:center">
-          请从左侧选择一个模板查看优化建议
+          请从左侧选择一个流程查看优化建议
         </div>
 
         <div
@@ -135,7 +134,6 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { Check, Refresh } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { optimizeAll, adoptSuggestion } from '@/api/ai'
-import { getProcessTemplates } from '@/api/processTemplate'
 
 interface Suggestion {
   type: string; nodeKey?: string; nodeName?: string; severity: string
@@ -179,7 +177,7 @@ async function handleScan() {
     if (allResults.value.length > 0) {
       selectedTemplateId.value = allResults.value[0].templateId
     }
-    ElMessage.success(`扫描完成，${allResults.value.length} 个模板有待优化建议`)
+    ElMessage.success(`扫描完成，${allResults.value.length} 个流程有待优化建议`)
   } catch (e: any) {
     ElMessage.error(e?.message || '扫描失败')
   } finally { scanning.value = false }
@@ -250,7 +248,6 @@ function typeFg(t: string) {
 .page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; margin-bottom: 22px; }
 .page-head h1 { font-size: 25px; font-weight: 600; margin-bottom: 5px; }
 .desc { color: var(--muted); font-size: 13px; max-width: 600px; }
-.eyebrow { font-size: 10.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); font-weight: 500; margin-bottom: 4px; }
 .head-btns { display: flex; gap: 8px; white-space: nowrap; }
 .loading-card { padding: 28px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); box-shadow: var(--shadow); }
 .loading-text { margin: 20px 0 0; text-align: center; color: var(--muted); font-size: 13px; }
@@ -259,7 +256,7 @@ function typeFg(t: string) {
 .opt-layout { display: grid; grid-template-columns: 220px 1fr 260px; gap: 16px; }
 .col-title { font-size: 12px; font-weight: 700; color: var(--muted); margin-bottom: 10px; text-transform: uppercase; letter-spacing: .1em; }
 
-/* 左栏 - 模板卡片 */
+/* 左栏 - 流程卡片 */
 .left-col { display: flex; flex-direction: column; gap: 8px; }
 .tpl-card { padding: 12px 14px; border: 1px solid var(--line); border-radius: 9px; background: var(--panel); cursor: pointer; transition: .15s; }
 .tpl-card:hover { border-color: var(--el-color-primary); }

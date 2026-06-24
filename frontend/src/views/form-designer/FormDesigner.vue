@@ -17,18 +17,29 @@
           :class="{ active: item.id === currentFormId }"
           @click="loadForm(item)"
         >
-          <strong>{{ item.formName }}</strong>
-          <span>{{ item.formCode }}</span>
-          <el-tag size="small" :type="item.status === 'published' ? 'success' : 'info'" effect="plain">
-            {{ statusLabel(item.status) }}
-          </el-tag>
-          <el-button
-            text
-            size="small"
-            type="danger"
-            :icon="Delete"
-            @click.stop="handleDeleteForm(item)"
-          />
+          <div class="form-list-copy">
+            <strong :title="item.formName">{{ item.formName }}</strong>
+            <span>创建于 {{ formatCreatedAt(item.createdAt) }}</span>
+          </div>
+          <div class="form-list-footer">
+            <div class="form-list-tags">
+              <el-tag size="small" :type="item.status === 'published' ? 'success' : 'info'" effect="plain">
+                {{ statusLabel(item.status) }}
+              </el-tag>
+              <el-tag v-if="item.sourceType === 'market_copy'" size="small" type="warning" effect="plain">
+                市场复制
+              </el-tag>
+            </div>
+            <el-button
+              class="form-delete-button"
+              text
+              size="small"
+              type="danger"
+              :icon="Delete"
+              title="删除表单"
+              @click.stop="handleDeleteForm(item)"
+            />
+          </div>
         </div>
         <el-empty v-if="forms.length === 0 && !listLoading" description="暂无表单，点击上方新增" />
       </el-scrollbar>
@@ -37,7 +48,6 @@
     <main class="designer-canvas">
       <section class="canvas-toolbar">
         <div>
-          <el-tag type="success" effect="plain">FormDefinition</el-tag>
           <h1>表单设计器</h1>
           <p>保存并发布表单后，流程模板即可在绑定表单下拉框中选择它。</p>
         </div>
@@ -654,6 +664,14 @@ function statusLabel(status?: string) {
   return '草稿'
 }
 
+function formatCreatedAt(value?: string) {
+  if (!value) return '时间未知'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value.replace('T', ' ').slice(0, 16)
+  const pad = (part: number) => String(part).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
 const PreviewInput = defineComponent({
   props: {
     field: { type: Object, required: true }
@@ -780,10 +798,57 @@ function previewComponent(_type?: FieldType) {
 
 .form-list-item {
   display: grid;
-  gap: 6px;
+  gap: 10px;
   margin-bottom: 10px;
-  padding: 12px;
+  padding: 13px 12px 10px;
   border-radius: 8px;
+}
+
+.form-list-copy {
+  min-width: 0;
+}
+
+.form-list-copy strong {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.form-list-copy span {
+  display: block;
+  margin-top: 5px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.form-list-footer,
+.form-list-tags {
+  display: flex;
+  align-items: center;
+}
+
+.form-list-footer {
+  min-height: 24px;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.form-list-tags {
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.form-delete-button {
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  padding: 0;
 }
 
 .form-list-item.active,
