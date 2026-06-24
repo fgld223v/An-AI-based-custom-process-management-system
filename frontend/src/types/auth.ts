@@ -6,6 +6,14 @@ export interface LoginRequest {
   password: string
 }
 
+export interface ResetPasswordRequest {
+  username: string
+  verifyType?: 'phone' | 'email'
+  verifyValue?: string
+  newPassword: string
+  confirmPassword: string
+}
+
 export interface LoginResponse {
   token: string
   tokenType: string
@@ -23,6 +31,8 @@ export interface UserInfo {
   id: number
   username: string
   nickname: string
+  phone?: string | null
+  email?: string | null
   role: string
   systemRole: SystemRole
   departmentId?: number | null

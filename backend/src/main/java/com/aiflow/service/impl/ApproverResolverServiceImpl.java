@@ -120,7 +120,7 @@ public class ApproverResolverServiceImpl implements ApproverResolverService {
     }
 
     /**
-     * 直属上级 — 当前回退到部门经理。
+     * 直属上级 — 查询发起人的 supervisor_id。
      */
     private List<Long> resolveSupervisor(Long applicantId) {
         UserEntity applicant = applicant(applicantId);

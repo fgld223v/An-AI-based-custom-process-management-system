@@ -27,6 +27,12 @@ const routes: RouteRecordRaw[] = [
     meta: { public: true, title: '注册' }
   },
   {
+    path: '/reset-password',
+    name: 'ResetPassword',
+    component: () => import('@/views/login/ResetPassword.vue'),
+    meta: { public: true, title: '重置密码' }
+  },
+  {
     path: '/403',
     name: 'Forbidden',
     component: () => import('@/views/error/Forbidden.vue'),
@@ -185,6 +191,12 @@ const routes: RouteRecordRaw[] = [
         name: 'AutomationSettings',
         component: () => import('@/views/settings/AutomationSettings.vue'),
         meta: { title: '自动化策略', group: '系统', roles: ADMIN_ROLES }
+      },
+      {
+        path: 'settings/system',
+        name: 'SystemSettings',
+        component: () => import('@/views/settings/SystemSettings.vue'),
+        meta: { title: '系统设置', group: '系统', roles: SUPER_ADMIN }
       },
       // ---- 占位页面 ----
       {
