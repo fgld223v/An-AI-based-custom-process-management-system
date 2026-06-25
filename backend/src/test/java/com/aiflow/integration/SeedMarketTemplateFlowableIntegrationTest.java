@@ -55,6 +55,11 @@ class SeedMarketTemplateFlowableIntegrationTest {
         deploy("leave-request", "leave-seed.bpmn20.xml");
         deploy("reimbursement", "reimbursement-seed.bpmn20.xml");
         deploy("purchase-request", "purchase-seed.bpmn20.xml");
+        deploy("repair-request", "repair-seed.bpmn20.xml");
+        deploy("work-report", "work-report-seed.bpmn20.xml");
+        deploy("general-approval", "general-approval-seed.bpmn20.xml");
+        deploy("inspection-report", "inspection-seed.bpmn20.xml");
+        deploy("business-trip", "business-trip-seed.bpmn20.xml");
 
         assertApprovalRoute("Process_Leave_Request",
                 List.of("Approve_Supervisor", "Approve_Hr"));
@@ -62,6 +67,17 @@ class SeedMarketTemplateFlowableIntegrationTest {
                 List.of("Approve_Department", "Approve_Finance_Reviewer", "Approve_Finance_Manager"));
         assertApprovalRoute("Process_Purchase_Request",
                 List.of("Approve_Department", "Approve_Purchase"));
+        assertApprovalRoute("Process_Repair_Request",
+                List.of("Approve_Department", "Handle_Tech"));
+        assertApprovalRoute("Process_Work_Report",
+                List.of("Approve_Supervisor"));
+        assertApprovalRoute("Process_General_Approval",
+                List.of("Approve_Department", "Approve_GeneralManager"),
+                Map.of("importance", "major"));
+        assertApprovalRoute("Process_Inspection_Report",
+                List.of("Review_Department", "Confirm_DepartmentLeader"));
+        assertApprovalRoute("Process_Business_Trip",
+                List.of("Approve_Supervisor", "Review_Hr", "Review_Finance"));
     }
 
     @Test
@@ -93,7 +109,8 @@ class SeedMarketTemplateFlowableIntegrationTest {
         String nodeConfig = read("seed/templates/" + folder + "/node-config.json")
                 .replace("${dept.hr}", "30")
                 .replace("${dept.finance}", "20")
-                .replace("${dept.purchase}", "40");
+                .replace("${dept.purchase}", "40")
+                .replace("${dept.tech}", "50");
         String enhanced = new BpmnXmlEnhancer(new ObjectMapper()).enhance(bpmn, nodeConfig);
         processEngine.getRepositoryService().createDeployment()
                 .name("seed-" + folder)
@@ -102,8 +119,13 @@ class SeedMarketTemplateFlowableIntegrationTest {
     }
 
     private void assertApprovalRoute(String processKey, List<String> expectedTaskKeys) {
+        assertApprovalRoute(processKey, expectedTaskKeys, Map.of());
+    }
+
+    private void assertApprovalRoute(String processKey, List<String> expectedTaskKeys,
+                                     Map<String, Object> startVariables) {
         org.flowable.engine.runtime.ProcessInstance instance =
-                runtimeService.startProcessInstanceByKey(processKey);
+                runtimeService.startProcessInstanceByKey(processKey, startVariables);
 
         for (String expectedTaskKey : expectedTaskKeys) {
             Task task = taskService.createTaskQuery()

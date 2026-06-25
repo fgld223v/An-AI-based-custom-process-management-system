@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  id="Definitions_GeneralApproval" targetNamespace="http://aiflow.com/seed">
+  <bpmn:process id="Process_General_Approval" name="通用事项审批" isExecutable="true">
+    <bpmn:startEvent id="Start_General" name="提交通用审批"><bpmn:outgoing>Flow_G1</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:userTask id="Approve_Department" name="部门负责人审批"><bpmn:incoming>Flow_G1</bpmn:incoming><bpmn:outgoing>Flow_G2</bpmn:outgoing></bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_Department" default="Flow_GReject1"><bpmn:incoming>Flow_G2</bpmn:incoming><bpmn:outgoing>Flow_G3Major</bpmn:outgoing><bpmn:outgoing>Flow_G3Normal</bpmn:outgoing><bpmn:outgoing>Flow_GReject1</bpmn:outgoing></bpmn:exclusiveGateway>
+    <bpmn:userTask id="Approve_GeneralManager" name="总经理审批"><bpmn:incoming>Flow_G3Major</bpmn:incoming><bpmn:outgoing>Flow_G4</bpmn:outgoing></bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_GeneralManager" default="Flow_GReject2"><bpmn:incoming>Flow_G4</bpmn:incoming><bpmn:outgoing>Flow_G5</bpmn:outgoing><bpmn:outgoing>Flow_GReject2</bpmn:outgoing></bpmn:exclusiveGateway>
+    <bpmn:endEvent id="End_Approved" name="审批通过"><bpmn:incoming>Flow_G3Normal</bpmn:incoming><bpmn:incoming>Flow_G5</bpmn:incoming></bpmn:endEvent>
+    <bpmn:endEvent id="End_Rejected" name="申请驳回"><bpmn:incoming>Flow_GReject1</bpmn:incoming><bpmn:incoming>Flow_GReject2</bpmn:incoming></bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_G1" sourceRef="Start_General" targetRef="Approve_Department" />
+    <bpmn:sequenceFlow id="Flow_G2" sourceRef="Approve_Department" targetRef="Gateway_Department" />
+    <bpmn:sequenceFlow id="Flow_G3Major" sourceRef="Gateway_Department" targetRef="Approve_GeneralManager"><bpmn:conditionExpression xsi:type="bpmn:tFormalExpression" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><![CDATA[${Approve_Department_approved == true && importance == 'major'}]]></bpmn:conditionExpression></bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_G3Normal" sourceRef="Gateway_Department" targetRef="End_Approved"><bpmn:conditionExpression xsi:type="bpmn:tFormalExpression" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><![CDATA[${Approve_Department_approved == true && importance != 'major'}]]></bpmn:conditionExpression></bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_GReject1" sourceRef="Gateway_Department" targetRef="End_Rejected" />
+    <bpmn:sequenceFlow id="Flow_G4" sourceRef="Approve_GeneralManager" targetRef="Gateway_GeneralManager" />
+    <bpmn:sequenceFlow id="Flow_G5" sourceRef="Gateway_GeneralManager" targetRef="End_Approved"><bpmn:conditionExpression xsi:type="bpmn:tFormalExpression" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><![CDATA[${Approve_GeneralManager_approved == true}]]></bpmn:conditionExpression></bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_GReject2" sourceRef="Gateway_GeneralManager" targetRef="End_Rejected" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_GeneralApproval"><bpmndi:BPMNPlane id="Plane_GeneralApproval" bpmnElement="Process_General_Approval">
+    <bpmndi:BPMNShape id="Start_General_di" bpmnElement="Start_General"><dc:Bounds x="100" y="120" width="36" height="36" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="Approve_Department_di" bpmnElement="Approve_Department"><dc:Bounds x="200" y="98" width="120" height="80" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="Gateway_Department_di" bpmnElement="Gateway_Department" isMarkerVisible="true"><dc:Bounds x="380" y="113" width="50" height="50" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="Approve_GeneralManager_di" bpmnElement="Approve_GeneralManager"><dc:Bounds x="500" y="30" width="120" height="80" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="Gateway_GeneralManager_di" bpmnElement="Gateway_GeneralManager" isMarkerVisible="true"><dc:Bounds x="680" y="45" width="50" height="50" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="End_Approved_di" bpmnElement="End_Approved"><dc:Bounds x="800" y="120" width="36" height="36" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="End_Rejected_di" bpmnElement="End_Rejected"><dc:Bounds x="500" y="250" width="36" height="36" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNEdge id="Flow_G1_di" bpmnElement="Flow_G1"><di:waypoint x="136" y="138" /><di:waypoint x="200" y="138" /></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge id="Flow_G2_di" bpmnElement="Flow_G2"><di:waypoint x="320" y="138" /><di:waypoint x="380" y="138" /></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge id="Flow_G3Major_di" bpmnElement="Flow_G3Major"><di:waypoint x="405" y="113" /><di:waypoint x="405" y="70" /><di:waypoint x="500" y="70" /></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge id="Flow_G3Normal_di" bpmnElement="Flow_G3Normal"><di:waypoint x="430" y="138" /><di:waypoint x="800" y="138" /></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge id="Flow_G4_di" bpmnElement="Flow_G4"><di:waypoint x="620" y="70" /><di:waypoint x="680" y="70" /></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge id="Flow_G5_di" bpmnElement="Flow_G5"><di:waypoint x="730" y="70" /><di:waypoint x="818" y="70" /><di:waypoint x="818" y="120" /></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge id="Flow_GReject1_di" bpmnElement="Flow_GReject1"><di:waypoint x="405" y="163" /><di:waypoint x="405" y="268" /><di:waypoint x="500" y="268" /></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge id="Flow_GReject2_di" bpmnElement="Flow_GReject2"><di:waypoint x="705" y="95" /><di:waypoint x="705" y="268" /><di:waypoint x="536" y="268" /></bpmndi:BPMNEdge>
+  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
+</bpmn:definitions>

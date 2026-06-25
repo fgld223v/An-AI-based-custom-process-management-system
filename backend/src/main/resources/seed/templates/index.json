@@ -42,6 +42,76 @@
       "formResource": "classpath:seed/templates/purchase-request/form.json",
       "bpmnResource": "classpath:seed/templates/purchase-request/process.bpmn20.xml",
       "nodeConfigResource": "classpath:seed/templates/purchase-request/node-config.json"
+    },
+    {
+      "templateCode": "SYS_REPAIR_REQUEST",
+      "templateName": "报修申请",
+      "bizTypeCode": "repair",
+      "formCode": "SYS_FORM_REPAIR_REQUEST",
+      "formName": "报修申请表",
+      "title": "报修申请审批",
+      "description": "适用于设备、网络和办公设施报修，由部门负责人确认后转技术审核员处理。",
+      "rating": "4.75",
+      "tags": ["报修", "技术", "后勤"],
+      "formResource": "classpath:seed/templates/repair-request/form.json",
+      "bpmnResource": "classpath:seed/templates/repair-request/process.bpmn20.xml",
+      "nodeConfigResource": "classpath:seed/templates/repair-request/node-config.json"
+    },
+    {
+      "templateCode": "SYS_WORK_REPORT",
+      "templateName": "工作报备",
+      "bizTypeCode": "work_report",
+      "formCode": "SYS_FORM_WORK_REPORT",
+      "formName": "工作报备表",
+      "title": "工作报备审批",
+      "description": "适用于外出、客户拜访和临时事项报备，由直属上级审批。",
+      "rating": "4.60",
+      "tags": ["报备", "轻量审批", "直属上级"],
+      "formResource": "classpath:seed/templates/work-report/form.json",
+      "bpmnResource": "classpath:seed/templates/work-report/process.bpmn20.xml",
+      "nodeConfigResource": "classpath:seed/templates/work-report/node-config.json"
+    },
+    {
+      "templateCode": "SYS_GENERAL_APPROVAL",
+      "templateName": "通用审批",
+      "bizTypeCode": "general_approval",
+      "formCode": "SYS_FORM_GENERAL_APPROVAL",
+      "formName": "通用审批表",
+      "title": "通用事项审批",
+      "description": "适用于无法归类的业务事项，重大事项自动追加总经理审批。",
+      "rating": "4.85",
+      "tags": ["通用审批", "条件分支", "总经理"],
+      "formResource": "classpath:seed/templates/general-approval/form.json",
+      "bpmnResource": "classpath:seed/templates/general-approval/process.bpmn20.xml",
+      "nodeConfigResource": "classpath:seed/templates/general-approval/node-config.json"
+    },
+    {
+      "templateCode": "SYS_INSPECTION_REPORT",
+      "templateName": "巡检上报",
+      "bizTypeCode": "inspection",
+      "formCode": "SYS_FORM_INSPECTION_REPORT",
+      "formName": "巡检上报表",
+      "title": "巡检上报复核",
+      "description": "适用于设备、区域和安全巡检，由部门审核员复核后部门负责人确认。",
+      "rating": "4.65",
+      "tags": ["巡检", "复核", "部门管理"],
+      "formResource": "classpath:seed/templates/inspection-report/form.json",
+      "bpmnResource": "classpath:seed/templates/inspection-report/process.bpmn20.xml",
+      "nodeConfigResource": "classpath:seed/templates/inspection-report/node-config.json"
+    },
+    {
+      "templateCode": "SYS_BUSINESS_TRIP",
+      "templateName": "出差申请",
+      "bizTypeCode": "business_trip",
+      "formCode": "SYS_FORM_BUSINESS_TRIP",
+      "formName": "出差申请表",
+      "title": "出差申请审批",
+      "description": "适用于员工出差申请，由直属上级、人事审核员和财务审核员依次审批。",
+      "rating": "4.80",
+      "tags": ["出差", "人事", "财务"],
+      "formResource": "classpath:seed/templates/business-trip/form.json",
+      "bpmnResource": "classpath:seed/templates/business-trip/process.bpmn20.xml",
+      "nodeConfigResource": "classpath:seed/templates/business-trip/node-config.json"
     }
   ]
 }

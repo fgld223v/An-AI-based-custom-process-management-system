@@ -1,0 +1,18 @@
+{
+  "Start_Repair": {
+    "nodeId":"Start_Repair","nodeKey":"Start_Repair","nodeName":"提交报修申请",
+    "bpmnType":"bpmn:StartEvent","businessType":"start","startMode":"MANUAL","startPermission":"ALL"
+  },
+  "Approve_Department": {
+    "nodeId":"Approve_Department","nodeKey":"Approve_Department","nodeName":"部门负责人确认",
+    "bpmnType":"bpmn:UserTask","businessType":"approval","approvalMode":"SINGLE",
+    "assignStrategy":"DEPARTMENT_MANAGER","rejectStrategy":"END_PROCESS"
+  },
+  "Handle_Tech": {
+    "nodeId":"Handle_Tech","nodeKey":"Handle_Tech","nodeName":"技术审核处理",
+    "bpmnType":"bpmn:UserTask","businessType":"approval","approvalMode":"SINGLE",
+    "assignStrategy":"ROLE_IN_SPECIFIED_DEPT",
+    "assignValue":"{\"departmentId\":${dept.tech},\"roleCode\":\"TECH_REVIEWER\"}",
+    "rejectStrategy":"END_PROCESS"
+  }
+}

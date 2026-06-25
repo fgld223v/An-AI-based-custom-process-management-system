@@ -50,6 +50,14 @@ class MyProcessControllerTest {
                 .isInstanceOf(AccessDeniedException.class);
     }
 
+    @Test
+    void superAdminCannotUseMyProcessEndpoints() {
+        authenticate(1L, "super_admin", "ADMIN", "ROLE_SUPER_ADMIN");
+
+        assertThatThrownBy(controller::listMyProcesses)
+                .isInstanceOf(AccessDeniedException.class);
+    }
+
     private ProcessTemplate process(Long id, Long createdBy) {
         return ProcessTemplate.builder()
                 .id(id)
@@ -61,14 +69,18 @@ class MyProcessControllerTest {
     }
 
     private void authenticate(Long id) {
+        authenticate(id, "biz_admin", "MANAGER", "ROLE_BIZ_ADMIN");
+    }
+
+    private void authenticate(Long id, String systemRole, String legacyRole, String authority) {
         UserEntity entity = new UserEntity();
         entity.setId(id);
         entity.setUsername("user-" + id);
         entity.setPassword("-");
-        entity.setSystemRole("biz_admin");
-        entity.setRole("MANAGER");
+        entity.setSystemRole(systemRole);
+        entity.setRole(legacyRole);
         entity.setEnabled(1);
-        CurrentUser user = new CurrentUser(entity, List.of(new SimpleGrantedAuthority("ROLE_BIZ_ADMIN")));
+        CurrentUser user = new CurrentUser(entity, List.of(new SimpleGrantedAuthority(authority)));
         SecurityContextHolder.getContext().setAuthentication(
                 new UsernamePasswordAuthenticationToken(user, null, user.getAuthorities()));
     }

@@ -1,0 +1,22 @@
+{
+  "fieldList": [
+    {"field":"inspectionArea","label":"巡检区域","type":"input","required":true,"placeholder":"请输入巡检区域或设备名称"},
+    {"field":"inspectionDate","label":"巡检日期","type":"date","required":true,"placeholder":"请选择巡检日期"},
+    {"field":"result","label":"巡检结果","type":"radio","required":true,"options":[{"label":"正常","value":"normal"},{"label":"发现问题","value":"abnormal"}]},
+    {"field":"issueDescription","label":"问题说明","type":"textarea","required":false,"placeholder":"如发现问题，请说明问题位置、影响和建议处理方式"},
+    {"field":"riskLevel","label":"风险等级","type":"select","required":true,"placeholder":"请选择风险等级","options":[{"label":"低","value":"low"},{"label":"中","value":"medium"},{"label":"高","value":"high"}]},
+    {"field":"photos","label":"巡检照片","type":"upload","required":false,"placeholder":"可上传巡检照片","maxCount":5}
+  ],
+  "formSchema": {
+    "layout":"vertical",
+    "fields":[
+      {"field":"inspectionArea","label":"巡检区域","type":"input","required":true,"placeholder":"请输入巡检区域或设备名称"},
+      {"field":"inspectionDate","label":"巡检日期","type":"date","required":true,"placeholder":"请选择巡检日期"},
+      {"field":"result","label":"巡检结果","type":"radio","required":true,"options":[{"label":"正常","value":"normal"},{"label":"发现问题","value":"abnormal"}]},
+      {"field":"issueDescription","label":"问题说明","type":"textarea","required":false,"placeholder":"如发现问题，请说明问题位置、影响和建议处理方式"},
+      {"field":"riskLevel","label":"风险等级","type":"select","required":true,"placeholder":"请选择风险等级","options":[{"label":"低","value":"low"},{"label":"中","value":"medium"},{"label":"高","value":"high"}]},
+      {"field":"photos","label":"巡检照片","type":"upload","required":false,"placeholder":"可上传巡检照片","maxCount":5}
+    ],
+    "meta":{"description":"区域、设备和安全巡检上报"}
+  }
+}

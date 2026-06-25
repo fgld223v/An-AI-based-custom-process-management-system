@@ -50,8 +50,13 @@ class MarketTemplateInitializerTest {
             String code = invocation.getArgument(0);
             long id = switch (code) {
                 case "leave" -> 11L;
+                case "business_trip" -> 12L;
                 case "reimbursement" -> 21L;
                 case "purchase" -> 31L;
+                case "repair" -> 32L;
+                case "inspection" -> 33L;
+                case "work_report" -> 42L;
+                case "general_approval" -> 43L;
                 default -> throw new IllegalArgumentException(code);
             };
             return Optional.of(BizTypeDict.builder().id(id).typeCode(code).build());
@@ -59,7 +64,8 @@ class MarketTemplateInitializerTest {
         when(departmentRepository.findByDeletedOrderBySortOrder(0)).thenReturn(List.of(
                 Department.builder().id(20L).deptCode("finance").build(),
                 Department.builder().id(30L).deptCode("hr").build(),
-                Department.builder().id(40L).deptCode("purchase").build()));
+                Department.builder().id(40L).deptCode("purchase").build(),
+                Department.builder().id(50L).deptCode("tech").build()));
 
         Map<String, FormDefinition> forms = new LinkedHashMap<>();
         AtomicLong formIds = new AtomicLong(100);
@@ -103,9 +109,9 @@ class MarketTemplateInitializerTest {
         templates.get("SYS_LEAVE_REQUEST").setFormBindConfig("{}");
         initializer.run();
 
-        assertThat(forms).hasSize(3);
-        assertThat(templates).hasSize(3);
-        assertThat(marketItems).hasSize(3);
+        assertThat(forms).hasSize(8);
+        assertThat(templates).hasSize(8);
+        assertThat(marketItems).hasSize(8);
         assertThat(templates.get("SYS_EXPENSE_REIMBURSEMENT").getNodeConfig())
                 .contains("\\\"departmentId\\\":20")
                 .doesNotContain("${dept.");
@@ -122,8 +128,8 @@ class MarketTemplateInitializerTest {
                     .contains("singleAssigneeListener");
         });
 
-        verify(formRepository, org.mockito.Mockito.times(3)).save(any(FormDefinition.class));
-        verify(templateRepository, org.mockito.Mockito.times(4)).save(any(ProcessTemplate.class));
-        verify(marketRepository, org.mockito.Mockito.times(3)).save(any(TemplateMarket.class));
+        verify(formRepository, org.mockito.Mockito.times(8)).save(any(FormDefinition.class));
+        verify(templateRepository, org.mockito.Mockito.times(9)).save(any(ProcessTemplate.class));
+        verify(marketRepository, org.mockito.Mockito.times(8)).save(any(TemplateMarket.class));
     }
 }

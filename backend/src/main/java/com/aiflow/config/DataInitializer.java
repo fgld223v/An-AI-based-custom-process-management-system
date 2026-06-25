@@ -39,6 +39,10 @@ public class DataInitializer implements CommandLineRunner {
         ensureBizType(hrAdmin.getId(), "business_trip", "出差", "员工出差流程", 12);
         ensureBizType(finance.getId(), "reimbursement", "报销", "费用报销流程", 21);
         ensureBizType(logistics.getId(), "purchase", "采购", "采购申请流程", 31);
+        ensureBizType(logistics.getId(), "repair", "报修", "设备、网络和办公设施报修流程", 32);
+        ensureBizType(logistics.getId(), "inspection", "巡检", "巡检上报与复核流程", 33);
+        ensureBizType(management.getId(), "work_report", "报备", "日常工作报备流程", 42);
+        ensureBizType(management.getId(), "general_approval", "通用审批", "通用业务审批流程", 43);
         ensureBizType(management.getId(), "contract_approval", "合同审批", "合同审批流程", 41);
     }
 

@@ -1,0 +1,22 @@
+{
+  "fieldList": [
+    {"field":"repairType","label":"报修类型","type":"select","required":true,"placeholder":"请选择报修类型","options":[{"label":"办公设备","value":"equipment"},{"label":"网络故障","value":"network"},{"label":"系统账号","value":"system"},{"label":"办公设施","value":"facility"}]},
+    {"field":"faultLocation","label":"故障位置","type":"input","required":true,"placeholder":"请输入故障位置或设备编号"},
+    {"field":"faultDescription","label":"故障描述","type":"textarea","required":true,"placeholder":"请描述故障现象、影响范围和已尝试的处理方式"},
+    {"field":"urgency","label":"紧急程度","type":"radio","required":true,"options":[{"label":"普通","value":"normal"},{"label":"紧急","value":"urgent"}]},
+    {"field":"contactPhone","label":"联系电话","type":"input","required":false,"placeholder":"请输入联系电话"},
+    {"field":"attachments","label":"现场照片或附件","type":"upload","required":false,"placeholder":"可上传故障截图或现场照片","maxCount":5}
+  ],
+  "formSchema": {
+    "layout":"vertical",
+    "fields":[
+      {"field":"repairType","label":"报修类型","type":"select","required":true,"placeholder":"请选择报修类型","options":[{"label":"办公设备","value":"equipment"},{"label":"网络故障","value":"network"},{"label":"系统账号","value":"system"},{"label":"办公设施","value":"facility"}]},
+      {"field":"faultLocation","label":"故障位置","type":"input","required":true,"placeholder":"请输入故障位置或设备编号"},
+      {"field":"faultDescription","label":"故障描述","type":"textarea","required":true,"placeholder":"请描述故障现象、影响范围和已尝试的处理方式"},
+      {"field":"urgency","label":"紧急程度","type":"radio","required":true,"options":[{"label":"普通","value":"normal"},{"label":"紧急","value":"urgent"}]},
+      {"field":"contactPhone","label":"联系电话","type":"input","required":false,"placeholder":"请输入联系电话"},
+      {"field":"attachments","label":"现场照片或附件","type":"upload","required":false,"placeholder":"可上传故障截图或现场照片","maxCount":5}
+    ],
+    "meta":{"description":"设备、网络和办公设施报修申请"}
+  }
+}

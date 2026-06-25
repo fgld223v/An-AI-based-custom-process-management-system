@@ -40,6 +40,8 @@ public class DemoWorkflowRoleInitializer implements CommandLineRunner {
                 "处理所在部门的通用业务审核");
         WorkflowRole financeReviewer = ensureRole("FINANCE_REVIEWER", "财务审核员", "department",
                 "处理财务合规与费用审核");
+        WorkflowRole techReviewer = ensureRole("TECH_REVIEWER", "技术审核员", "department",
+                "处理设备、网络和系统类报修审核");
         WorkflowRole hrReviewer = ensureRole("HR_REVIEWER", "人事审核员", "department",
                 "处理人事行政业务审核");
         WorkflowRole purchaseReviewer = ensureRole("PURCHASE_REVIEWER", "采购审核员", "department",
@@ -51,7 +53,12 @@ public class DemoWorkflowRoleInitializer implements CommandLineRunner {
 
         SysUser admin = requiredUser("admin");
         assign(deptReviewer, requiredUser("finance_reviewer"), requiredDepartment("finance"), admin.getId());
+        assign(deptReviewer, requiredUser("tech_reviewer"), requiredDepartment("tech"), admin.getId());
+        assign(deptReviewer, requiredUser("hr_reviewer"), requiredDepartment("hr"), admin.getId());
+        assign(deptReviewer, requiredUser("purchase_reviewer"), requiredDepartment("purchase"), admin.getId());
+        assign(deptReviewer, requiredUser("marketadmin"), requiredDepartment("market"), admin.getId());
         assign(financeReviewer, requiredUser("finance_reviewer"), requiredDepartment("finance"), admin.getId());
+        assign(techReviewer, requiredUser("tech_reviewer"), requiredDepartment("tech"), admin.getId());
         assign(hrReviewer, requiredUser("hr_reviewer"), requiredDepartment("hr"), admin.getId());
         assign(purchaseReviewer, requiredUser("purchase_reviewer"), requiredDepartment("purchase"), admin.getId());
         assign(legalReviewer, requiredUser("hqadmin"), null, admin.getId());

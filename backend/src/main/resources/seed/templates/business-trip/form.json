@@ -1,0 +1,24 @@
+{
+  "fieldList": [
+    {"field":"destination","label":"出差地点","type":"input","required":true,"placeholder":"请输入出差地点"},
+    {"field":"startDate","label":"开始日期","type":"date","required":true,"placeholder":"请选择开始日期"},
+    {"field":"endDate","label":"结束日期","type":"date","required":true,"placeholder":"请选择结束日期"},
+    {"field":"tripDays","label":"出差天数","type":"number","required":true,"placeholder":"请输入出差天数"},
+    {"field":"purpose","label":"出差事由","type":"textarea","required":true,"placeholder":"请说明出差目的、行程安排和预期成果"},
+    {"field":"estimatedBudget","label":"预计费用","type":"number","required":true,"placeholder":"请输入预计费用"},
+    {"field":"attachments","label":"相关附件","type":"upload","required":false,"placeholder":"可上传邀请函、会议通知等附件","maxCount":5}
+  ],
+  "formSchema": {
+    "layout":"vertical",
+    "fields":[
+      {"field":"destination","label":"出差地点","type":"input","required":true,"placeholder":"请输入出差地点"},
+      {"field":"startDate","label":"开始日期","type":"date","required":true,"placeholder":"请选择开始日期"},
+      {"field":"endDate","label":"结束日期","type":"date","required":true,"placeholder":"请选择结束日期"},
+      {"field":"tripDays","label":"出差天数","type":"number","required":true,"placeholder":"请输入出差天数"},
+      {"field":"purpose","label":"出差事由","type":"textarea","required":true,"placeholder":"请说明出差目的、行程安排和预期成果"},
+      {"field":"estimatedBudget","label":"预计费用","type":"number","required":true,"placeholder":"请输入预计费用"},
+      {"field":"attachments","label":"相关附件","type":"upload","required":false,"placeholder":"可上传邀请函、会议通知等附件","maxCount":5}
+    ],
+    "meta":{"description":"员工出差申请，含人事和财务审核"}
+  }
+}

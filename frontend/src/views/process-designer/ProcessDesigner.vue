@@ -554,6 +554,7 @@ import { createProcessTemplate, getProcessTemplateDetail, publishProcessTemplate
 import { createMyProcess, getMyProcessDetail, publishMyProcess, updateMyProcess } from '@/api/myProcess'
 import { useTemplateStore } from '@/stores/template'
 import { useAuthStore } from '@/stores/auth'
+import { getUserSessionItem, removeLegacySessionItems, removeUserSessionItem, setUserSessionItem } from '@/utils/userScopedStorage'
 import type { BizType, FormDefinition, ProcessTemplate } from '@/types/workflow'
 
 type BusinessType =
@@ -729,6 +730,11 @@ const emit = defineEmits<{
 const canvasRef = ref<HTMLDivElement>()
 const modeler = ref<any>()
 const selectedElement = ref<BpmnElement | null>(null)
+const AI_GENERATED_BPMN_KEY = 'ai-generated-bpmn'
+const AI_GENERATED_NODE_CONFIG_KEY = 'ai-generated-nodeconfig'
+const AI_FORM_PROMPT_KEY = 'ai-form-prompt'
+const PENDING_BIND_KEY = 'pendingBind'
+const PENDING_BIND_RESULT_KEY = 'pendingBindResult'
 const RETURN_SELECTED_NODE_KEY = 'process-designer-return-selected-node'
 const RETURN_NODE_CONFIG_KEY = 'process-designer-return-node-config'
 const xmlVisible = ref(false)
@@ -754,17 +760,16 @@ const route = useRoute()
 const router = useRouter()
 const templateStore = useTemplateStore()
 const authStore = useAuthStore()
-const isMyProcessScope = computed(() => route.query.scope === 'my')
-const saveTarget = ref<'template' | 'process'>(isMyProcessScope.value || authStore.user?.systemRole === 'biz_admin' ? 'process' : 'template')
+const userSessionGet = (key: string) => getUserSessionItem(key, authStore.user)
+const userSessionSet = (key: string, value: string) => setUserSessionItem(key, value, authStore.user)
+const userSessionRemove = (key: string) => removeUserSessionItem(key, authStore.user)
+const isMyProcessScope = computed(() => authStore.user?.systemRole === 'biz_admin' && route.query.scope === 'my')
+const roleDefaultSaveTarget = () => authStore.user?.systemRole === 'biz_admin' ? 'process' : 'template'
+const saveTarget = ref<'template' | 'process'>(roleDefaultSaveTarget())
 const saveDialogMode = ref<'create' | 'saveAs'>('create')
 const hasCurrentResource = computed(() => Boolean(savedTemplateId.value))
-const canChooseSaveTarget = computed(() => authStore.user?.systemRole === 'super_admin' && (saveDialogMode.value === 'saveAs' || (!isMyProcessScope.value && !hasCurrentResource.value)))
-const isProcessSaveTarget = computed(() => {
-  if (saveDialogMode.value === 'saveAs') return saveTarget.value === 'process'
-  if (isMyProcessScope.value) return true
-  if (hasCurrentResource.value) return false
-  return saveTarget.value === 'process'
-})
+const canChooseSaveTarget = computed(() => false)
+const isProcessSaveTarget = computed(() => authStore.user?.systemRole === 'biz_admin')
 const saveTargetLabel = computed(() => isProcessSaveTarget.value ? '流程' : '模板')
 const saveDialogTitle = computed(() => saveDialogMode.value === 'saveAs' ? `另存为${saveTargetLabel.value}` : `保存${saveTargetLabel.value}`)
 const saveDialogActionText = computed(() => saveDialogMode.value === 'saveAs' ? `另存为${saveTargetLabel.value}` : `保存${saveTargetLabel.value}`)
@@ -799,6 +804,15 @@ watch(
 )
 
 onMounted(async () => {
+  removeLegacySessionItems([
+    AI_GENERATED_BPMN_KEY,
+    AI_GENERATED_NODE_CONFIG_KEY,
+    AI_FORM_PROMPT_KEY,
+    PENDING_BIND_KEY,
+    PENDING_BIND_RESULT_KEY,
+    RETURN_SELECTED_NODE_KEY,
+    RETURN_NODE_CONFIG_KEY
+  ])
   await nextTick()
   modeler.value = new BpmnModeler({
     container: canvasRef.value
@@ -823,7 +837,7 @@ onMounted(async () => {
 
   // 检查是否来自 AI 生成（query 参数 from=ai），如果有则加载 AI 生成的 XML
   const fromAi = route.query.from === 'ai'
-  const aiXml = sessionStorage.getItem('ai-generated-bpmn')
+  const aiXml = userSessionGet(AI_GENERATED_BPMN_KEY)
   if (fromAi && aiXml) {
     currentXml.value = aiXml
     // 不清除 sessionStorage！用户离开再回来时仍然需要这个 BPMN
@@ -888,7 +902,7 @@ onMounted(async () => {
   reconcileNodeConfigMapWithCanvas()
 
   // 把 AI 返回的 nodeConfig 灌进 nodeConfigMap（array 或 map 格式都兼容）
-  const aiNodeConfigRaw = window.sessionStorage.getItem('ai-generated-nodeconfig')
+  const aiNodeConfigRaw = userSessionGet(AI_GENERATED_NODE_CONFIG_KEY)
   if (aiNodeConfigRaw) {
     try {
       const raw = JSON.parse(aiNodeConfigRaw)
@@ -927,7 +941,7 @@ onMounted(async () => {
   }
 
   // 恢复之前保存的 nodeConfig（包含表单绑定，覆盖默认值）
-  const savedConfig = window.sessionStorage.getItem('ai-generated-nodeconfig')
+  const savedConfig = userSessionGet(AI_GENERATED_NODE_CONFIG_KEY)
   if (savedConfig) {
     try {
       const configMap = JSON.parse(savedConfig)
@@ -959,12 +973,12 @@ onMounted(async () => {
   refreshStats()
 
   // 检查是否有挂起的表单绑定（从 AI 表单生成页跳回，modeler 已就绪）
-  const pendingBindResult = window.sessionStorage.getItem('pendingBindResult')
+  const pendingBindResult = userSessionGet(PENDING_BIND_RESULT_KEY)
   if (pendingBindResult) {
     try {
       const bindInfo = JSON.parse(pendingBindResult)
-      window.sessionStorage.removeItem('pendingBindResult')
-      window.sessionStorage.removeItem('pendingBind')
+      userSessionRemove(PENDING_BIND_RESULT_KEY)
+      userSessionRemove(PENDING_BIND_KEY)
       if (!nodeConfigMap[bindInfo.nodeKey]) {
         nodeConfigMap[bindInfo.nodeKey] = { nodeId: bindInfo.nodeKey, nodeName: bindInfo.nodeName || '' } as any
       }
@@ -993,14 +1007,14 @@ onMounted(async () => {
       ElMessage.success('表单"' + bindInfo.formName + '"已绑定到节点"' + bindInfo.nodeName + '"并自动保存')
     } catch { /* ignore */ }
   }
-  const returnSelectedNodeId = window.sessionStorage.getItem(RETURN_SELECTED_NODE_KEY)
-  const returnNodeConfigRaw = window.sessionStorage.getItem(RETURN_NODE_CONFIG_KEY)
+  const returnSelectedNodeId = userSessionGet(RETURN_SELECTED_NODE_KEY)
+  const returnNodeConfigRaw = userSessionGet(RETURN_NODE_CONFIG_KEY)
   if (returnNodeConfigRaw) {
     try {
       const configMap = JSON.parse(returnNodeConfigRaw)
       mergeStoredNodeConfig(configMap)
     } catch { /* ignore */ }
-    window.sessionStorage.removeItem(RETURN_NODE_CONFIG_KEY)
+    userSessionRemove(RETURN_NODE_CONFIG_KEY)
   }
   if (returnSelectedNodeId) {
     try {
@@ -1011,7 +1025,7 @@ onMounted(async () => {
         selectedElement.value = el as BpmnElement
       }
     } catch { /* ignore */ }
-    window.sessionStorage.removeItem(RETURN_SELECTED_NODE_KEY)
+    userSessionRemove(RETURN_SELECTED_NODE_KEY)
   }
   setTimeout(addPaletteTooltips, 0)
 
@@ -1070,7 +1084,7 @@ async function loadDefaultDiagram() {
 
 function applyLoadedTemplate(template: ProcessTemplate) {
   savedTemplateId.value = template.id
-  saveTarget.value = isMyProcessScope.value ? 'process' : 'template'
+  saveTarget.value = roleDefaultSaveTarget()
   currentXml.value = template.bpmnXml?.trim() || defaultBpmnXml()
   templateSaveForm.templateCode = template.templateCode || ''
   templateSaveForm.templateName = template.templateName || templateSaveForm.templateName
@@ -1118,7 +1132,7 @@ async function saveXml() {
     return
   }
   await ensureTemplateOptionsLoaded()
-  saveTarget.value = isMyProcessScope.value || authStore.user?.systemRole === 'biz_admin' ? 'process' : saveTarget.value
+  saveTarget.value = roleDefaultSaveTarget()
   templateSaveVisible.value = true
 }
 
@@ -1127,8 +1141,8 @@ async function openSaveAsDialog() {
   if (!validateTemplateForFlowablePreparation()) return
   await ensureTemplateOptionsLoaded()
   saveDialogMode.value = 'saveAs'
-  saveTarget.value = authStore.user?.systemRole === 'super_admin' ? saveTarget.value : 'process'
-  const baseCode = templateSaveForm.templateCode.trim() || (saveTarget.value === 'process' ? 'process' : 'template')
+  saveTarget.value = roleDefaultSaveTarget()
+  const baseCode = templateSaveForm.templateCode.trim() || (isProcessSaveTarget.value ? 'process' : 'template')
   templateSaveForm.templateCode = `${baseCode}_copy_${Date.now()}`
   templateSaveVisible.value = true
 }
@@ -1229,7 +1243,7 @@ async function saveTemplateSilently() {
       savedTemplateId.value = created.id
       templateStore.setCurrentTemplate({ id: created.id, templateName: created.templateName } as any)
       // sessionStorage 也存 map 格式
-      window.sessionStorage.setItem('ai-generated-nodeconfig', JSON.stringify(nodeConfigMap2))
+      userSessionSet(AI_GENERATED_NODE_CONFIG_KEY, JSON.stringify(nodeConfigMap2))
       void router.replace(`/process-designer?templateId=${created.id}${isProcessSaveTarget.value ? '&scope=my' : ''}`)
     }
   } catch (e) {
@@ -1626,9 +1640,9 @@ function openBoundFormDesigner() {
     return
   }
   if (selectedConfig.value?.nodeId) {
-    window.sessionStorage.setItem(RETURN_SELECTED_NODE_KEY, selectedConfig.value.nodeId)
+    userSessionSet(RETURN_SELECTED_NODE_KEY, selectedConfig.value.nodeId)
   }
-  window.sessionStorage.setItem(RETURN_NODE_CONFIG_KEY, JSON.stringify(buildPersistableNodeConfig()))
+  userSessionSet(RETURN_NODE_CONFIG_KEY, JSON.stringify(buildPersistableNodeConfig()))
   void loadPublishedFormOptions()
   router.push('/form-designer?id=' + formId)
 }
@@ -1636,12 +1650,12 @@ function openBoundFormDesigner() {
 function jumpToAiGenerateForm() {
   if (selectedConfig.value) {
     // 保存节点上下文，等表单生成后回来绑定
-    window.sessionStorage.setItem('pendingBind', JSON.stringify({
+    userSessionSet(PENDING_BIND_KEY, JSON.stringify({
       nodeKey: selectedConfig.value.nodeId,
       nodeName: selectedConfig.value.nodeName || ''
     }))
   }
-  window.sessionStorage.setItem('ai-form-prompt', aiFormPrompt.value)
+  userSessionSet(AI_FORM_PROMPT_KEY, aiFormPrompt.value)
   router.push('/ai/generate-form')
   aiFormDialogVisible.value = false
 }

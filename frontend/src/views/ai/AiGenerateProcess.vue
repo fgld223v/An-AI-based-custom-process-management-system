@@ -106,7 +106,7 @@
           在流程编辑器中打开
         </el-button>
         <el-button type="primary" size="large" round @click="handleCreateTemplate">
-          确认创建模板
+          {{ confirmCreateText }}
         </el-button>
         <el-button size="large" round @click="handleRegenerate">
           重新生成
@@ -115,12 +115,12 @@
     </div>
 
     <!-- 创建模板弹窗 -->
-    <el-dialog v-model="createDialogVisible" title="确认创建模板" width="480px" :close-on-click-modal="false">
+    <el-dialog v-model="createDialogVisible" :title="createDialogTitle" width="480px" :close-on-click-modal="false">
       <el-form :model="createForm" label-position="top">
-        <el-form-item label="模板名称">
-          <el-input v-model="createForm.templateName" placeholder="输入模板名称" maxlength="64" />
+        <el-form-item :label="`${targetLabel}名称`">
+          <el-input v-model="createForm.templateName" :placeholder="`输入${targetLabel}名称`" maxlength="64" />
         </el-form-item>
-        <el-form-item label="模板编号">
+        <el-form-item :label="`${targetLabel}编号`">
           <el-input v-model="createForm.templateCode" placeholder="自动生成或手动输入" maxlength="64" />
         </el-form-item>
         <el-form-item label="业务类型">
@@ -131,7 +131,7 @@
       </el-form>
       <template #footer>
         <el-button @click="createDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="creating" @click="submitCreateTemplate">确认创建</el-button>
+        <el-button type="primary" :loading="creating" @click="submitCreateTemplate">{{ confirmCreateText }}</el-button>
       </template>
     </el-dialog>
 
@@ -149,16 +149,21 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { computed, ref, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { MagicStick, Edit } from '@element-plus/icons-vue'
 import BpmnViewerPanel from '@/components/ai/BpmnViewerPanel.vue'
 import type { AiGenerateProcessResult } from '@/api/ai'
 import { createMyProcess } from '@/api/myProcess'
+import { createProcessTemplate } from '@/api/processTemplate'
 import { getBizTypes } from '@/api/bizType'
 import { ElMessage } from 'element-plus'
+import { useAuthStore } from '@/stores/auth'
+import { getUserSessionItem, removeLegacySessionItems, removeUserSessionItem, setUserSessionItem } from '@/utils/userScopedStorage'
 
 const STORAGE_KEY = 'ai-generate-process-state'
+const AI_GENERATED_BPMN_KEY = 'ai-generated-bpmn'
+const AI_GENERATED_NODE_CONFIG_KEY = 'ai-generated-nodeconfig'
 const router = useRouter()
 
 interface BizType {
@@ -183,6 +188,10 @@ const createForm = ref({
   templateCode: '',
   bizTypeId: null as number | null
 })
+const isTemplateTarget = computed(() => authStore.user?.systemRole === 'super_admin')
+const targetLabel = computed(() => isTemplateTarget.value ? '模板' : '流程')
+const confirmCreateText = computed(() => `确认创建${targetLabel.value}`)
+const createDialogTitle = computed(() => `确认创建${targetLabel.value}`)
 
 // 页面离开时保存状态
 function saveState() {
@@ -191,12 +200,12 @@ function saveState() {
     result: result.value
   }
   if (state.description || state.result) {
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state))
+    setUserSessionItem(STORAGE_KEY, JSON.stringify(state), authStore.user)
   }
 }
 
 function restoreState() {
-  const raw = sessionStorage.getItem(STORAGE_KEY)
+  const raw = getUserSessionItem(STORAGE_KEY, authStore.user)
   if (raw) {
     try {
       const state = JSON.parse(raw)
@@ -212,7 +221,10 @@ watch([description, result], () => saveState(), { deep: true })
 // 浏览器关闭/刷新前保存
 window.addEventListener('beforeunload', saveState)
 
-onMounted(() => restoreState())
+onMounted(() => {
+  removeLegacySessionItems([STORAGE_KEY, AI_GENERATED_BPMN_KEY, AI_GENERATED_NODE_CONFIG_KEY])
+  restoreState()
+})
 
 function businessTypeTag(type: string) {
   const map: Record<string, string> = {
@@ -262,15 +274,15 @@ async function handleGenerate() {
 
 function handleOpenInDesigner() {
   if (!result.value?.bpmnXml) return
-  window.sessionStorage.setItem('ai-generated-bpmn', result.value.bpmnXml)
+  setUserSessionItem(AI_GENERATED_BPMN_KEY, result.value.bpmnXml, authStore.user)
   // 保存 nodeConfig 以便设计器恢复
-  window.sessionStorage.setItem('ai-generated-nodeconfig', JSON.stringify(result.value.nodeConfig || []))
+  setUserSessionItem(AI_GENERATED_NODE_CONFIG_KEY, JSON.stringify(result.value.nodeConfig || []), authStore.user)
   router.push('/process-designer?from=ai')
 }
 
 async function handleCreateTemplate() {
   if (!result.value) return
-  // 预填模板名（从摘要取前 20 字）
+  // 预填名称（从摘要取前 20 字）
   createForm.value = {
     templateName: result.value.summary?.slice(0, 20) || 'AI生成流程',
     templateCode: 'ai-' + Date.now(),
@@ -285,14 +297,14 @@ async function handleCreateTemplate() {
 
 async function submitCreateTemplate() {
   if (!result.value) return
-  // 前端校验模板名称
   if (!createForm.value.templateName?.trim()) {
-    ElMessage.warning('请输入模板名称')
+    ElMessage.warning(`请输入${targetLabel.value}名称`)
     return
   }
   creating.value = true
   try {
-    await createMyProcess({
+    const createApi = isTemplateTarget.value ? createProcessTemplate : createMyProcess
+    await createApi({
       templateName: createForm.value.templateName,
       templateCode: createForm.value.templateCode,
       bizTypeId: createForm.value.bizTypeId ?? undefined,
@@ -301,8 +313,8 @@ async function submitCreateTemplate() {
       nodeConfig: JSON.stringify(result.value.nodeConfig)
     } as any)
     createDialogVisible.value = false
-    ElMessage.success('流程已创建到我的流程')
-    router.push('/my-processes')
+    ElMessage.success(isTemplateTarget.value ? '模板已创建到流程模板管理' : '流程已创建到我的流程')
+    router.push(isTemplateTarget.value ? '/templates' : '/my-processes')
   } catch (e: any) {
     const msg = e?.response?.data?.message || e?.message || '创建失败'
     ElMessage.error(msg)
@@ -320,7 +332,7 @@ function handleClear() {
   description.value = ''
   result.value = null
   errorMessage.value = ''
-  sessionStorage.removeItem(STORAGE_KEY)
+  removeUserSessionItem(STORAGE_KEY, authStore.user)
 }
 </script>
 

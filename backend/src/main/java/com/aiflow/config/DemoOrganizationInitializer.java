@@ -79,6 +79,8 @@ public class DemoOrganizationInitializer implements CommandLineRunner {
 
         ensureUser("finance_reviewer", List.of(), "财务审核员", USER_PASSWORD,
                 "USER", "normal_user", finance.getId(), financeManager.getId(), null);
+        ensureUser("tech_reviewer", List.of(), "技术审核员", USER_PASSWORD,
+                "USER", "normal_user", tech.getId(), techManager.getId(), null);
         ensureUser("hr_reviewer", List.of(), "人事审核员", USER_PASSWORD,
                 "USER", "normal_user", hr.getId(), hrManager.getId(), null);
         ensureUser("purchase_reviewer", List.of(), "采购审核员", USER_PASSWORD,
