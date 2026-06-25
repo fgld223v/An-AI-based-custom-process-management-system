@@ -44,6 +44,10 @@ public class DepartmentController {
 
     @PostMapping
     public ApiResponse<Department> createDepartment(@RequestBody CreateDeptRequest request) {
+        if (request.getParentId() != null) {
+            departmentRepository.findByIdAndDeleted(request.getParentId(), 0)
+                    .orElseThrow(() -> new IllegalArgumentException("父部门不存在或已删除"));
+        }
         Department dept = Department.builder()
                 .parentId(request.getParentId())
                 .deptCode(request.getDeptCode().trim())
@@ -62,7 +66,13 @@ public class DepartmentController {
     public ApiResponse<Department> updateDepartment(@PathVariable Long id, @RequestBody CreateDeptRequest request) {
         Department dept = departmentRepository.findByIdAndDeleted(id, 0)
                 .orElseThrow(() -> new IllegalArgumentException("部门不存在"));
-        if (request.getParentId() != null) dept.setParentId(request.getParentId());
+        if (request.getParentId() != null) {
+            if (!request.getParentId().equals(dept.getId())) {
+                departmentRepository.findByIdAndDeleted(request.getParentId(), 0)
+                        .orElseThrow(() -> new IllegalArgumentException("父部门不存在或已删除"));
+            }
+            dept.setParentId(request.getParentId());
+        }
         if (request.getDeptCode() != null) dept.setDeptCode(request.getDeptCode().trim());
         if (request.getDeptName() != null) dept.setDeptName(request.getDeptName().trim());
         if (request.getSortOrder() != null) dept.setSortOrder(request.getSortOrder());
@@ -193,7 +203,9 @@ public class DepartmentController {
 
     private Long resolveDeptId(String deptCode) {
         Department dept = departmentRepository.findFirstByDeptCode(deptCode);
-        if (dept == null) throw new IllegalArgumentException("父部门编码不存在: " + deptCode);
+        if (dept == null || !Integer.valueOf(0).equals(dept.getDeleted())) {
+            throw new IllegalArgumentException("父部门编码不存在或已删除: " + deptCode);
+        }
         return dept.getId();
     }
 

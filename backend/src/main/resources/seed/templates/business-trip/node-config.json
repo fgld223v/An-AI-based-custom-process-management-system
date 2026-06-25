@@ -1,0 +1,25 @@
+{
+  "Start_Trip": {
+    "nodeId":"Start_Trip","nodeKey":"Start_Trip","nodeName":"提交出差申请",
+    "bpmnType":"bpmn:StartEvent","businessType":"start","startMode":"MANUAL","startPermission":"ALL"
+  },
+  "Approve_Supervisor": {
+    "nodeId":"Approve_Supervisor","nodeKey":"Approve_Supervisor","nodeName":"直属上级审批",
+    "bpmnType":"bpmn:UserTask","businessType":"approval","approvalMode":"SINGLE",
+    "assignStrategy":"DIRECT_SUPERVISOR","rejectStrategy":"END_PROCESS"
+  },
+  "Review_Hr": {
+    "nodeId":"Review_Hr","nodeKey":"Review_Hr","nodeName":"人事审核",
+    "bpmnType":"bpmn:UserTask","businessType":"approval","approvalMode":"SINGLE",
+    "assignStrategy":"ROLE_IN_SPECIFIED_DEPT",
+    "assignValue":"{\"departmentId\":${dept.hr},\"roleCode\":\"HR_REVIEWER\"}",
+    "rejectStrategy":"END_PROCESS"
+  },
+  "Review_Finance": {
+    "nodeId":"Review_Finance","nodeKey":"Review_Finance","nodeName":"财务审核",
+    "bpmnType":"bpmn:UserTask","businessType":"approval","approvalMode":"SINGLE",
+    "assignStrategy":"ROLE_IN_SPECIFIED_DEPT",
+    "assignValue":"{\"departmentId\":${dept.finance},\"roleCode\":\"FINANCE_REVIEWER\"}",
+    "rejectStrategy":"END_PROCESS"
+  }
+}

@@ -40,7 +40,7 @@
           </div>
           <div class="market-card-footer">
             <small>{{ formatTime(item.publishedAt) }}</small>
-            <el-button type="success" round size="small" @click.stop="copyMarketItem(item)">使用模板</el-button>
+            <el-button v-if="canCopyToMyProcess" type="success" round size="small" @click.stop="copyMarketItem(item)">使用模板</el-button>
           </div>
         </div>
       </article>
@@ -175,10 +175,10 @@
 
         <!-- Bottom Bar -->
         <div class="panel-bottombar">
-          <span class="bottombar-note">将此模板复制到你的流程中以开始使用</span>
+          <span class="bottombar-note">{{ marketActionNote }}</span>
           <div class="bottombar-actions">
             <el-button round @click="closeDetail">关闭</el-button>
-            <el-button v-if="selectedItem" round type="success" :loading="copyLoading" @click="copyMarketItem(selectedItem)">
+            <el-button v-if="selectedItem && canCopyToMyProcess" round type="success" :loading="copyLoading" @click="copyMarketItem(selectedItem)">
               复制到我的流程
             </el-button>
           </div>
@@ -197,9 +197,11 @@ import { getProcessTemplateBoundForm, getProcessTemplateDetail } from '@/api/pro
 import { copyTemplateFromMarket, getTemplateMarketList } from '@/api/templateMarket'
 import BpmnViewerPanel from '@/components/ai/BpmnViewerPanel.vue'
 import DynamicFormRenderer from '@/components/form/DynamicFormRenderer.vue'
+import { useAuthStore } from '@/stores/auth'
 import type { BizType, FormDefinition, ProcessTemplate, TemplateMarketItem } from '@/types/workflow'
 
 const loading = ref(false)
+const authStore = useAuthStore()
 const keyword = ref('')
 const selectedBizTypeId = ref<number | null>(null)
 const marketItems = ref<TemplateMarketItem[]>([])
@@ -214,6 +216,10 @@ const templateDetail = ref<ProcessTemplate | null>(null)
 const boundForm = ref<FormDefinition | null>(null)
 const previewFormData = ref<Record<string, unknown>>({})
 const routeView = ref<'path' | 'diagram'>('path')
+const canCopyToMyProcess = computed(() => authStore.user?.systemRole === 'biz_admin')
+const marketActionNote = computed(() => canCopyToMyProcess.value
+  ? '将此模板复制到你的流程中以开始使用'
+  : '系统管理员可预览模板内容，并在流程模板管理中维护模板')
 
 const filteredItems = computed(() => {
   const key = keyword.value.trim().toLowerCase()
@@ -288,6 +294,10 @@ function closeDetail() {
 }
 
 async function copyMarketItem(item: TemplateMarketItem) {
+  if (!canCopyToMyProcess.value) {
+    ElMessage.warning('只有业务管理员可以复制模板到我的流程')
+    return
+  }
   const { value } = await ElMessageBox.prompt('请输入复制后的模板名称', '使用模板', {
     inputValue: `${item.title}-副本`,
     confirmButtonText: '复制',

@@ -11,6 +11,7 @@ import com.aiflow.model.TemplateMarket;
 import com.aiflow.security.SecurityUtils;
 import com.aiflow.service.TemplateMarketService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -65,6 +66,9 @@ public class TemplateMarketController {
         Long currentUserId = SecurityUtils.currentUserId();
         if (currentUserId == null) {
             throw new IllegalStateException("current user is required");
+        }
+        if (!"biz_admin".equals(SecurityUtils.currentUserSystemRole())) {
+            throw new AccessDeniedException("biz admin role is required");
         }
         ProcessTemplate copied = templateMarketService.copyTemplateFromMarket(
                 marketId,

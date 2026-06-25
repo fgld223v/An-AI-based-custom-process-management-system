@@ -1,0 +1,18 @@
+{
+  "Start_General": {
+    "nodeId":"Start_General","nodeKey":"Start_General","nodeName":"提交通用审批",
+    "bpmnType":"bpmn:StartEvent","businessType":"start","startMode":"MANUAL","startPermission":"ALL"
+  },
+  "Approve_Department": {
+    "nodeId":"Approve_Department","nodeKey":"Approve_Department","nodeName":"部门负责人审批",
+    "bpmnType":"bpmn:UserTask","businessType":"approval","approvalMode":"SINGLE",
+    "assignStrategy":"DEPARTMENT_MANAGER","rejectStrategy":"END_PROCESS"
+  },
+  "Approve_GeneralManager": {
+    "nodeId":"Approve_GeneralManager","nodeKey":"Approve_GeneralManager","nodeName":"总经理审批",
+    "bpmnType":"bpmn:UserTask","businessType":"approval","approvalMode":"SINGLE",
+    "assignStrategy":"GLOBAL_ROLE",
+    "assignValue":"GENERAL_MANAGER",
+    "rejectStrategy":"END_PROCESS"
+  }
+}

@@ -120,9 +120,15 @@ import DynamicFormRenderer from '@/components/form/DynamicFormRenderer.vue'
 import { createForm as createFormApi, publishForm } from '@/api/formDefinition'
 import { getBizTypes } from '@/api/bizType'
 import { ElMessage } from 'element-plus'
+import { useAuthStore } from '@/stores/auth'
+import { getUserSessionItem, removeLegacySessionItems, removeUserSessionItem, setUserSessionItem } from '@/utils/userScopedStorage'
 
 const STORAGE_KEY = 'ai-generate-form-state'
+const AI_FORM_PROMPT_KEY = 'ai-form-prompt'
+const PENDING_BIND_KEY = 'pendingBind'
+const PENDING_BIND_RESULT_KEY = 'pendingBindResult'
 const router = useRouter()
+const authStore = useAuthStore()
 
 interface FieldItem {
   field: string
@@ -175,12 +181,13 @@ watch(() => result.value, () => {
 function saveState() {
   const state = { description: description.value, result: result.value }
   if (state.description || state.result) {
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state))
+    setUserSessionItem(STORAGE_KEY, JSON.stringify(state), authStore.user)
   }
 }
 watch([description, result], () => saveState(), { deep: true })
 onMounted(() => {
-  const raw = sessionStorage.getItem(STORAGE_KEY)
+  removeLegacySessionItems([STORAGE_KEY, AI_FORM_PROMPT_KEY, PENDING_BIND_KEY, PENDING_BIND_RESULT_KEY])
+  const raw = getUserSessionItem(STORAGE_KEY, authStore.user)
   if (raw) {
     try {
       const state = JSON.parse(raw)
@@ -189,10 +196,10 @@ onMounted(() => {
     } catch { /* ignore */ }
   }
   // 从流程设计器跳转过来时，自动填入提示词
-  const incomingPrompt = sessionStorage.getItem('ai-form-prompt')
+  const incomingPrompt = getUserSessionItem(AI_FORM_PROMPT_KEY, authStore.user)
   if (incomingPrompt) {
     description.value = incomingPrompt
-    sessionStorage.removeItem('ai-form-prompt')
+    removeUserSessionItem(AI_FORM_PROMPT_KEY, authStore.user)
   }
 })
 
@@ -235,16 +242,16 @@ async function submitCreateForm() {
     createDialogVisible.value = false
     ElMessage.success('表单已创建并发布')
     // 如果是从流程设计器跳转过来的，直接回去完成绑定
-    const pendingBind = window.sessionStorage.getItem('pendingBind')
+    const pendingBind = getUserSessionItem(PENDING_BIND_KEY, authStore.user)
     if (pendingBind) {
       try {
         const bindInfo = JSON.parse(pendingBind)
-        window.sessionStorage.setItem('pendingBindResult', JSON.stringify({
+        setUserSessionItem(PENDING_BIND_RESULT_KEY, JSON.stringify({
           nodeKey: bindInfo.nodeKey,
           nodeName: bindInfo.nodeName,
           formId: created.id,
           formName: createFormData.value.formName
-        }))
+        }), authStore.user)
       } catch { /* ignore */ }
       router.push('/process-designer')
     } else {
@@ -262,7 +269,7 @@ function handleClear() {
   description.value = ''
   result.value = null
   errorMessage.value = ''
-  sessionStorage.removeItem(STORAGE_KEY)
+  removeUserSessionItem(STORAGE_KEY, authStore.user)
 }
 </script>
 

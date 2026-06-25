@@ -136,7 +136,7 @@ public class MyProcessController {
             throw new AccessDeniedException("current user is required");
         }
         String role = currentUser.getSystemRole();
-        if (!"biz_admin".equals(role) && !"super_admin".equals(role)) {
+        if (!"biz_admin".equals(role)) {
             throw new AccessDeniedException("biz admin role is required");
         }
         return currentUser;
