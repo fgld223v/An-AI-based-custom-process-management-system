@@ -48,7 +48,7 @@ public class AiFormService {
 
         规则：
         1. fieldList 必须是 JSON 数组（不是字符串！），生成 5-10 个字段
-        2. 审批节点必须额外包含：审批意见(label:"审批意见",type:"textarea",required:true)、审批结果(label:"审批结果",type:"select",options:[{"label":"同意","value":"agree"},{"label":"驳回","value":"reject"},{"label":"需修改","value":"modify"}],required:true)
+        2. 只有当用户描述明确涉及"审批""审核"等场景时，才额外添加审批字段：审批意见(label:"审批意见",type:"textarea",required:true)、审批结果(label:"审批结果",type:"select",options:[{"label":"同意","value":"agree"},{"label":"驳回","value":"reject"},{"label":"需修改","value":"modify"}],required:true)。如果用户描述的是普通数据填报/申请表单，不要添加审批相关字段
         3. 每个字段必须包含：field（英文驼峰）、label（中文）、type、required
         4. type 取值：text、textarea、number、select、date、datetime、radio、checkbox、upload
         5. select/radio/checkbox 必须包含 options 数组，每个 option 含 label 和 value
@@ -173,8 +173,9 @@ public class AiFormService {
             throw new BusinessException("AI 生成的字段列表格式异常，请重试");
         }
 
-        // 9. 后处理：确保审批相关字段存在，注入跨字段校验规则
-        fieldListStr = ensureApprovalFields(fieldListStr, objectMapper);
+        // 9. 后处理：注入跨字段校验规则
+        // 注意：不再无条件注入审批字段（approvalResult/approvalComment），
+        // 审批字段应由 AI 根据用户描述自行判断是否需要，避免非审批表单出现"审批结果"字段
         fieldListStr = injectDateRangeRules(fieldListStr, objectMapper);
 
         AiGenerateFormResponse result = new AiGenerateFormResponse(fieldListStr, formSchemaStr);
@@ -182,54 +183,6 @@ public class AiFormService {
                 fieldListStr.length(),
                 fieldListObj instanceof List<?> l ? l.size() : "?");
         return result;
-    }
-
-    /**
-     * 确保 AI 生成的字段列表中包含审批必须字段（approvalResult + approvalComment）。
-     * 如果 AI 未生成，自动补入。
-     */
-    private String ensureApprovalFields(String fieldListJson, ObjectMapper mapper) {
-        try {
-            List<Map<String, Object>> fields = mapper.readValue(fieldListJson,
-                    new TypeReference<List<Map<String, Object>>>() {});
-            boolean hasResult = fields.stream().anyMatch(f ->
-                    "approvalResult".equals(f.get("field")) || "approval_result".equals(f.get("field")));
-            boolean hasComment = fields.stream().anyMatch(f ->
-                    "approvalComment".equals(f.get("field")) || "approval_comment".equals(f.get("field")));
-
-            boolean changed = false;
-            if (!hasResult) {
-                Map<String, Object> resultField = new java.util.LinkedHashMap<>();
-                resultField.put("field", "approvalResult");
-                resultField.put("label", "审批结果");
-                resultField.put("type", "select");
-                resultField.put("required", true);
-                resultField.put("placeholder", "请选择审批结果");
-                resultField.put("options", List.of(
-                        Map.of("label", "同意", "value", "agree"),
-                        Map.of("label", "驳回", "value", "reject"),
-                        Map.of("label", "需修改", "value", "modify")
-                ));
-                fields.add(resultField);
-                changed = true;
-                log.info("AI 未生成审批结果字段，已自动补入");
-            }
-            if (!hasComment) {
-                Map<String, Object> commentField = new java.util.LinkedHashMap<>();
-                commentField.put("field", "approvalComment");
-                commentField.put("label", "审批意见");
-                commentField.put("type", "textarea");
-                commentField.put("required", true);
-                commentField.put("placeholder", "请输入审批意见");
-                fields.add(commentField);
-                changed = true;
-                log.info("AI 未生成审批意见字段，已自动补入");
-            }
-            return changed ? mapper.writeValueAsString(fields) : fieldListJson;
-        } catch (Exception e) {
-            log.warn("审批字段兜底检查失败，使用原始 fieldList: {}", e.getMessage());
-            return fieldListJson;
-        }
     }
 
     /**
