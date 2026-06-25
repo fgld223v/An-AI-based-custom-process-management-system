@@ -3,6 +3,7 @@ package com.aiflow.service.impl;
 import com.aiflow.entity.UserEntity;
 import com.aiflow.model.FormSubmission;
 import com.aiflow.model.ProcessInstance;
+import com.aiflow.model.ProcessTemplate;
 import com.aiflow.repository.FormSubmissionRepository;
 import com.aiflow.repository.ProcessInstanceRepository;
 import com.aiflow.repository.ProcessTemplateRepository;
@@ -39,6 +40,48 @@ class ProcessInstanceServiceImplTest {
     @AfterEach
     void tearDown() {
         SecurityContextHolder.clearContext();
+    }
+
+    @Test
+    void applicantCanReadDiagramForOwnProcessInstance() {
+        authenticate(10L);
+        ProcessInstanceRepository instanceRepository = mock(ProcessInstanceRepository.class);
+        FormSubmissionRepository submissionRepository = mock(FormSubmissionRepository.class);
+        ProcessTemplateRepository templateRepository = mock(ProcessTemplateRepository.class);
+        ProcessAuthorizationService authorizationService = mock(ProcessAuthorizationService.class);
+        FlowableRuntimeService flowableRuntimeService = mock(FlowableRuntimeService.class);
+        RuleEvaluatorService ruleEvaluatorService = mock(RuleEvaluatorService.class);
+        TaskService taskService = mock(TaskService.class);
+        FormBindConfigParser formBindConfigParser = mock(FormBindConfigParser.class);
+        ProcessTimelineService timelineService = mock(ProcessTimelineService.class);
+
+        ProcessInstance instance = ProcessInstance.builder()
+                .id(100L)
+                .templateId(200L)
+                .applicantId(10L)
+                .deleted(0)
+                .build();
+        ProcessTemplate template = ProcessTemplate.builder()
+                .id(200L)
+                .templateName("Leave request")
+                .bpmnXml("<definitions><process id=\"leave\" /></definitions>")
+                .deleted(0)
+                .build();
+
+        when(instanceRepository.findByIdAndDeleted(100L, 0)).thenReturn(Optional.of(instance));
+        when(templateRepository.findByIdAndDeleted(200L, 0)).thenReturn(Optional.of(template));
+
+        ProcessInstanceServiceImpl service = new ProcessInstanceServiceImpl(
+                instanceRepository, submissionRepository, templateRepository,
+                authorizationService, flowableRuntimeService, ruleEvaluatorService,
+                taskService, new ObjectMapper(), formBindConfigParser, timelineService);
+
+        var result = service.getDiagram(100L);
+
+        assertThat(result.getTemplateId()).isEqualTo(200L);
+        assertThat(result.getTemplateName()).isEqualTo("Leave request");
+        assertThat(result.getBpmnXml()).contains("process id=\"leave\"");
+        verify(templateRepository).findByIdAndDeleted(200L, 0);
     }
 
     @Test

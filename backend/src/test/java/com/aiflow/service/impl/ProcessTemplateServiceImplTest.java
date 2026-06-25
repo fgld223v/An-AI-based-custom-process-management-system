@@ -11,6 +11,7 @@ import com.aiflow.repository.ProcessTemplateRepository;
 import com.aiflow.repository.ProcessInstanceRepository;
 import com.aiflow.repository.FormDefinitionRepository;
 import com.aiflow.repository.SysUserRepository;
+import com.aiflow.repository.TemplateMarketRepository;
 import com.aiflow.service.FlowableDeploymentService;
 import com.aiflow.service.ProcessAuthorizationService;
 import com.aiflow.service.WorkflowRoleService;
@@ -67,6 +68,9 @@ class ProcessTemplateServiceImplTest {
 
     @Mock
     private SysUserRepository sysUserRepository;
+
+    @Mock
+    private TemplateMarketRepository templateMarketRepository;
 
     @InjectMocks
     private ProcessTemplateServiceImpl service;
@@ -210,6 +214,20 @@ class ProcessTemplateServiceImplTest {
         assertThatThrownBy(() -> service.deleteTemplate(1L))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("已有流程实例");
+    }
+
+    @Test
+    void deletingMarketListedTemplateRequiresWithdrawalFirst() {
+        ProcessTemplate disabled = version(1L, 1, TemplateStatus.DISABLED);
+        when(processTemplateRepository.findByIdAndDeleted(1L, 0)).thenReturn(java.util.Optional.of(disabled));
+        when(templateMarketRepository.findByTypeAndSourceIdAndDeleted(
+                com.aiflow.enums.MarketType.TEMPLATE, 1L, 0))
+                .thenReturn(java.util.Optional.of(com.aiflow.model.TemplateMarket.builder().id(9L).build()));
+
+        assertThatThrownBy(() -> service.deleteTemplate(1L))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("先下架");
+        verify(processTemplateRepository, never()).save(any(ProcessTemplate.class));
     }
 
     @Test

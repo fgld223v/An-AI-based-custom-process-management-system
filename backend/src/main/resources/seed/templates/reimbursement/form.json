@@ -1,0 +1,22 @@
+{
+  "fieldList": [
+    {"field":"expenseType","label":"费用类型","type":"select","required":true,"placeholder":"请选择费用类型","options":[{"label":"差旅费","value":"travel"},{"label":"办公费","value":"office"},{"label":"招待费","value":"hospitality"},{"label":"其他","value":"other"}]},
+    {"field":"amount","label":"报销金额","type":"number","required":true,"placeholder":"请输入报销金额"},
+    {"field":"expenseDate","label":"费用日期","type":"date","required":true,"placeholder":"请选择费用发生日期"},
+    {"field":"costCenter","label":"成本中心","type":"input","required":true,"placeholder":"请输入成本中心或项目名称"},
+    {"field":"description","label":"报销说明","type":"textarea","required":true,"placeholder":"请说明费用用途"},
+    {"field":"receipts","label":"票据附件","type":"upload","required":true,"placeholder":"请上传发票或其他有效票据","maxCount":5}
+  ],
+  "formSchema": {
+    "layout":"vertical",
+    "fields":[
+      {"field":"expenseType","label":"费用类型","type":"select","required":true,"placeholder":"请选择费用类型","options":[{"label":"差旅费","value":"travel"},{"label":"办公费","value":"office"},{"label":"招待费","value":"hospitality"},{"label":"其他","value":"other"}]},
+      {"field":"amount","label":"报销金额","type":"number","required":true,"placeholder":"请输入报销金额"},
+      {"field":"expenseDate","label":"费用日期","type":"date","required":true,"placeholder":"请选择费用发生日期"},
+      {"field":"costCenter","label":"成本中心","type":"input","required":true,"placeholder":"请输入成本中心或项目名称"},
+      {"field":"description","label":"报销说明","type":"textarea","required":true,"placeholder":"请说明费用用途"},
+      {"field":"receipts","label":"票据附件","type":"upload","required":true,"placeholder":"请上传发票或其他有效票据","maxCount":5}
+    ],
+    "meta":{"description":"员工费用报销与票据采集"}
+  }
+}

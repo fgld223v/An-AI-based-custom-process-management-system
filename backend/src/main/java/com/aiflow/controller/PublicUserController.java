@@ -24,9 +24,8 @@ public class PublicUserController {
 
     @GetMapping
     public ApiResponse<List<UserBrief>> listUsers() {
-        List<SysUser> users = sysUserRepository.findAllByOrderByIdAsc();
+        List<SysUser> users = sysUserRepository.findByDeletedOrderByIdAsc(0);
         List<UserBrief> result = users.stream()
-                .filter(u -> u.getDeleted() != null && u.getDeleted() == 0)
                 .filter(u -> u.getEnabled() != null && u.getEnabled() == 1)
                 .map(u -> {
                     UserBrief b = new UserBrief();

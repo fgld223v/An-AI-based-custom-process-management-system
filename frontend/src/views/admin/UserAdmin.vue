@@ -1,5 +1,5 @@
 <template>
-  <div class="page-shell user-admin-page">
+  <div class="admin-page user-admin-page">
     <div class="page-head">
       <div>
         <h1>用户管理</h1>
@@ -15,10 +15,10 @@
     <el-alert v-if="msg" :title="msg" :type="msgType" show-icon closable @close="msg = ''" />
 
     <section class="table-panel" v-loading="loading">
-      <el-table :data="users" border stripe>
-        <el-table-column prop="id" label="ID" width="70" />
-        <el-table-column prop="username" label="用户名" min-width="120" />
-        <el-table-column prop="nickname" label="昵称" min-width="120" />
+      <el-table :data="users" border stripe table-layout="fixed">
+        <el-table-column prop="id" label="ID" width="72" align="center" />
+        <el-table-column prop="username" label="用户名" min-width="130" />
+        <el-table-column prop="nickname" label="昵称" min-width="130" />
         <el-table-column label="系统角色" width="130">
           <template #default="{ row }">
             <el-tag :type="roleTag(row.systemRole)" size="small" effect="plain">
@@ -26,10 +26,10 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="所属部门" min-width="130">
+        <el-table-column label="所属部门" min-width="140">
           <template #default="{ row }">{{ deptName(row.departmentId) }}</template>
         </el-table-column>
-        <el-table-column label="管辖业务" min-width="170">
+        <el-table-column label="管辖业务" min-width="190">
           <template #default="{ row }">
             <span v-if="row.managedBizTypeIds" class="small-text">
               {{ bizTypeNames(row.managedBizTypeIds) || row.managedBizTypeIds }}
@@ -44,10 +44,12 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="160" fixed="right">
+        <el-table-column label="操作" width="150" fixed="right" align="center">
           <template #default="{ row }">
-            <el-button text type="primary" size="small" @click="openEdit(row)">编辑</el-button>
-            <el-button text type="danger" size="small" @click="handleDelete(row)">删除</el-button>
+            <div class="table-actions">
+              <el-button text type="primary" size="small" @click="openEdit(row)">编辑</el-button>
+              <el-button text type="danger" size="small" @click="handleDelete(row)">删除</el-button>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -337,7 +339,8 @@ async function handleDelete(row: AdminUser) {
 
 <style scoped>
 .user-admin-page {
-  max-width: 1100px;
+  width: 100%;
+  max-width: 1240px;
   margin: 0 auto;
 }
 
@@ -346,6 +349,7 @@ async function handleDelete(row: AdminUser) {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 20px;
+  gap: 20px;
 }
 
 .page-head h1 {
@@ -360,11 +364,25 @@ async function handleDelete(row: AdminUser) {
 }
 
 .table-panel {
+  width: 100%;
+  min-width: 0;
   padding: 16px;
   border: 1px solid var(--line);
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.94);
   box-shadow: var(--shadow);
+}
+
+.table-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.table-actions :deep(.el-button + .el-button) {
+  margin-left: 0;
 }
 
 .small-text {
@@ -385,5 +403,17 @@ async function handleDelete(row: AdminUser) {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+@media (max-width: 760px) {
+  .page-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .head-actions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
 }
 </style>

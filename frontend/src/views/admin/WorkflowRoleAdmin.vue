@@ -1,40 +1,42 @@
 <template>
-  <div class="page-shell role-admin-page">
+  <div class="admin-page role-admin-page">
     <header class="page-head">
       <div>
         <h1>流程角色管理</h1>
         <p>维护业务审批职责，以及角色在全局或部门范围内的成员。</p>
       </div>
-      <el-button type="primary" :icon="Plus" @click="openCreate">新增角色</el-button>
+      <el-button type="primary" round :icon="Plus" @click="openCreate">新增角色</el-button>
     </header>
 
     <section class="table-panel" v-loading="loading">
-      <el-table :data="roles" border stripe>
-        <el-table-column prop="roleName" label="角色名称" min-width="150" />
-        <el-table-column prop="roleCode" label="角色编码" min-width="170" />
-        <el-table-column label="作用范围" width="110">
+      <el-table :data="roles" border stripe table-layout="fixed">
+        <el-table-column prop="roleName" label="角色名称" min-width="160" />
+        <el-table-column prop="roleCode" label="角色编码" min-width="185" />
+        <el-table-column label="作用范围" width="120">
           <template #default="{ row }">
             <el-tag :type="row.roleScope === 'global' ? 'warning' : 'info'" effect="plain">
               {{ scopeLabel(row.roleScope) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="description" label="说明" min-width="190" show-overflow-tooltip>
+        <el-table-column prop="description" label="说明" min-width="230" show-overflow-tooltip>
           <template #default="{ row }">{{ row.description || '-' }}</template>
         </el-table-column>
-        <el-table-column prop="memberCount" label="授权数" width="90" align="center" />
-        <el-table-column label="状态" width="90">
+        <el-table-column prop="memberCount" label="授权数" width="100" align="center" />
+        <el-table-column label="状态" width="100" align="center">
           <template #default="{ row }">
             <el-tag :type="row.enabled === 1 ? 'success' : 'danger'" effect="plain">
               {{ row.enabled === 1 ? '启用' : '停用' }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="220" fixed="right">
+        <el-table-column label="操作" width="220" fixed="right" align="center">
           <template #default="{ row }">
-            <el-button text type="primary" @click="openAssignments(row)">成员</el-button>
-            <el-button text type="primary" @click="openEdit(row)">编辑</el-button>
-            <el-button text type="danger" @click="handleDelete(row)">删除</el-button>
+            <div class="table-actions">
+              <el-button text type="primary" @click="openAssignments(row)">成员</el-button>
+              <el-button text type="primary" @click="openEdit(row)">编辑</el-button>
+              <el-button text type="danger" @click="handleDelete(row)">删除</el-button>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -323,11 +325,13 @@ async function revokeAssignment(assignment: WorkflowRoleAssignment) {
 </script>
 
 <style scoped>
-.role-admin-page { max-width: 1160px; margin: 0 auto; }
+.role-admin-page { width: 100%; max-width: 1280px; margin: 0 auto; }
 .page-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; gap: 20px; }
 .page-head h1 { margin: 0 0 4px; font-size: 24px; }
 .page-head p { margin: 0; color: var(--muted); font-size: 13px; }
-.table-panel { padding: 16px; border: 1px solid var(--line); border-radius: 8px; background: #fff; box-shadow: var(--shadow); }
+.table-panel { width: 100%; min-width: 0; padding: 16px; border: 1px solid var(--line); border-radius: 8px; background: #fff; box-shadow: var(--shadow); }
+.table-actions { display: flex; align-items: center; justify-content: center; gap: 4px; white-space: nowrap; }
+.table-actions :deep(.el-button + .el-button) { margin-left: 0; }
 .field-hint { margin-top: 4px; color: var(--muted); font-size: 12px; }
 .assignment-toolbar { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(220px, 1.2fr) auto; gap: 12px; margin-bottom: 16px; }
 @media (max-width: 760px) {

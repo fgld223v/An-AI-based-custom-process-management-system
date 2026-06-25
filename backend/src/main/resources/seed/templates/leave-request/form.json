@@ -1,0 +1,22 @@
+{
+  "fieldList": [
+    {"field":"leaveType","label":"请假类型","type":"select","required":true,"placeholder":"请选择请假类型","options":[{"label":"事假","value":"personal"},{"label":"病假","value":"sick"},{"label":"年假","value":"annual"}]},
+    {"field":"startDate","label":"开始日期","type":"date","required":true,"placeholder":"请选择开始日期"},
+    {"field":"endDate","label":"结束日期","type":"date","required":true,"placeholder":"请选择结束日期","rules":[{"op":"gte","targetField":"startDate","targetLabel":"开始日期","message":"结束日期不能早于开始日期"}]},
+    {"field":"leaveDays","label":"请假天数","type":"number","required":true,"placeholder":"请输入请假天数"},
+    {"field":"reason","label":"请假原因","type":"textarea","required":true,"placeholder":"请说明请假原因"},
+    {"field":"attachment","label":"证明材料","type":"upload","required":false,"placeholder":"病假等情形可上传证明材料","maxCount":3}
+  ],
+  "formSchema": {
+    "layout":"vertical",
+    "fields":[
+      {"field":"leaveType","label":"请假类型","type":"select","required":true,"placeholder":"请选择请假类型","options":[{"label":"事假","value":"personal"},{"label":"病假","value":"sick"},{"label":"年假","value":"annual"}]},
+      {"field":"startDate","label":"开始日期","type":"date","required":true,"placeholder":"请选择开始日期"},
+      {"field":"endDate","label":"结束日期","type":"date","required":true,"placeholder":"请选择结束日期","rules":[{"op":"gte","targetField":"startDate","targetLabel":"开始日期","message":"结束日期不能早于开始日期"}]},
+      {"field":"leaveDays","label":"请假天数","type":"number","required":true,"placeholder":"请输入请假天数"},
+      {"field":"reason","label":"请假原因","type":"textarea","required":true,"placeholder":"请说明请假原因"},
+      {"field":"attachment","label":"证明材料","type":"upload","required":false,"placeholder":"病假等情形可上传证明材料","maxCount":3}
+    ],
+    "meta":{"description":"员工请假申请及证明材料"}
+  }
+}

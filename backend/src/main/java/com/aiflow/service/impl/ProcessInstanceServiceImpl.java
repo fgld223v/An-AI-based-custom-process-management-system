@@ -2,6 +2,7 @@ package com.aiflow.service.impl;
 
 import com.aiflow.dto.FormSubmissionDTO;
 import com.aiflow.dto.ProcessInstanceDTO;
+import com.aiflow.dto.ProcessDiagramDTO;
 import com.aiflow.dto.RuntimeStateDTO;
 import com.aiflow.dto.SaveNodeFormRequest;
 import com.aiflow.dto.StartProcessPreviewRequest;
@@ -70,6 +71,20 @@ public class ProcessInstanceServiceImpl implements ProcessInstanceService {
     @Transactional(readOnly = true)
     public ProcessInstanceDTO getInstance(Long id) {
         return toDto(getRequiredInstance(id));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ProcessDiagramDTO getDiagram(Long processInstanceId) {
+        ProcessInstance instance = getRequiredInstance(processInstanceId);
+        ProcessTemplate template = processTemplateRepository
+                .findByIdAndDeleted(instance.getTemplateId(), 0)
+                .orElseThrow(() -> new IllegalArgumentException("process template not found"));
+        return ProcessDiagramDTO.builder()
+                .templateId(template.getId())
+                .templateName(template.getTemplateName())
+                .bpmnXml(template.getBpmnXml())
+                .build();
     }
 
     @Override

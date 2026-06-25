@@ -1094,8 +1094,8 @@ function applyLoadedTemplate(template: ProcessTemplate) {
       const parsedNodeConfig = JSON.parse(template.nodeConfig)
       if (parsedNodeConfig && typeof parsedNodeConfig === 'object') {
         Object.keys(nodeConfigMap).forEach(key => delete nodeConfigMap[key])
-        for (const [nodeId, config] of Object.entries(parsedNodeConfig)) {
-          nodeConfigMap[nodeId] = normalizeNodeFormConfig(config as NodeBusinessConfig)
+        for (const [nodeId, config] of resolveStoredNodeConfigEntries(parsedNodeConfig)) {
+          nodeConfigMap[nodeId] = normalizeLoadedNodeConfig(nodeId, config)
         }
       }
     } catch { /* ignore invalid nodeConfig */ }
@@ -1770,7 +1770,49 @@ function normalizeNodeFormConfig(config: NodeBusinessConfig): NodeBusinessConfig
   return normalized
 }
 
+function normalizeLoadedNodeConfig(nodeId: string, raw: unknown): NodeBusinessConfig {
+  const incoming = (raw && typeof raw === 'object' ? raw : {}) as Partial<NodeBusinessConfig>
+  const bpmnType = incoming.bpmnType || 'bpmn:Task'
+  const businessType = normalizeBusinessType(incoming.businessType)
+    || inferBusinessType({ id: nodeId, type: bpmnType })
+  const base = createDefaultNodeConfig(
+    { id: nodeId, type: bpmnType },
+    businessType,
+    incoming.nodeName || getDefaultNodeName(businessType, bpmnType)
+  )
+  Object.assign(base, incoming, {
+    nodeId,
+    bpmnType,
+    businessType,
+    timeoutConfig: { ...base.timeoutConfig, ...(incoming.timeoutConfig || {}) },
+    approvalRule: { ...base.approvalRule, ...(incoming.approvalRule || {}) }
+  })
+  return normalizeNodeFormConfig(base)
+}
+
 function normalizeAssigneeConfig(config: NodeBusinessConfig) {
+  const strategyToAssignee: Record<string, string> = {
+    DIRECT_SUPERVISOR: 'MANAGER',
+    DEPARTMENT_MANAGER: 'DEPT_LEADER',
+    SPECIFIC_USERS: 'USER',
+    ROLE: 'ROLE',
+    ROLE_IN_APPLICANT_DEPT: 'ROLE',
+    SPECIFIED_DEPARTMENT_MANAGER: 'SPECIFIED_DEPT_LEADER',
+    ROLE_IN_SPECIFIED_DEPT: 'ROLE_IN_SPECIFIED_DEPT',
+    GLOBAL_ROLE: 'GLOBAL_ROLE'
+  }
+  if (config.assignStrategy) {
+    config.assigneeType = strategyToAssignee[config.assignStrategy] || config.assigneeType
+  }
+  if (!config.assigneeValue && config.assignValue) {
+    config.assigneeValue = config.assignValue
+  }
+  if (!config.assignValue && config.assigneeValue) {
+    config.assignValue = config.assigneeValue
+  }
+  if (!config.rejectRule && (config as any).rejectStrategy) {
+    config.rejectRule = (config as any).rejectStrategy
+  }
   config.assigneeUserIds = config.assigneeUserIds || []
   config.assigneeDepartmentId = config.assigneeDepartmentId || null
   config.assigneeRoleCode = config.assigneeRoleCode || ''

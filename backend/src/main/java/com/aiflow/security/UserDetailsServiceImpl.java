@@ -31,7 +31,7 @@ public class UserDetailsServiceImpl implements UserDetailsService {
 
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        SysUser jpaUser = sysUserRepository.findByUsername(username)
+        SysUser jpaUser = sysUserRepository.findByUsernameAndDeleted(username, 0)
                 .orElseThrow(() -> {
                     log.warn("用户不存在: {}", username);
                     return new UsernameNotFoundException("用户不存在");

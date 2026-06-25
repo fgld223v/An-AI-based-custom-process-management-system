@@ -1,0 +1,18 @@
+{
+  "Start_Leave": {
+    "nodeId":"Start_Leave","nodeKey":"Start_Leave","nodeName":"提交请假申请",
+    "bpmnType":"bpmn:StartEvent","businessType":"start","startMode":"MANUAL","startPermission":"ALL"
+  },
+  "Approve_Supervisor": {
+    "nodeId":"Approve_Supervisor","nodeKey":"Approve_Supervisor","nodeName":"直属上级审批",
+    "bpmnType":"bpmn:UserTask","businessType":"approval","approvalMode":"SINGLE",
+    "assignStrategy":"DIRECT_SUPERVISOR","rejectStrategy":"END_PROCESS"
+  },
+  "Approve_Hr": {
+    "nodeId":"Approve_Hr","nodeKey":"Approve_Hr","nodeName":"人事审核",
+    "bpmnType":"bpmn:UserTask","businessType":"approval","approvalMode":"SINGLE",
+    "assignStrategy":"ROLE_IN_SPECIFIED_DEPT",
+    "assignValue":"{\"departmentId\":${dept.hr},\"roleCode\":\"HR_REVIEWER\"}",
+    "rejectStrategy":"END_PROCESS"
+  }
+}

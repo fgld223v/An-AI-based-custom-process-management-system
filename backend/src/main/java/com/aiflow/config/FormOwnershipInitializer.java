@@ -20,7 +20,7 @@ import java.util.Map;
 import java.util.Set;
 
 @Slf4j
-@Order(30)
+@Order(100)
 @Component
 @RequiredArgsConstructor
 public class FormOwnershipInitializer implements CommandLineRunner {

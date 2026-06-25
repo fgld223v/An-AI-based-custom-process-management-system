@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  id="Definitions_Purchase" targetNamespace="http://aiflow.com/seed">
+  <bpmn:process id="Process_Purchase_Request" name="采购申请审批" isExecutable="true">
+    <bpmn:startEvent id="Start_Purchase" name="提交申请"><bpmn:outgoing>Flow_P1</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:userTask id="Approve_Department" name="部门负责人审批"><bpmn:incoming>Flow_P1</bpmn:incoming><bpmn:outgoing>Flow_P2</bpmn:outgoing></bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_Department" default="Flow_PReject1"><bpmn:incoming>Flow_P2</bpmn:incoming><bpmn:outgoing>Flow_P3</bpmn:outgoing><bpmn:outgoing>Flow_PReject1</bpmn:outgoing></bpmn:exclusiveGateway>
+    <bpmn:userTask id="Approve_Purchase" name="采购审核"><bpmn:incoming>Flow_P3</bpmn:incoming><bpmn:outgoing>Flow_P4</bpmn:outgoing></bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_Purchase" default="Flow_PReject2"><bpmn:incoming>Flow_P4</bpmn:incoming><bpmn:outgoing>Flow_P5</bpmn:outgoing><bpmn:outgoing>Flow_PReject2</bpmn:outgoing></bpmn:exclusiveGateway>
+    <bpmn:endEvent id="End_Approved" name="审批通过"><bpmn:incoming>Flow_P5</bpmn:incoming></bpmn:endEvent>
+    <bpmn:endEvent id="End_Rejected" name="申请驳回"><bpmn:incoming>Flow_PReject1</bpmn:incoming><bpmn:incoming>Flow_PReject2</bpmn:incoming></bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_P1" sourceRef="Start_Purchase" targetRef="Approve_Department" />
+    <bpmn:sequenceFlow id="Flow_P2" sourceRef="Approve_Department" targetRef="Gateway_Department" />
+    <bpmn:sequenceFlow id="Flow_P3" sourceRef="Gateway_Department" targetRef="Approve_Purchase"><bpmn:conditionExpression xsi:type="bpmn:tFormalExpression" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><![CDATA[${Approve_Department_approved == true}]]></bpmn:conditionExpression></bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_PReject1" sourceRef="Gateway_Department" targetRef="End_Rejected" />
+    <bpmn:sequenceFlow id="Flow_P4" sourceRef="Approve_Purchase" targetRef="Gateway_Purchase" />
+    <bpmn:sequenceFlow id="Flow_P5" sourceRef="Gateway_Purchase" targetRef="End_Approved"><bpmn:conditionExpression xsi:type="bpmn:tFormalExpression" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><![CDATA[${Approve_Purchase_approved == true}]]></bpmn:conditionExpression></bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_PReject2" sourceRef="Gateway_Purchase" targetRef="End_Rejected" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_Purchase"><bpmndi:BPMNPlane id="Plane_Purchase" bpmnElement="Process_Purchase_Request">
+    <bpmndi:BPMNShape id="Start_Purchase_di" bpmnElement="Start_Purchase"><dc:Bounds x="100" y="100" width="36" height="36" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="Approve_Department_di" bpmnElement="Approve_Department"><dc:Bounds x="190" y="78" width="110" height="80" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="Gateway_Department_di" bpmnElement="Gateway_Department" isMarkerVisible="true"><dc:Bounds x="350" y="93" width="50" height="50" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="Approve_Purchase_di" bpmnElement="Approve_Purchase"><dc:Bounds x="450" y="78" width="110" height="80" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="Gateway_Purchase_di" bpmnElement="Gateway_Purchase" isMarkerVisible="true"><dc:Bounds x="610" y="93" width="50" height="50" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="End_Approved_di" bpmnElement="End_Approved"><dc:Bounds x="720" y="100" width="36" height="36" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="End_Rejected_di" bpmnElement="End_Rejected"><dc:Bounds x="610" y="230" width="36" height="36" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNEdge id="Flow_P1_di" bpmnElement="Flow_P1"><di:waypoint x="136" y="118" /><di:waypoint x="190" y="118" /></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge id="Flow_P2_di" bpmnElement="Flow_P2"><di:waypoint x="300" y="118" /><di:waypoint x="350" y="118" /></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge id="Flow_P3_di" bpmnElement="Flow_P3"><di:waypoint x="400" y="118" /><di:waypoint x="450" y="118" /></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge id="Flow_P4_di" bpmnElement="Flow_P4"><di:waypoint x="560" y="118" /><di:waypoint x="610" y="118" /></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge id="Flow_P5_di" bpmnElement="Flow_P5"><di:waypoint x="660" y="118" /><di:waypoint x="720" y="118" /></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge id="Flow_PReject1_di" bpmnElement="Flow_PReject1"><di:waypoint x="375" y="143" /><di:waypoint x="375" y="248" /><di:waypoint x="610" y="248" /></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge id="Flow_PReject2_di" bpmnElement="Flow_PReject2"><di:waypoint x="635" y="143" /><di:waypoint x="628" y="230" /></bpmndi:BPMNEdge>
+  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
+</bpmn:definitions>

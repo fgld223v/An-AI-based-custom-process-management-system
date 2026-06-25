@@ -21,4 +21,6 @@ public interface UserWorkflowRoleRepository extends JpaRepository<UserWorkflowRo
     List<UserWorkflowRole> findByUserIdAndDeletedOrderByIdAsc(Long userId, Integer deleted);
 
     long countByRoleIdAndDeleted(Long roleId, Integer deleted);
+
+    boolean existsByUserIdAndDeleted(Long userId, Integer deleted);
 }

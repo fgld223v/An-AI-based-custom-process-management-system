@@ -8,6 +8,8 @@ import com.aiflow.model.SysUser;
 import com.aiflow.repository.BizTypeDictRepository;
 import com.aiflow.repository.DepartmentRepository;
 import com.aiflow.repository.SysUserRepository;
+import com.aiflow.repository.UserWorkflowRoleRepository;
+import com.aiflow.security.SecurityUtils;
 import com.aiflow.util.ExcelUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletResponse;
@@ -40,10 +42,11 @@ public class AdminController {
     private final BizTypeDictRepository bizTypeDictRepository;
     private final PasswordEncoder passwordEncoder;
     private final ObjectMapper objectMapper;
+    private final UserWorkflowRoleRepository userWorkflowRoleRepository;
 
     @GetMapping("/users")
     public ApiResponse<List<UserAdminDTO>> listUsers() {
-        List<UserAdminDTO> users = sysUserRepository.findAllByOrderByIdAsc().stream()
+        List<UserAdminDTO> users = sysUserRepository.findByDeletedOrderByIdAsc(0).stream()
                 .map(this::toDTO)
                 .toList();
         return ApiResponse.success(users);
@@ -51,7 +54,7 @@ public class AdminController {
 
     @GetMapping("/users/{id}")
     public ApiResponse<UserAdminDTO> getUser(@PathVariable Long id) {
-        SysUser user = sysUserRepository.findById(id)
+        SysUser user = sysUserRepository.findByIdAndDeleted(id, 0)
                 .orElseThrow(() -> new IllegalArgumentException("用户不存在"));
         return ApiResponse.success(toDTO(user));
     }
@@ -82,7 +85,7 @@ public class AdminController {
 
     @PutMapping("/users/{id}")
     public ApiResponse<UserAdminDTO> updateUser(@PathVariable Long id, @RequestBody UpdateUserRequest request) {
-        SysUser user = sysUserRepository.findById(id)
+        SysUser user = sysUserRepository.findByIdAndDeleted(id, 0)
                 .orElseThrow(() -> new IllegalArgumentException("用户不存在"));
 
         if (request.getNickname() != null) user.setNickname(request.getNickname().trim());
@@ -106,8 +109,25 @@ public class AdminController {
 
     @DeleteMapping("/users/{id}")
     public ApiResponse<Map<String, Object>> deleteUser(@PathVariable Long id) {
-        SysUser user = sysUserRepository.findById(id)
+        SysUser user = sysUserRepository.findByIdAndDeleted(id, 0)
                 .orElseThrow(() -> new IllegalArgumentException("用户不存在"));
+        if (id.equals(SecurityUtils.currentUserId())) {
+            throw new IllegalStateException("不能删除当前登录账号");
+        }
+        if ("super_admin".equals(user.getSystemRole())
+                && sysUserRepository.countBySystemRoleAndDeleted("super_admin", 0) <= 1) {
+            throw new IllegalStateException("系统必须至少保留一个超级管理员");
+        }
+        if (departmentRepository.existsByLeaderUserIdAndDeleted(id, 0)) {
+            throw new IllegalStateException("该用户仍是部门负责人，请先在部门管理中更换负责人");
+        }
+        if (sysUserRepository.existsBySupervisorIdAndDeleted(id, 0)) {
+            throw new IllegalStateException("该用户仍有直属下属，请先为下属重新设置直属上级");
+        }
+        if (userWorkflowRoleRepository.existsByUserIdAndDeleted(id, 0)) {
+            throw new IllegalStateException("该用户仍有流程角色授权，请先在流程角色管理中撤销授权");
+        }
+        user.setEnabled(0);
         user.setDeleted(1);
         user.setUpdatedTime(LocalDateTime.now());
         sysUserRepository.save(user);
@@ -134,7 +154,7 @@ public class AdminController {
     /** 导出全部用户到 Excel — 字段均显示可读名称 */
     @GetMapping("/users/export")
     public void exportUsers(HttpServletResponse response) throws IOException {
-        List<SysUser> users = sysUserRepository.findAllByOrderByIdAsc();
+        List<SysUser> users = sysUserRepository.findByDeletedOrderByIdAsc(0);
         // 预加载 lookup 映射
         Map<Long, String> deptNameMap = new HashMap<>();
         Map<Long, String> bizTypeNameMap = new HashMap<>();
@@ -244,7 +264,7 @@ public class AdminController {
 
     private Long resolveUserId(String username) {
         if (username.isEmpty()) return null;
-        SysUser user = sysUserRepository.findByUsername(username).orElse(null);
+        SysUser user = sysUserRepository.findByUsernameAndDeleted(username, 0).orElse(null);
         if (user == null) throw new IllegalArgumentException("用户不存在: " + username);
         return user.getId();
     }
@@ -333,7 +353,8 @@ public class AdminController {
     /** 用户选项（id + 名称），用于选择上级/负责人 */
     @GetMapping("/users/options")
     public ApiResponse<List<Map<String, Object>>> userOptions() {
-        List<Map<String, Object>> list = sysUserRepository.findAllByOrderByIdAsc().stream()
+        List<Map<String, Object>> list = sysUserRepository.findByDeletedOrderByIdAsc(0).stream()
+                .filter(u -> Integer.valueOf(1).equals(u.getEnabled()))
                 .map(u -> {
                     Map<String, Object> m = new LinkedHashMap<>();
                     m.put("value", u.getId());

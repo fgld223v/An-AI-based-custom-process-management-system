@@ -179,6 +179,12 @@ export interface ProcessInstance {
   updateTime?: string
 }
 
+export interface ProcessDiagram {
+  templateId: number
+  templateName: string
+  bpmnXml: string
+}
+
 export interface BusinessProcessInstanceListParams {
   templateId?: number | null
   status?: string

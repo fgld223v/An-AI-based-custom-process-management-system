@@ -235,7 +235,7 @@ const approvalSteps = computed(() => {
     if (config.steps) return config.steps
     if (config.nodes) return config.nodes
     if (config.approvalSteps) return config.approvalSteps
-    return []
+    return Object.values(config).filter((item: any) => item?.businessType === 'approval')
   } catch {
     return []
   }
