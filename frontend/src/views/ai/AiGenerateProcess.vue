@@ -165,6 +165,7 @@ const STORAGE_KEY = 'ai-generate-process-state'
 const AI_GENERATED_BPMN_KEY = 'ai-generated-bpmn'
 const AI_GENERATED_NODE_CONFIG_KEY = 'ai-generated-nodeconfig'
 const router = useRouter()
+const authStore = useAuthStore()
 
 interface BizType {
   id: number
