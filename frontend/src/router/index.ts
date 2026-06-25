@@ -43,14 +43,17 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/layouts/BasicLayout.vue'),
     redirect: () => {
       const authStore = useAuthStore()
-      return authStore.user?.systemRole === 'normal_user' ? '/process/start-preview' : '/workbench'
+      const role = authStore.user?.systemRole
+      if (role === 'super_admin') return '/workbench'
+      if (role === 'biz_admin') return '/my-processes'
+      return '/process/start-preview'
     },
     children: [
       {
         path: 'workbench',
         name: 'Workbench',
         component: () => import('@/views/workbench/Workbench.vue'),
-        meta: { title: '工作台', group: '概览', roles: ADMIN_ROLES }
+        meta: { title: '工作台', group: '概览', roles: SUPER_ADMIN }
       },
       {
         path: 'form-designer',
@@ -221,7 +224,8 @@ const routes: RouteRecordRaw[] = [
           const authStore = useAuthStore()
           const role = authStore.user?.systemRole
           if (role === 'normal_user') return '/process/start-preview'
-          if (role === 'super_admin' || role === 'biz_admin') return '/workbench'
+          if (role === 'biz_admin') return '/my-processes'
+          if (role === 'super_admin') return '/workbench'
           return '/not-found'
         }
       }
@@ -261,7 +265,10 @@ router.beforeEach(async (to) => {
   }
 
   if (to.path === '/login' && authStore.isLoggedIn) {
-    return authStore.user?.systemRole === 'normal_user' ? '/process/start-preview' : '/workbench'
+    const role = authStore.user?.systemRole
+    if (role === 'normal_user') return '/process/start-preview'
+    if (role === 'biz_admin') return '/my-processes'
+    return '/workbench'
   }
 
   if (meta.public) return true
