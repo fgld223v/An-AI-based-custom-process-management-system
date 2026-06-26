@@ -103,11 +103,16 @@ public class BpmnXmlEnhancer {
                     injectSingleApprovalListener(doc, nodeId, config);
                 } else if ("notify".equals(businessType)) {
                     injectCcDelegate(doc, nodeId, config);
+                } else if ("system_action".equals(businessType)) {
+                    injectSystemActionDelegate(doc, nodeId);
                 }
                 if ("form_fill".equals(businessType) || "approval".equals(businessType)) {
                     injectTaskCreatedNotificationListener(doc, nodeId);
                 }
             }
+
+            // 安全网：确保所有 serviceTask 都有实现属性，防止 Flowable 部署失败
+            ensureServiceTaskImplementation(doc);
 
             return serializeXml(doc);
         } catch (Exception e) {
@@ -204,6 +209,50 @@ public class BpmnXmlEnhancer {
                 "${ccNotificationDelegate}");
 
         log.info("已为抄送节点 {} 注入 CC 通知委托", nodeId);
+    }
+
+    /**
+     * 为 system_action（系统自动处理）节点注入 delegateExpression，
+     * 使其在流程到达时自动执行并完成。
+     */
+    private void injectSystemActionDelegate(Document doc, String nodeId) {
+        Element task = findElementById(doc, "serviceTask", nodeId);
+        if (task == null) {
+            log.warn("未找到 system_action 节点 {}，跳过委托注入", nodeId);
+            return;
+        }
+        task.setAttributeNS(FLOWABLE_NS, FLOWABLE_PREFIX + ":delegateExpression",
+                "${systemActionDelegate}");
+        log.info("已为 system_action 节点 {} 注入系统动作委托", nodeId);
+    }
+
+    /**
+     * 安全网：为所有仍未设置实现属性的 serviceTask 注入默认委托，
+     * 防止 Flowable 部署时因缺少实现而失败。
+     */
+    private void ensureServiceTaskImplementation(Document doc) {
+        NodeList serviceTasks = doc.getElementsByTagNameNS(BPMN_NS, "serviceTask");
+        for (int i = 0; i < serviceTasks.getLength(); i++) {
+            Element task = (Element) serviceTasks.item(i);
+            if (hasServiceTaskImplementation(task)) continue;
+
+            String nodeId = task.getAttribute("id");
+            log.warn("serviceTask {} 缺少实现属性，自动注入默认委托", nodeId);
+            task.setAttributeNS(FLOWABLE_NS, FLOWABLE_PREFIX + ":delegateExpression",
+                    "${systemActionDelegate}");
+        }
+    }
+
+    /** 检查 serviceTask 是否已有实现属性 */
+    private boolean hasServiceTaskImplementation(Element task) {
+        String[] implAttrs = {"class", "delegateExpression", "type", "operation", "expression"};
+        for (String attr : implAttrs) {
+            if (task.hasAttributeNS(FLOWABLE_NS, attr)
+                    || task.hasAttribute(FLOWABLE_PREFIX + ":" + attr)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
