@@ -26,8 +26,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * 任务运行时服务实现 — 严格遵循审批链路。
@@ -159,6 +163,15 @@ public class TaskRuntimeServiceImpl implements TaskRuntimeService {
         } else {
             variables = mergeNodeFormVariables(task.getProcessInstanceId(), trustedNodeKey, request.getFormData());
         }
+
+        // 4b. 将所有已提交的表单字段提取为顶层变量
+        Map<String, Object> formFieldVars = collectFormFieldVariables(instance.getId());
+        variables.putAll(formFieldVars);
+
+        // 4c. 预填充网关条件引用的变量 — 解析 BPMN XML 中的排他网关表达式，
+        //     对 variables 中不存在的变量填入默认值 0，彻底杜绝
+        //     "Unknown property used in expression" 错误。
+        ensureGatewayVariables(instance.getTemplateId(), variables);
 
         // ================================================================
         // 5. TaskService.complete(taskId, variables)
@@ -400,6 +413,85 @@ public class TaskRuntimeServiceImpl implements TaskRuntimeService {
             }
         });
         return variables;
+    }
+
+    /** 匹配 BPMN 排他网关条件表达式中的变量引用，如 ${amount > 5000} → amount */
+    private static final Pattern GATEWAY_VAR_PATTERN =
+            Pattern.compile("\\$\\{([A-Za-z_]\\w*)");
+
+    /**
+     * 解析模板 BPMN XML 中所有排他网关的条件表达式，提取引用的变量名，
+     * 对 variables 中不存在的变量填入默认值 0，彻底防止
+     * "Unknown property used in expression" 错误。
+     */
+    private void ensureGatewayVariables(Long templateId, Map<String, Object> variables) {
+        ProcessTemplate template = processTemplateRepository
+                .findByIdAndDeleted(templateId, 0).orElse(null);
+        if (template == null || !hasText(template.getBpmnXml())) return;
+
+        String bpmnXml = template.getBpmnXml();
+        Set<String> neededVars = new HashSet<>();
+
+        // 提取所有排他网关条件表达式中的变量名
+        // 条件表达式格式：<bpmn:conditionExpression ...>${amount > 5000}</bpmn:conditionExpression>
+        Matcher matcher = GATEWAY_VAR_PATTERN.matcher(bpmnXml);
+        while (matcher.find()) {
+            String varName = matcher.group(1);
+            // 跳过 Flowable 内置变量和关键字
+            if ("nrOfCompletedInstances".equals(varName)
+                    || "nrOfInstances".equals(varName)
+                    || "nrOfActiveInstances".equals(varName)
+                    || "execution".equals(varName)
+                    || "rejected".equals(varName)) continue;
+            neededVars.add(varName);
+        }
+
+        // 对缺失的变量填充默认值 0
+        for (String varName : neededVars) {
+            if (!variables.containsKey(varName)) {
+                variables.put(varName, 0L);
+                log.info("网关变量 [{}] 不存在，自动填充默认值 0", varName);
+            }
+        }
+    }
+
+    /**
+     * 从数据库收集该流程实例所有已提交的表单字段，作为 Flowable 顶层变量。
+     *
+     * <p>遍历所有 FormSubmission，跳过审批元数据（approvalResult/approvalComment 等），
+     * 将业务表单字段提取为平铺的 Map，供 taskService.complete() 直接使用。</p>
+     */
+    private Map<String, Object> collectFormFieldVariables(Long businessInstanceId) {
+        List<FormSubmission> submissions = formSubmissionRepository
+                .findByProcessInstanceIdAndDeletedOrderByUpdatedAtDescCreatedAtDesc(businessInstanceId, 0);
+
+        Map<String, Object> fieldVars = new HashMap<>();
+        for (FormSubmission submission : submissions) {
+            if (!hasText(submission.getFormDataJson())) continue;
+            try {
+                Map<String, Object> data = objectMapper.readValue(
+                        submission.getFormDataJson(),
+                        new TypeReference<Map<String, Object>>() {});
+                for (Map.Entry<String, Object> entry : data.entrySet()) {
+                    String key = entry.getKey();
+                    Object value = entry.getValue();
+                    if (!hasText(key)) continue;
+                    if ("approvalResult".equals(key) || "approvalComment".equals(key)
+                            || "approvalOpinion".equals(key) || "comment".equals(key)) continue;
+                    if (value instanceof Number || value instanceof String || value instanceof Boolean) {
+                        fieldVars.put(key, value);
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("解析 FormSubmission 表单数据失败，nodeKey={}", submission.getNodeKey(), e);
+            }
+        }
+
+        if (!fieldVars.isEmpty()) {
+            log.info("收集到 {} 个表单字段将注入 complete 变量：{}",
+                    fieldVars.size(), fieldVars.keySet());
+        }
+        return fieldVars;
     }
 
     private String firstMapText(Map<String, Object> values, String... keys) {

@@ -2,7 +2,7 @@ package com.aiflow.service.impl;
 
 import com.aiflow.service.WorkflowNotificationService;
 import lombok.RequiredArgsConstructor;
-import org.flowable.engine.delegate.TaskListener;
+import org.flowable.task.service.delegate.TaskListener;
 import org.flowable.identitylink.api.IdentityLink;
 import org.flowable.task.service.delegate.DelegateTask;
 import org.springframework.stereotype.Component;

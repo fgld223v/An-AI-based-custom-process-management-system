@@ -212,8 +212,14 @@ public class BpmnXmlEnhancer {
     }
 
     /**
-     * 为 system_action（系统自动处理）节点注入 delegateExpression，
-     * 使其在流程到达时自动执行并完成。
+     * 为 system_action（系统自动处理）节点注入 flowable:expression，
+     * 使其在流程到达时自动完成（无需任何 JavaDelegate 实现类）。
+     *
+     * <p>使用 expression 属性：Flowable 评估 "${true}" 后立即标记任务完成，
+     * 不依赖 Spring Bean，彻底避免代理/接口检测问题。</p>
+     *
+     * <p>同时移除可能存在的旧 delegateExpression="${systemActionDelegate}"，
+     * 防止 AI 生成的 BPMN 同时存在两个实现属性导致解析失败。</p>
      */
     private void injectSystemActionDelegate(Document doc, String nodeId) {
         Element task = findElementById(doc, "serviceTask", nodeId);
@@ -221,25 +227,40 @@ public class BpmnXmlEnhancer {
             log.warn("未找到 system_action 节点 {}，跳过委托注入", nodeId);
             return;
         }
-        task.setAttributeNS(FLOWABLE_NS, FLOWABLE_PREFIX + ":delegateExpression",
-                "${systemActionDelegate}");
-        log.info("已为 system_action 节点 {} 注入系统动作委托", nodeId);
+        // 移除旧的 delegateExpression，防止与 expression 冲突
+        task.removeAttributeNS(FLOWABLE_NS, "delegateExpression");
+        task.setAttributeNS(FLOWABLE_NS, FLOWABLE_PREFIX + ":expression", "${true}");
+        log.info("已为 system_action 节点 {} 注入自动完成表达式", nodeId);
     }
 
     /**
      * 安全网：为所有仍未设置实现属性的 serviceTask 注入默认委托，
      * 防止 Flowable 部署时因缺少实现而失败。
+     *
+     * <p>同时处理 AI 生成的 BPMN 中可能残留的
+     * delegateExpression="${systemActionDelegate}"，
+     * 将其替换为 expression="${true}"（无需任何 JavaDelegate 实现类）。</p>
      */
     private void ensureServiceTaskImplementation(Document doc) {
         NodeList serviceTasks = doc.getElementsByTagNameNS(BPMN_NS, "serviceTask");
         for (int i = 0; i < serviceTasks.getLength(); i++) {
             Element task = (Element) serviceTasks.item(i);
+
+            // 将无法解析的 delegateExpression="${systemActionDelegate}" 替换为 expression
+            String delegateExpr = task.getAttributeNS(FLOWABLE_NS, "delegateExpression");
+            if ("${systemActionDelegate}".equals(delegateExpr)) {
+                task.removeAttributeNS(FLOWABLE_NS, "delegateExpression");
+                task.setAttributeNS(FLOWABLE_NS, FLOWABLE_PREFIX + ":expression", "${true}");
+                log.info("已将 serviceTask {} 的 systemActionDelegate 替换为 expression={}",
+                        task.getAttribute("id"), "${true}");
+                continue;
+            }
+
             if (hasServiceTaskImplementation(task)) continue;
 
             String nodeId = task.getAttribute("id");
-            log.warn("serviceTask {} 缺少实现属性，自动注入默认委托", nodeId);
-            task.setAttributeNS(FLOWABLE_NS, FLOWABLE_PREFIX + ":delegateExpression",
-                    "${systemActionDelegate}");
+            log.warn("serviceTask {} 缺少实现属性，自动注入默认表达式", nodeId);
+            task.setAttributeNS(FLOWABLE_NS, FLOWABLE_PREFIX + ":expression", "${true}");
         }
     }
 

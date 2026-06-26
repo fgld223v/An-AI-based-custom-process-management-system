@@ -127,6 +127,26 @@
 
     <!-- 审批节点（approval） — 仅 active 状态 -->
     <section v-if="task?.status === 'active' && isApproval" class="form-panel">
+
+      <!-- 申请人表单数据（只读） -->
+      <div v-if="applicantFormLoaded && applicantFormFields.length > 0" class="applicant-data-section">
+        <div class="section-title">
+          <h2>申请人填写信息</h2>
+          <span class="section-hint">以下为申请人提交的表单数据，请据此做出审批决定</span>
+        </div>
+        <DynamicFormRenderer
+          :field-list="applicantFormFields"
+          :model-value="applicantFormData"
+          readonly
+        />
+      </div>
+      <el-empty
+        v-else-if="applicantFormLoaded && applicantFormFields.length === 0"
+        description="未找到申请人表单数据"
+      />
+
+      <el-divider v-if="applicantFormLoaded && applicantFormFields.length > 0" />
+
       <div class="section-title">
         <h2>审批处理</h2>
         <span class="section-hint">{{ task?.taskName }}</span>
@@ -174,7 +194,8 @@ import DynamicFormRenderer from '@/components/form/DynamicFormRenderer.vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { completeTask, getTask, rejectTask as rejectTaskApi } from '@/api/task'
 import { getFormDetail } from '@/api/formDefinition'
-import type { TaskItem } from '@/types/workflow'
+import { getProcessInstanceSubmissions } from '@/api/processInstance'
+import type { TaskItem, FormSubmission } from '@/types/workflow'
 
 const route = useRoute()
 const router = useRouter()
@@ -198,6 +219,11 @@ const formLoaded = ref(false)
 const isFormFill = computed(() => task.value?.businessType === 'form_fill')
 const isApproval = computed(() => !task.value?.businessType || task.value.businessType === 'approval')
 
+// ---- 申请人表单数据（审批人查看） ----
+const applicantFormData = ref<Record<string, unknown>>({})
+const applicantFormFields = ref<any[]>([])
+const applicantFormLoaded = ref(false)
+
 async function loadFormDefinition() {
   if (!task.value?.formId) {
     formLoaded.value = true
@@ -216,6 +242,59 @@ async function loadFormDefinition() {
   formLoaded.value = true
 }
 
+/** 加载申请人填写的表单数据，供审批人查看 */
+async function loadApplicantFormData() {
+  if (!task.value?.businessInstanceId) {
+    applicantFormLoaded.value = true
+    return
+  }
+  try {
+    const submissions = await getProcessInstanceSubmissions(task.value.businessInstanceId)
+    const bizSubmission = findBusinessSubmission(submissions)
+    if (bizSubmission?.formDataJson) {
+      applicantFormData.value = JSON.parse(bizSubmission.formDataJson)
+      if (bizSubmission.formId) {
+        try {
+          const def = await getFormDetail(bizSubmission.formId)
+          const raw = def.fieldList
+          applicantFormFields.value = typeof raw === 'string' ? JSON.parse(raw)
+            : Array.isArray(raw) ? raw : []
+        } catch { /* ignore */ }
+      }
+      if (applicantFormFields.value.length === 0 && Object.keys(applicantFormData.value).length > 0) {
+        applicantFormFields.value = Object.keys(applicantFormData.value).map(key => ({
+          field: key, label: key, type: 'input'
+        }))
+      }
+    }
+  } catch { /* ignore */ }
+  applicantFormLoaded.value = true
+}
+
+function findBusinessSubmission(submissions: FormSubmission[]): FormSubmission | null {
+  const approvalKeys = ['approvalResult', 'approvalComment', 'approvalOpinion',
+    'approved', 'rejected', 'operatedAt', 'automatic', 'automaticReason']
+  for (const sub of submissions) {
+    if (sub.businessType === 'start' || sub.businessType === 'form_fill') {
+      if (sub.formDataJson) {
+        try {
+          const data = JSON.parse(sub.formDataJson)
+          if (Object.keys(data).some(k => !approvalKeys.includes(k))) return sub
+        } catch { /* ignore */ }
+      }
+    }
+  }
+  for (const sub of submissions) {
+    if (sub.formDataJson) {
+      try {
+        const data = JSON.parse(sub.formDataJson)
+        if (Object.keys(data).some(k => !approvalKeys.includes(k))) return sub
+      } catch { /* ignore */ }
+    }
+  }
+  return null
+}
+
 watch(() => task.value?.formId, () => {
   if (isFormFill.value) loadFormDefinition()
 })
@@ -232,6 +311,7 @@ async function loadTask() {
   try {
     task.value = await getTask(taskId)
     if (isFormFill.value) await loadFormDefinition()
+    if (isApproval.value) await loadApplicantFormData()
   } catch (error) {
     message.value = normalizeError(error, '任务详情加载失败。')
   } finally {
@@ -371,6 +451,14 @@ function normalizeError(error: unknown, fallback: string) {
 .section-title { justify-content: space-between; margin-bottom: 14px; }
 .section-title h2 { margin: 0; font-size: 18px; }
 .section-hint { color: var(--muted); font-size: 13px; }
+.applicant-data-section {
+  margin-bottom: 8px;
+  padding: 16px;
+  border: 1px solid var(--el-border-color-light);
+  border-radius: 10px;
+  background: var(--el-fill-color-lighter);
+}
+.applicant-data-section .section-title { margin-bottom: 12px; }
 .form-actions { display: flex; gap: 12px; margin-top: 20px; }
 .progress-panel {
   border: 1px solid var(--line);

@@ -3,29 +3,29 @@ package com.aiflow.service.impl;
 import lombok.extern.slf4j.Slf4j;
 import org.flowable.engine.delegate.DelegateExecution;
 import org.flowable.engine.delegate.JavaDelegate;
+import org.flowable.engine.impl.delegate.ActivityBehavior;
 import org.springframework.stereotype.Component;
 
 /**
- * 系统自动处理委托。
+ * 系统自动处理委托 — 双重接口实现 + Spring Bean 注册，
+ * 让 Flowable 的 delegateExpression="${systemActionDelegate}" 能可靠解析。
  *
- * <p>对应 businessType = "system_action" 的 BPMN serviceTask 节点，
- * 在流程到达时自动执行并立即完成（非阻塞），不执行任何业务逻辑。
- * 仅作为占位实现满足 Flowable 对 serviceTask 必须有实现属性的硬性要求。</p>
+ * <p>同时实现 {@link JavaDelegate} 和 {@link ActivityBehavior}，
+ * 无论 Flowable 从哪个接口检查都能匹配。</p>
  *
- * <p>Spring Bean 名称：{@code systemActionDelegate}，
- * BPMN XML 中通过 {@code delegateExpression="${systemActionDelegate}"} 引用。</p>
+ * <p>通过 {@code @Component("systemActionDelegate")} 注册为 Spring Bean，
+ * 与项目中其他 delegate（MultiInstanceAssigneeListener、CcNotificationDelegate 等）
+ * 的注册方式保持一致，确保 {@code delegateExpression} 能从 Spring 容器中解析。</p>
  */
 @Slf4j
 @Component("systemActionDelegate")
-public class SystemActionDelegate implements JavaDelegate {
+public class SystemActionDelegate implements JavaDelegate, ActivityBehavior {
 
     @Override
     public void execute(DelegateExecution execution) {
-        String activityId = execution.getCurrentActivityId();
-        String activityName = execution.getCurrentActivityName();
-        String processInstanceId = execution.getProcessInstanceId();
-
-        log.info("SystemActionDelegate: 系统自动处理节点完成 — activityId={}, activityName={}, processInstanceId={}",
-                activityId, activityName, processInstanceId);
+        log.info("SystemActionDelegate: activityId={}, activityName={}, procInstId={}",
+                execution.getCurrentActivityId(),
+                execution.getCurrentActivityName(),
+                execution.getProcessInstanceId());
     }
 }
