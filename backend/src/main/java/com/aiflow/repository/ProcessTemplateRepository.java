@@ -46,4 +46,9 @@ public interface ProcessTemplateRepository extends JpaRepository<ProcessTemplate
 
     List<ProcessTemplate> findByTemplateCodeAndResourceTypeAndStatusAndDeleted(
             String templateCode, ProcessResourceType resourceType, TemplateStatus status, Integer deleted);
+
+    /**
+     * 根据 Flowable 流程定义 ID 查找模板（用于启动修复时回写新部署的流程定义 ID）
+     */
+    Optional<ProcessTemplate> findByFlowableProcessDefinitionId(String flowableProcessDefinitionId);
 }

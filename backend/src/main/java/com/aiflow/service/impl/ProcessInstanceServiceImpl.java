@@ -90,12 +90,44 @@ public class ProcessInstanceServiceImpl implements ProcessInstanceService {
     @Override
     @Transactional(readOnly = true)
     public List<FormSubmissionDTO> listSubmissions(Long processInstanceId) {
-        getRequiredInstance(processInstanceId);
+        requireId(processInstanceId, "processInstanceId must not be null");
+        ProcessInstance instance = processInstanceRepository
+                .findByIdAndDeleted(processInstanceId, 0)
+                .orElseThrow(() -> new IllegalArgumentException("process instance not found"));
+
+        // 允许申请人 或 当前任务的处理人（审批人）查看表单数据
+        Long currentUserId = SecurityUtils.currentUserId();
+        boolean isApplicant = currentUserId != null
+                && instance.getApplicantId() != null
+                && instance.getApplicantId().equals(currentUserId);
+        boolean isCurrentApprover = currentUserId != null
+                && isCurrentTaskAssignee(instance, currentUserId);
+
+        if (!isApplicant && !isCurrentApprover) {
+            throw new AccessDeniedException("no permission to access this process instance");
+        }
+
         return formSubmissionRepository
                 .findByProcessInstanceIdAndDeletedOrderByUpdatedAtDescCreatedAtDesc(processInstanceId, 0)
                 .stream()
                 .map(this::toDto)
                 .toList();
+    }
+
+    /** 检查当前用户是否是该流程实例的当前任务处理人 */
+    private boolean isCurrentTaskAssignee(ProcessInstance instance, Long currentUserId) {
+        if (!hasText(instance.getFlowableProcessInstanceId())) return false;
+        try {
+            String assignee = String.valueOf(currentUserId);
+            long count = taskService.createTaskQuery()
+                    .processInstanceId(instance.getFlowableProcessInstanceId())
+                    .taskAssignee(assignee)
+                    .active()
+                    .count();
+            return count > 0;
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     @Override

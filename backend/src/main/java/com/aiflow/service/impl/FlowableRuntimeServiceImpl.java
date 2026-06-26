@@ -11,8 +11,11 @@ import com.aiflow.service.ProcessAuthorizationService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.flowable.common.engine.api.FlowableException;
 import org.flowable.engine.RuntimeService;
+import org.flowable.engine.TaskService;
+import org.flowable.task.api.Task;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -36,15 +39,18 @@ import java.util.Map;
  *   <li>更新状态为 running，记录 startedAt</li>
  * </ol>
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class FlowableRuntimeServiceImpl implements FlowableRuntimeService {
 
     private final RuntimeService runtimeService;
+    private final TaskService taskService;
     private final ProcessInstanceRepository processInstanceRepository;
     private final ProcessTemplateRepository processTemplateRepository;
     private final FormSubmissionRepository formSubmissionRepository;
     private final ObjectMapper objectMapper;
+    private final NodeConfigParser nodeConfigParser;
     private final ProcessAuthorizationService processAuthorizationService;
 
     @Override
@@ -114,6 +120,98 @@ public class FlowableRuntimeServiceImpl implements FlowableRuntimeService {
         instance.setStartedAt(now);
         instance.setUpdatedAt(now);
         processInstanceRepository.save(instance);
+
+        // 9. 自动完成 form_fill 任务 — 如果用户在启动前已填写表单，
+        //    则将 start 节点的表单数据作为 form_fill 任务的数据提交流程，
+        //    使表单字段被正确提升为 Flowable 顶层变量（网关条件表达式依赖）
+        if (hasStartFormData(submissions)) {
+            autoCompleteFormFillTasks(flowableInstance.getId(), template, submissions);
+        }
+    }
+
+    /** 检查是否存在有效的启动表单数据 */
+    private boolean hasStartFormData(List<FormSubmission> submissions) {
+        return submissions.stream().anyMatch(
+                s -> "start".equalsIgnoreCase(s.getBusinessType())
+                     && hasText(s.getFormDataJson()));
+    }
+
+    /** 自动完成所有 form_fill 任务，将启动表单数据注入为流程变量 */
+    private void autoCompleteFormFillTasks(String flowableProcessInstanceId,
+                                           ProcessTemplate template,
+                                           List<FormSubmission> submissions) {
+        Map<String, Object> startFormData = extractStartFormData(submissions);
+        if (startFormData.isEmpty()) return;
+
+        List<Task> activeTasks = taskService.createTaskQuery()
+                .processInstanceId(flowableProcessInstanceId)
+                .active()
+                .orderByTaskCreateTime().asc()
+                .list();
+
+        for (Task task : activeTasks) {
+            String businessType = resolveBusinessType(template, task.getTaskDefinitionKey());
+            if (!"form_fill".equalsIgnoreCase(businessType)) continue;
+
+            // 合并 allFormData + 将表单字段提升为顶层变量
+            Map<String, Object> variables = buildFormFillCompleteVariables(
+                    flowableProcessInstanceId, task.getTaskDefinitionKey(), startFormData);
+
+            taskService.complete(task.getId(), variables);
+            log.info("已自动完成 form_fill 任务 {}（nodeKey={}），注入 {} 个表单变量",
+                    task.getId(), task.getTaskDefinitionKey(), startFormData.size());
+        }
+    }
+
+    /** 从 submissions 中提取启动表单数据 */
+    private Map<String, Object> extractStartFormData(List<FormSubmission> submissions) {
+        for (FormSubmission s : submissions) {
+            if ("start".equalsIgnoreCase(s.getBusinessType()) && hasText(s.getFormDataJson())) {
+                return parseFormData(s);
+            }
+        }
+        return Map.of();
+    }
+
+    /** 构建 form_fill 任务完成时的变量，确保表单字段被提升为顶层 Flowable 变量 */
+    private Map<String, Object> buildFormFillCompleteVariables(String flowableProcessInstanceId,
+                                                                String nodeKey,
+                                                                Map<String, Object> formData) {
+        Map<String, Object> variables = new HashMap<>();
+        Map<String, Object> allFormData = new LinkedHashMap<>();
+
+        // 保留已有的 allFormData
+        try {
+            Map<String, Object> existingVars = runtimeService.getVariables(flowableProcessInstanceId);
+            Object existing = existingVars.get("allFormData");
+            if (existing instanceof Map<?, ?> map) {
+                map.forEach((key, value) -> allFormData.put(String.valueOf(key), value));
+            }
+        } catch (Exception ignored) {}
+
+        allFormData.put(nodeKey, formData);
+        variables.put("allFormData", allFormData);
+
+        // 将表单字段提升为顶层 Flowable 变量，使网关条件表达式（如 ${amount > 5000}）能正确引用
+        for (Map.Entry<String, Object> entry : formData.entrySet()) {
+            Object value = normalizeVariableValue(entry.getValue());
+            if (value != null) {
+                variables.put(entry.getKey(), value);
+            }
+        }
+
+        return variables;
+    }
+
+    /** 从模板 nodeConfig 解析节点 businessType */
+    private String resolveBusinessType(ProcessTemplate template, String nodeKey) {
+        if (!hasText(template.getNodeConfig())) return null;
+        Map<String, Object> node = nodeConfigParser.findNode(template.getNodeConfig(), nodeKey);
+        return node != null ? stringValue(node.get("businessType")) : null;
+    }
+
+    private String stringValue(Object value) {
+        return value == null ? null : value.toString().trim();
     }
 
     // ========================================================================
@@ -169,17 +267,44 @@ public class FlowableRuntimeServiceImpl implements FlowableRuntimeService {
         variables.put("applicantId", applicantId);
 
         // 将 startFormData 中的字段提升为顶层流程变量，
-        // 使 BPMN 排他网关条件表达式可直接引用（如 ${leaveDays > 3}）
+        // 使 BPMN 排他网关条件表达式可直接引用（如 ${amount > 5000}）
         if (startFormData != null) {
             for (Map.Entry<String, Object> entry : startFormData.entrySet()) {
-                Object value = entry.getValue();
-                if (value instanceof Number || value instanceof String || value instanceof Boolean) {
+                Object value = normalizeVariableValue(entry.getValue());
+                if (value != null) {
                     variables.put(entry.getKey(), value);
                 }
             }
         }
 
+        // 如果启动时有有效的表单数据，标记为已预提交，
+        // 配合 BPMN 中 form_fill 节点的 skipExpression 跳过重复填写
+        boolean hasStartFormData = startFormData != null && !startFormData.isEmpty();
+        variables.put("startFormSubmitted", hasStartFormData);
+
         return variables;
+    }
+
+    /**
+     * 规范化流程变量值 — 将 JSON 解析产生的数值类型标准化，
+     * 确保 JUEL 表达式（如 ${amount > 5000}）能正确比较。
+     */
+    private Object normalizeVariableValue(Object value) {
+        if (value instanceof Number || value instanceof Boolean) {
+            return value;
+        }
+        if (value instanceof String s) {
+            // 尝试解析为数字，使网关条件比较能正确处理
+            try {
+                if (s.contains(".")) {
+                    return Double.parseDouble(s);
+                }
+                return Long.parseLong(s);
+            } catch (NumberFormatException ignored) {
+                return s;
+            }
+        }
+        return null;
     }
 
     private Map<String, Object> parseFormData(FormSubmission submission) {
