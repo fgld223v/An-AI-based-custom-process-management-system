@@ -101,13 +101,32 @@
         <section class="form-canvas-card">
           <el-empty v-if="formJson.fields.length === 0" description="从左侧添加一个字段开始搭建表单" />
           <div
-            v-for="field in formJson.fields"
+            v-for="(field, index) in formJson.fields"
             v-else
             :key="field.fieldId"
             class="canvas-field-card"
-            :class="{ active: selectedField?.fieldId === field.fieldId }"
+            :class="{
+              active: selectedField?.fieldId === field.fieldId,
+              'drop-target': dragOverIndex === index && dragIndex !== index
+            }"
             @click="selectField(field.fieldId)"
+            @dragover="onDragOver(index, $event)"
+            @dragleave="onDragLeave(index, $event)"
+            @drop="onDrop(index, $event)"
           >
+            <!-- 拖拽手柄 -->
+            <div
+              class="field-drag-handle"
+              title="拖拽调整顺序"
+              draggable="true"
+              @click.stop
+              @mousedown.stop
+              @dragstart="onDragStart(index, $event)"
+              @dragend="onDragEnd($event)"
+            >
+              <span></span><span></span><span></span><span></span><span></span><span></span>
+            </div>
+
             <div class="field-card-main">
               <div class="field-card-icon">
                 <el-icon><component :is="getFieldMeta(field.type).icon" /></el-icon>
@@ -120,8 +139,29 @@
                 <p>{{ field.fieldId }} / {{ getFieldMeta(field.type).label }}</p>
               </div>
             </div>
+
             <div class="field-card-preview">
               <component :is="previewComponent(field.type)" :field="field" />
+            </div>
+
+            <!-- 上移/下移按钮 — 始终可见 -->
+            <div class="field-card-actions">
+              <button
+                class="move-btn"
+                :disabled="index === 0"
+                title="上移"
+                @click.prevent.stop="moveFieldUp(index)"
+              >
+                <el-icon><Top /></el-icon>
+              </button>
+              <button
+                class="move-btn"
+                :disabled="index === formJson.fields.length - 1"
+                title="下移"
+                @click.prevent.stop="moveFieldDown(index)"
+              >
+                <el-icon><Bottom /></el-icon>
+              </button>
             </div>
           </div>
         </section>
@@ -186,7 +226,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, defineComponent, h, onMounted, reactive, ref, resolveComponent, watch } from 'vue'
+import { computed, defineComponent, h, onMounted, reactive, ref, resolveComponent, toRaw, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
@@ -203,6 +243,8 @@ import {
   RefreshLeft,
   RefreshRight,
   Tickets,
+  Top,
+  Bottom,
   UploadFilled,
   View
 } from '@element-plus/icons-vue'
@@ -269,6 +311,81 @@ const previewData = ref<Record<string, unknown>>({})
 const undoStack = ref<FormField[][]>([])
 const redoStack = ref<FormField[][]>([])
 let undoRecording = true  // 批量操作时暂停记录
+
+// 拖拽排序状态
+const dragIndex = ref<number | null>(null)
+const dragOverIndex = ref<number | null>(null)
+
+function onDragStart(index: number, event: DragEvent) {
+  dragIndex.value = index
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData('text/plain', String(index))
+  }
+  // 给父级卡片添加 dragging 样式（event.target 是拖拽手柄）
+  requestAnimationFrame(() => {
+    const card = (event.target as HTMLElement).closest('.canvas-field-card')
+    card?.classList.add('dragging')
+  })
+}
+
+function onDragOver(index: number, event: DragEvent) {
+  event.preventDefault()
+  if (dragIndex.value === null || dragIndex.value === index) return
+  event.dataTransfer!.dropEffect = 'move'
+  dragOverIndex.value = index
+}
+
+function onDragLeave(_index: number, _event: DragEvent) {
+  // 在 dragOver 中管理高亮状态
+}
+
+function onDragEnd(event: DragEvent) {
+  const card = (event.target as HTMLElement).closest('.canvas-field-card')
+  card?.classList.remove('dragging')
+  dragIndex.value = null
+  dragOverIndex.value = null
+  // 移除所有 drop-target 高亮
+  document.querySelectorAll('.canvas-field-card.drop-target').forEach(el => {
+    el.classList.remove('drop-target')
+  })
+}
+
+function onDrop(index: number, event: DragEvent) {
+  event.preventDefault()
+  const fromIndex = dragIndex.value
+  if (fromIndex === null || fromIndex === index) {
+    dragIndex.value = null
+    dragOverIndex.value = null
+    return
+  }
+  // 执行移动
+  pushUndo()
+  const moved = formJson.fields.splice(fromIndex, 1)[0]
+  formJson.fields.splice(index, 0, moved)
+  dragIndex.value = null
+  dragOverIndex.value = null
+  // 清除样式
+  document.querySelectorAll('.canvas-field-card.dragging, .canvas-field-card.drop-target').forEach(el => {
+    el.classList.remove('dragging', 'drop-target')
+  })
+}
+
+/** 上移字段 */
+function moveFieldUp(index: number) {
+  if (index <= 0) return
+  pushUndo()
+  const moved = formJson.fields.splice(index, 1)[0]
+  formJson.fields.splice(index - 1, 0, moved)
+}
+
+/** 下移字段 */
+function moveFieldDown(index: number) {
+  if (index >= formJson.fields.length - 1) return
+  pushUndo()
+  const moved = formJson.fields.splice(index, 1)[0]
+  formJson.fields.splice(index + 1, 0, moved)
+}
 
 const formMeta = reactive({
   formCode: '',
@@ -458,7 +575,7 @@ function buildPayload(): FormDefinitionPayload {
 // ====== 撤销/重做 ======
 function pushUndo() {
   if (!undoRecording) return
-  undoStack.value.push(structuredClone(formJson.fields))
+  undoStack.value.push(cloneFields())
   redoStack.value = []
   if (undoStack.value.length > 30) undoStack.value.shift()
 }
@@ -466,7 +583,7 @@ function undo() {
   const prev = undoStack.value.pop()
   if (!prev) return
   undoRecording = false
-  redoStack.value.push(structuredClone(formJson.fields))
+  redoStack.value.push(cloneFields())
   formJson.fields.splice(0, formJson.fields.length, ...structuredClone(prev))
   selectedFieldId.value = formJson.fields[0]?.fieldId || ''
   undoRecording = true
@@ -475,10 +592,18 @@ function redo() {
   const next = redoStack.value.pop()
   if (!next) return
   undoRecording = false
-  undoStack.value.push(structuredClone(formJson.fields))
+  undoStack.value.push(cloneFields())
   formJson.fields.splice(0, formJson.fields.length, ...structuredClone(next))
   selectedFieldId.value = formJson.fields[0]?.fieldId || ''
   undoRecording = true
+}
+
+function cloneFields(): FormField[] {
+  try {
+    return structuredClone(toRaw(formJson.fields))
+  } catch {
+    return JSON.parse(JSON.stringify(toRaw(formJson.fields)))
+  }
 }
 
 function addField(type: FieldType) {
@@ -855,15 +980,102 @@ function previewComponent(_type?: FieldType) {
 
 .canvas-field-card {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(220px, 0.9fr);
-  gap: 16px;
+  grid-template-columns: 28px minmax(0, 1fr) minmax(180px, 0.8fr) 52px;
+  gap: 8px;
   align-items: center;
   margin-bottom: 12px;
-  padding: 14px;
+  padding: 10px 12px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fff;
   cursor: pointer;
+  transition: border-color 0.2s, box-shadow 0.2s, opacity 0.2s;
+  user-select: none;
+}
+
+.canvas-field-card.dragging {
+  opacity: 0.35;
+}
+
+.canvas-field-card.drop-target {
+  border-color: var(--el-color-success);
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.25);
+  background: rgba(16, 185, 129, 0.04);
+}
+
+/* 拖拽手柄 */
+.field-drag-handle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  padding: 6px 4px;
+  cursor: grab;
+  opacity: 0.4;
+  transition: opacity 0.15s, background 0.15s;
+  border-radius: 4px;
+  align-self: stretch;
+  justify-content: center;
+  align-content: center;
+  background: transparent;
+}
+
+.field-drag-handle:hover {
+  opacity: 0.85;
+  background: var(--el-fill-color-light);
+}
+
+.field-drag-handle:active {
+  cursor: grabbing;
+  opacity: 1;
+}
+
+.field-drag-handle span {
+  display: block;
+  width: 10px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--el-text-color-secondary);
+  pointer-events: none;
+}
+
+/* 上移/下移按钮区 — 始终可见 */
+.field-card-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: center;
+  justify-content: center;
+}
+
+.move-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--el-border-color);
+  border-radius: 4px;
+  background: var(--el-fill-color);
+  color: var(--el-text-color-regular);
+  cursor: pointer;
+  font-size: 12px;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.move-btn:hover:not(:disabled) {
+  background: var(--el-color-success-light-9);
+  border-color: var(--el-color-success);
+  color: var(--el-color-success);
+}
+
+.move-btn:active:not(:disabled) {
+  background: var(--el-color-success-light-7);
+}
+
+.move-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
 }
 
 .field-card-main {
@@ -937,6 +1149,14 @@ pre {
   .form-list-scroll {
     height: auto;
     max-height: 280px;
+  }
+
+  .canvas-field-card {
+    grid-template-columns: 28px minmax(0, 1fr) 52px;
+  }
+
+  .canvas-field-card .field-card-preview {
+    display: none;
   }
 }
 </style>
