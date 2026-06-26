@@ -1,0 +1,11 @@
+{
+  "Start_WorkReport": {
+    "nodeId":"Start_WorkReport","nodeKey":"Start_WorkReport","nodeName":"提交工作报备",
+    "bpmnType":"bpmn:StartEvent","businessType":"start","startMode":"MANUAL","startPermission":"ALL"
+  },
+  "Approve_Supervisor": {
+    "nodeId":"Approve_Supervisor","nodeKey":"Approve_Supervisor","nodeName":"直属上级审批",
+    "bpmnType":"bpmn:UserTask","businessType":"approval","approvalMode":"SINGLE",
+    "assignStrategy":"DIRECT_SUPERVISOR","rejectStrategy":"END_PROCESS"
+  }
+}

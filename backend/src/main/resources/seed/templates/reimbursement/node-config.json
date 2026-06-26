@@ -1,0 +1,24 @@
+{
+  "Start_Reimbursement": {
+    "nodeId":"Start_Reimbursement","nodeKey":"Start_Reimbursement","nodeName":"提交报销申请",
+    "bpmnType":"bpmn:StartEvent","businessType":"start","startMode":"MANUAL","startPermission":"CREATOR_DEPARTMENT"
+  },
+  "Approve_Department": {
+    "nodeId":"Approve_Department","nodeKey":"Approve_Department","nodeName":"部门负责人审批",
+    "bpmnType":"bpmn:UserTask","businessType":"approval","approvalMode":"SINGLE",
+    "assignStrategy":"DEPARTMENT_MANAGER","rejectStrategy":"END_PROCESS"
+  },
+  "Approve_Finance_Reviewer": {
+    "nodeId":"Approve_Finance_Reviewer","nodeKey":"Approve_Finance_Reviewer","nodeName":"财务审核",
+    "bpmnType":"bpmn:UserTask","businessType":"approval","approvalMode":"SINGLE",
+    "assignStrategy":"ROLE_IN_SPECIFIED_DEPT",
+    "assignValue":"{\"departmentId\":${dept.finance},\"roleCode\":\"FINANCE_REVIEWER\"}",
+    "rejectStrategy":"END_PROCESS"
+  },
+  "Approve_Finance_Manager": {
+    "nodeId":"Approve_Finance_Manager","nodeKey":"Approve_Finance_Manager","nodeName":"财务负责人审批",
+    "bpmnType":"bpmn:UserTask","businessType":"approval","approvalMode":"SINGLE",
+    "assignStrategy":"SPECIFIED_DEPARTMENT_MANAGER",
+    "assignValue":"{\"departmentId\":${dept.finance}}","rejectStrategy":"END_PROCESS"
+  }
+}

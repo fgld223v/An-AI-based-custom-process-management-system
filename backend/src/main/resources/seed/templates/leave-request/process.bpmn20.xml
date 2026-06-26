@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  id="Definitions_Leave" targetNamespace="http://aiflow.com/seed">
+  <bpmn:process id="Process_Leave_Request" name="员工请假审批" isExecutable="true">
+    <bpmn:startEvent id="Start_Leave" name="提交申请"><bpmn:outgoing>Flow_L1</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:userTask id="Approve_Supervisor" name="直属上级审批"><bpmn:incoming>Flow_L1</bpmn:incoming><bpmn:outgoing>Flow_L2</bpmn:outgoing></bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_Supervisor" default="Flow_LReject1"><bpmn:incoming>Flow_L2</bpmn:incoming><bpmn:outgoing>Flow_L3</bpmn:outgoing><bpmn:outgoing>Flow_LReject1</bpmn:outgoing></bpmn:exclusiveGateway>
+    <bpmn:userTask id="Approve_Hr" name="人事审核"><bpmn:incoming>Flow_L3</bpmn:incoming><bpmn:outgoing>Flow_L4</bpmn:outgoing></bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_Hr" default="Flow_LReject2"><bpmn:incoming>Flow_L4</bpmn:incoming><bpmn:outgoing>Flow_L5</bpmn:outgoing><bpmn:outgoing>Flow_LReject2</bpmn:outgoing></bpmn:exclusiveGateway>
+    <bpmn:endEvent id="End_Approved" name="审批通过"><bpmn:incoming>Flow_L5</bpmn:incoming></bpmn:endEvent>
+    <bpmn:endEvent id="End_Rejected" name="申请驳回"><bpmn:incoming>Flow_LReject1</bpmn:incoming><bpmn:incoming>Flow_LReject2</bpmn:incoming></bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_L1" sourceRef="Start_Leave" targetRef="Approve_Supervisor" />
+    <bpmn:sequenceFlow id="Flow_L2" sourceRef="Approve_Supervisor" targetRef="Gateway_Supervisor" />
+    <bpmn:sequenceFlow id="Flow_L3" sourceRef="Gateway_Supervisor" targetRef="Approve_Hr"><bpmn:conditionExpression xsi:type="bpmn:tFormalExpression" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><![CDATA[${Approve_Supervisor_approved == true}]]></bpmn:conditionExpression></bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_LReject1" sourceRef="Gateway_Supervisor" targetRef="End_Rejected" />
+    <bpmn:sequenceFlow id="Flow_L4" sourceRef="Approve_Hr" targetRef="Gateway_Hr" />
+    <bpmn:sequenceFlow id="Flow_L5" sourceRef="Gateway_Hr" targetRef="End_Approved"><bpmn:conditionExpression xsi:type="bpmn:tFormalExpression" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><![CDATA[${Approve_Hr_approved == true}]]></bpmn:conditionExpression></bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_LReject2" sourceRef="Gateway_Hr" targetRef="End_Rejected" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_Leave"><bpmndi:BPMNPlane id="Plane_Leave" bpmnElement="Process_Leave_Request">
+    <bpmndi:BPMNShape id="Start_Leave_di" bpmnElement="Start_Leave"><dc:Bounds x="100" y="100" width="36" height="36" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="Approve_Supervisor_di" bpmnElement="Approve_Supervisor"><dc:Bounds x="190" y="78" width="110" height="80" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="Gateway_Supervisor_di" bpmnElement="Gateway_Supervisor" isMarkerVisible="true"><dc:Bounds x="350" y="93" width="50" height="50" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="Approve_Hr_di" bpmnElement="Approve_Hr"><dc:Bounds x="450" y="78" width="110" height="80" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="Gateway_Hr_di" bpmnElement="Gateway_Hr" isMarkerVisible="true"><dc:Bounds x="610" y="93" width="50" height="50" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="End_Approved_di" bpmnElement="End_Approved"><dc:Bounds x="720" y="100" width="36" height="36" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="End_Rejected_di" bpmnElement="End_Rejected"><dc:Bounds x="610" y="230" width="36" height="36" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNEdge id="Flow_L1_di" bpmnElement="Flow_L1"><di:waypoint x="136" y="118" /><di:waypoint x="190" y="118" /></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge id="Flow_L2_di" bpmnElement="Flow_L2"><di:waypoint x="300" y="118" /><di:waypoint x="350" y="118" /></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge id="Flow_L3_di" bpmnElement="Flow_L3"><di:waypoint x="400" y="118" /><di:waypoint x="450" y="118" /></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge id="Flow_L4_di" bpmnElement="Flow_L4"><di:waypoint x="560" y="118" /><di:waypoint x="610" y="118" /></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge id="Flow_L5_di" bpmnElement="Flow_L5"><di:waypoint x="660" y="118" /><di:waypoint x="720" y="118" /></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge id="Flow_LReject1_di" bpmnElement="Flow_LReject1"><di:waypoint x="375" y="143" /><di:waypoint x="375" y="248" /><di:waypoint x="610" y="248" /></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge id="Flow_LReject2_di" bpmnElement="Flow_LReject2"><di:waypoint x="635" y="143" /><di:waypoint x="628" y="230" /></bpmndi:BPMNEdge>
+  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
+</bpmn:definitions>

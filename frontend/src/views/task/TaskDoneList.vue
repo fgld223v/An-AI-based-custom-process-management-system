@@ -2,7 +2,6 @@
   <div class="task-page">
     <section class="page-head">
       <div>
-        <el-tag type="success" effect="plain">已办中心</el-tag>
         <h1>已办任务</h1>
         <p>已完成的历史任务。数据来源：Flowable ACT_HI_TASKINST。</p>
       </div>

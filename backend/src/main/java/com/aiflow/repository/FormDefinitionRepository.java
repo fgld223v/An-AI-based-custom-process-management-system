@@ -18,4 +18,11 @@ public interface FormDefinitionRepository extends JpaRepository<FormDefinition, 
     List<FormDefinition> findByDeletedOrderByUpdatedAtDesc(Integer deleted);
 
     List<FormDefinition> findByStatusAndDeletedOrderByUpdatedAtDesc(FormStatus status, Integer deleted);
+
+    List<FormDefinition> findByCreatedByAndDeletedOrderByUpdatedAtDesc(Long createdBy, Integer deleted);
+
+    List<FormDefinition> findByCreatedByAndStatusAndDeletedOrderByUpdatedAtDesc(
+            Long createdBy, FormStatus status, Integer deleted);
+
+    List<FormDefinition> findByCreatedByIsNullAndDeleted(Integer deleted);
 }

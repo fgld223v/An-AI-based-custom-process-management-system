@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  id="Definitions_Repair" targetNamespace="http://aiflow.com/seed">
+  <bpmn:process id="Process_Repair_Request" name="报修申请审批" isExecutable="true">
+    <bpmn:startEvent id="Start_Repair" name="提交报修申请"><bpmn:outgoing>Flow_R1</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:userTask id="Approve_Department" name="部门负责人确认"><bpmn:incoming>Flow_R1</bpmn:incoming><bpmn:outgoing>Flow_R2</bpmn:outgoing></bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_Department" default="Flow_RReject1"><bpmn:incoming>Flow_R2</bpmn:incoming><bpmn:outgoing>Flow_R3</bpmn:outgoing><bpmn:outgoing>Flow_RReject1</bpmn:outgoing></bpmn:exclusiveGateway>
+    <bpmn:userTask id="Handle_Tech" name="技术审核处理"><bpmn:incoming>Flow_R3</bpmn:incoming><bpmn:outgoing>Flow_R4</bpmn:outgoing></bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_Tech" default="Flow_RReject2"><bpmn:incoming>Flow_R4</bpmn:incoming><bpmn:outgoing>Flow_R5</bpmn:outgoing><bpmn:outgoing>Flow_RReject2</bpmn:outgoing></bpmn:exclusiveGateway>
+    <bpmn:endEvent id="End_Completed" name="处理完成"><bpmn:incoming>Flow_R5</bpmn:incoming></bpmn:endEvent>
+    <bpmn:endEvent id="End_Rejected" name="申请驳回"><bpmn:incoming>Flow_RReject1</bpmn:incoming><bpmn:incoming>Flow_RReject2</bpmn:incoming></bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_R1" sourceRef="Start_Repair" targetRef="Approve_Department" />
+    <bpmn:sequenceFlow id="Flow_R2" sourceRef="Approve_Department" targetRef="Gateway_Department" />
+    <bpmn:sequenceFlow id="Flow_R3" sourceRef="Gateway_Department" targetRef="Handle_Tech"><bpmn:conditionExpression xsi:type="bpmn:tFormalExpression" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><![CDATA[${Approve_Department_approved == true}]]></bpmn:conditionExpression></bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_RReject1" sourceRef="Gateway_Department" targetRef="End_Rejected" />
+    <bpmn:sequenceFlow id="Flow_R4" sourceRef="Handle_Tech" targetRef="Gateway_Tech" />
+    <bpmn:sequenceFlow id="Flow_R5" sourceRef="Gateway_Tech" targetRef="End_Completed"><bpmn:conditionExpression xsi:type="bpmn:tFormalExpression" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><![CDATA[${Handle_Tech_approved == true}]]></bpmn:conditionExpression></bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_RReject2" sourceRef="Gateway_Tech" targetRef="End_Rejected" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_Repair"><bpmndi:BPMNPlane id="Plane_Repair" bpmnElement="Process_Repair_Request">
+    <bpmndi:BPMNShape id="Start_Repair_di" bpmnElement="Start_Repair"><dc:Bounds x="100" y="100" width="36" height="36" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="Approve_Department_di" bpmnElement="Approve_Department"><dc:Bounds x="190" y="78" width="120" height="80" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="Gateway_Department_di" bpmnElement="Gateway_Department" isMarkerVisible="true"><dc:Bounds x="360" y="93" width="50" height="50" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="Handle_Tech_di" bpmnElement="Handle_Tech"><dc:Bounds x="460" y="78" width="120" height="80" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="Gateway_Tech_di" bpmnElement="Gateway_Tech" isMarkerVisible="true"><dc:Bounds x="630" y="93" width="50" height="50" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="End_Completed_di" bpmnElement="End_Completed"><dc:Bounds x="740" y="100" width="36" height="36" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="End_Rejected_di" bpmnElement="End_Rejected"><dc:Bounds x="630" y="230" width="36" height="36" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNEdge id="Flow_R1_di" bpmnElement="Flow_R1"><di:waypoint x="136" y="118" /><di:waypoint x="190" y="118" /></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge id="Flow_R2_di" bpmnElement="Flow_R2"><di:waypoint x="310" y="118" /><di:waypoint x="360" y="118" /></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge id="Flow_R3_di" bpmnElement="Flow_R3"><di:waypoint x="410" y="118" /><di:waypoint x="460" y="118" /></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge id="Flow_R4_di" bpmnElement="Flow_R4"><di:waypoint x="580" y="118" /><di:waypoint x="630" y="118" /></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge id="Flow_R5_di" bpmnElement="Flow_R5"><di:waypoint x="680" y="118" /><di:waypoint x="740" y="118" /></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge id="Flow_RReject1_di" bpmnElement="Flow_RReject1"><di:waypoint x="385" y="143" /><di:waypoint x="385" y="248" /><di:waypoint x="630" y="248" /></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge id="Flow_RReject2_di" bpmnElement="Flow_RReject2"><di:waypoint x="655" y="143" /><di:waypoint x="648" y="230" /></bpmndi:BPMNEdge>
+  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
+</bpmn:definitions>

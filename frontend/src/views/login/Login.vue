@@ -90,7 +90,9 @@ async function submit() {
     await authStore.login(form)
     ElMessage.success('登录成功')
     const role = authStore.user?.systemRole
-    router.push(role === 'normal_user' ? '/process/start-preview' : '/workbench')
+    if (role === 'super_admin') router.push('/workbench')
+    else if (role === 'biz_admin') router.push('/my-processes')
+    else router.push('/process/start-preview')
   } catch (e: any) {
     ElMessage.error(e?.message || '登录失败，请检查用户名和密码')
   } finally {

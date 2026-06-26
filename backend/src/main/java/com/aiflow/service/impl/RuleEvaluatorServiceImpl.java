@@ -158,17 +158,25 @@ public class RuleEvaluatorServiceImpl implements RuleEvaluatorService {
             config = nodeConfig;
         }
 
-        boolean enabled = booleanValue(firstNonNull(
+        Object enabledValue = firstNonNull(
                 config.get("enabled"),
                 config.get("autoApproveEnabled"),
                 config.get("ruleEnabled")
-        ));
+        );
+        boolean enabled = booleanValue(enabledValue);
         String action = stringValue(firstNonNull(
                 config.get("action"),
                 config.get("autoAction"),
                 config.get("result")
         ));
-        if (!enabled && !"approve".equalsIgnoreCase(action) && !"auto_approve".equalsIgnoreCase(action)) {
+        // An explicit enabled=false always wins. The action field describes what an
+        // enabled rule does; it must not silently enable the rule by itself.
+        if (enabledValue != null && !enabled) {
+            return null;
+        }
+        if (enabledValue == null
+                && !"approve".equalsIgnoreCase(action)
+                && !"auto_approve".equalsIgnoreCase(action)) {
             return null;
         }
 

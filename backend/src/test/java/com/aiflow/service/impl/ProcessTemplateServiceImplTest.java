@@ -1,7 +1,9 @@
 package com.aiflow.service.impl;
 
 import com.aiflow.enums.ProcessResourceType;
+import com.aiflow.enums.FormStatus;
 import com.aiflow.enums.TemplateStatus;
+import com.aiflow.model.FormDefinition;
 import com.aiflow.model.ProcessTemplate;
 import com.aiflow.model.Department;
 import com.aiflow.repository.DepartmentRepository;
@@ -9,6 +11,7 @@ import com.aiflow.repository.ProcessTemplateRepository;
 import com.aiflow.repository.ProcessInstanceRepository;
 import com.aiflow.repository.FormDefinitionRepository;
 import com.aiflow.repository.SysUserRepository;
+import com.aiflow.repository.TemplateMarketRepository;
 import com.aiflow.service.FlowableDeploymentService;
 import com.aiflow.service.ProcessAuthorizationService;
 import com.aiflow.service.WorkflowRoleService;
@@ -65,6 +68,9 @@ class ProcessTemplateServiceImplTest {
 
     @Mock
     private SysUserRepository sysUserRepository;
+
+    @Mock
+    private TemplateMarketRepository templateMarketRepository;
 
     @InjectMocks
     private ProcessTemplateServiceImpl service;
@@ -211,6 +217,20 @@ class ProcessTemplateServiceImplTest {
     }
 
     @Test
+    void deletingMarketListedTemplateRequiresWithdrawalFirst() {
+        ProcessTemplate disabled = version(1L, 1, TemplateStatus.DISABLED);
+        when(processTemplateRepository.findByIdAndDeleted(1L, 0)).thenReturn(java.util.Optional.of(disabled));
+        when(templateMarketRepository.findByTypeAndSourceIdAndDeleted(
+                com.aiflow.enums.MarketType.TEMPLATE, 1L, 0))
+                .thenReturn(java.util.Optional.of(com.aiflow.model.TemplateMarket.builder().id(9L).build()));
+
+        assertThatThrownBy(() -> service.deleteTemplate(1L))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("先下架");
+        verify(processTemplateRepository, never()).save(any(ProcessTemplate.class));
+    }
+
+    @Test
     void nextVersionSkipsSoftDeletedVersionNumber() {
         ProcessTemplate published = version(1L, 1, TemplateStatus.PUBLISHED);
         ProcessTemplate deletedV2 = version(2L, 2, TemplateStatus.DRAFT);
@@ -224,6 +244,36 @@ class ProcessTemplateServiceImplTest {
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         assertThat(service.createNextVersion(1L).getVersion()).isEqualTo(3);
+    }
+
+    @Test
+    void marketCopyCreatesOwnedDraftFormsAndRewritesEveryReference() {
+        ProcessTemplate source = version(8L, 1, TemplateStatus.PUBLISHED);
+        source.setFormId(10L);
+        source.setNodeConfig("{\"StartEvent_1\":{\"formId\":10},\"Task_1\":{\"formId\":11}}");
+        source.setFormBindConfig("{\"StartEvent_1\":{\"formId\":10},\"Task_1\":{\"formId\":11}}");
+        when(formDefinitionRepository.findByIdAndDeleted(10L, 0))
+                .thenReturn(java.util.Optional.of(publishedForm(10L, "Apply")));
+        when(formDefinitionRepository.findByIdAndDeleted(11L, 0))
+                .thenReturn(java.util.Optional.of(publishedForm(11L, "Approve")));
+        when(formDefinitionRepository.save(any(FormDefinition.class))).thenAnswer(invocation -> {
+            FormDefinition form = invocation.getArgument(0);
+            form.setId(form.getSourceFormId() + 100L);
+            return form;
+        });
+        when(processTemplateRepository.save(any(ProcessTemplate.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        ProcessTemplate copied = service.copyTemplate(source, 22L, "Copied flow");
+
+        assertThat(copied.getFormId()).isEqualTo(110L);
+        assertThat(copied.getNodeConfig()).contains("\"formId\":110", "\"formId\":111");
+        assertThat(copied.getFormBindConfig()).contains("\"formId\":110", "\"formId\":111");
+        verify(formDefinitionRepository).save(org.mockito.ArgumentMatchers.argThat(form ->
+                form.getSourceFormId().equals(10L)
+                        && form.getCreatedBy().equals(22L)
+                        && form.getStatus() == FormStatus.DRAFT
+                        && "market_copy".equals(form.getSourceType())));
     }
 
     @Test
@@ -304,6 +354,18 @@ class ProcessTemplateServiceImplTest {
                 .nodeConfig(null)
                 .flowableDeploymentId("deployment-1")
                 .flowableProcessDefinitionId("definition-1")
+                .deleted(0)
+                .build();
+    }
+
+    private FormDefinition publishedForm(Long id, String name) {
+        return FormDefinition.builder()
+                .id(id)
+                .formCode("form-" + id)
+                .formName(name)
+                .version(1)
+                .status(FormStatus.PUBLISHED)
+                .fieldList("[]")
                 .deleted(0)
                 .build();
     }

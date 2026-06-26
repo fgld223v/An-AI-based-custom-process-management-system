@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  id="Definitions_WorkReport" targetNamespace="http://aiflow.com/seed">
+  <bpmn:process id="Process_Work_Report" name="工作报备审批" isExecutable="true">
+    <bpmn:startEvent id="Start_WorkReport" name="提交工作报备"><bpmn:outgoing>Flow_W1</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:userTask id="Approve_Supervisor" name="直属上级审批"><bpmn:incoming>Flow_W1</bpmn:incoming><bpmn:outgoing>Flow_W2</bpmn:outgoing></bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_Supervisor" default="Flow_WReject"><bpmn:incoming>Flow_W2</bpmn:incoming><bpmn:outgoing>Flow_W3</bpmn:outgoing><bpmn:outgoing>Flow_WReject</bpmn:outgoing></bpmn:exclusiveGateway>
+    <bpmn:endEvent id="End_Approved" name="审批通过"><bpmn:incoming>Flow_W3</bpmn:incoming></bpmn:endEvent>
+    <bpmn:endEvent id="End_Rejected" name="申请驳回"><bpmn:incoming>Flow_WReject</bpmn:incoming></bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_W1" sourceRef="Start_WorkReport" targetRef="Approve_Supervisor" />
+    <bpmn:sequenceFlow id="Flow_W2" sourceRef="Approve_Supervisor" targetRef="Gateway_Supervisor" />
+    <bpmn:sequenceFlow id="Flow_W3" sourceRef="Gateway_Supervisor" targetRef="End_Approved"><bpmn:conditionExpression xsi:type="bpmn:tFormalExpression" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><![CDATA[${Approve_Supervisor_approved == true}]]></bpmn:conditionExpression></bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_WReject" sourceRef="Gateway_Supervisor" targetRef="End_Rejected" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_WorkReport"><bpmndi:BPMNPlane id="Plane_WorkReport" bpmnElement="Process_Work_Report">
+    <bpmndi:BPMNShape id="Start_WorkReport_di" bpmnElement="Start_WorkReport"><dc:Bounds x="100" y="100" width="36" height="36" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="Approve_Supervisor_di" bpmnElement="Approve_Supervisor"><dc:Bounds x="200" y="78" width="120" height="80" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="Gateway_Supervisor_di" bpmnElement="Gateway_Supervisor" isMarkerVisible="true"><dc:Bounds x="380" y="93" width="50" height="50" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="End_Approved_di" bpmnElement="End_Approved"><dc:Bounds x="500" y="100" width="36" height="36" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="End_Rejected_di" bpmnElement="End_Rejected"><dc:Bounds x="380" y="220" width="36" height="36" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNEdge id="Flow_W1_di" bpmnElement="Flow_W1"><di:waypoint x="136" y="118" /><di:waypoint x="200" y="118" /></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge id="Flow_W2_di" bpmnElement="Flow_W2"><di:waypoint x="320" y="118" /><di:waypoint x="380" y="118" /></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge id="Flow_W3_di" bpmnElement="Flow_W3"><di:waypoint x="430" y="118" /><di:waypoint x="500" y="118" /></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge id="Flow_WReject_di" bpmnElement="Flow_WReject"><di:waypoint x="405" y="143" /><di:waypoint x="398" y="220" /></bpmndi:BPMNEdge>
+  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
+</bpmn:definitions>

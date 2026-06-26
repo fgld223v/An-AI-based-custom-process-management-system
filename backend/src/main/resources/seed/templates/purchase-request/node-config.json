@@ -1,0 +1,18 @@
+{
+  "Start_Purchase": {
+    "nodeId":"Start_Purchase","nodeKey":"Start_Purchase","nodeName":"提交采购申请",
+    "bpmnType":"bpmn:StartEvent","businessType":"start","startMode":"MANUAL","startPermission":"CREATOR_DEPARTMENT"
+  },
+  "Approve_Department": {
+    "nodeId":"Approve_Department","nodeKey":"Approve_Department","nodeName":"部门负责人审批",
+    "bpmnType":"bpmn:UserTask","businessType":"approval","approvalMode":"SINGLE",
+    "assignStrategy":"DEPARTMENT_MANAGER","rejectStrategy":"END_PROCESS"
+  },
+  "Approve_Purchase": {
+    "nodeId":"Approve_Purchase","nodeKey":"Approve_Purchase","nodeName":"采购审核",
+    "bpmnType":"bpmn:UserTask","businessType":"approval","approvalMode":"SINGLE",
+    "assignStrategy":"ROLE_IN_SPECIFIED_DEPT",
+    "assignValue":"{\"departmentId\":${dept.purchase},\"roleCode\":\"PURCHASE_REVIEWER\"}",
+    "rejectStrategy":"END_PROCESS"
+  }
+}

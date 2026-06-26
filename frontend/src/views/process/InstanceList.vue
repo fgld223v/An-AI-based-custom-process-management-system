@@ -2,7 +2,6 @@
   <div class="instance-page">
     <section class="page-head">
       <div>
-        <el-tag type="success" effect="plain">我的申请</el-tag>
         <h1>我的申请</h1>
         <p>查看我发起的流程草稿、已提交、运行中与已完成申请，可继续编辑草稿或进入详情追踪处理进度。</p>
       </div>

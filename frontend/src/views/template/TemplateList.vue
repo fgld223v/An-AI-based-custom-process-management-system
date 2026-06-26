@@ -2,7 +2,6 @@
   <div class="template-page">
     <section class="template-hero">
       <div>
-        <el-tag type="success" effect="plain">流程模板管理</el-tag>
         <h1>流程模板库</h1>
         <p>集中管理流程模板，绑定业务类型和表单，完成发布后可上架到模板市场。</p>
       </div>
@@ -78,7 +77,7 @@
             <span v-else style="color:var(--muted);font-size:12px">-</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="480" fixed="right">
+        <el-table-column label="操作" width="530" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" :disabled="!canEdit(row.status)" @click="openEditDialog(row)">编辑</el-button>
             <el-button v-if="canCreateVersion(row.status)" link type="primary" @click="handleCreateVersion(row)">新版本</el-button>
@@ -88,6 +87,17 @@
             <el-button link type="warning" :disabled="normalizeStatus(row.status) !== 'published' || Boolean(getMarketItem(row.id))" @click="openMarketDialog(row)">上架</el-button>
             <el-button v-if="getMarketItem(row.id)" link type="danger" @click="handleWithdraw(row)">下架</el-button>
             <el-button link type="primary" :disabled="!canEdit(row.status)" @click="goToDesigner(row)">流程图</el-button>
+            <el-tooltip :disabled="!deleteDisabledReason(row)" :content="deleteDisabledReason(row)" placement="top">
+              <span class="operation-button-wrap">
+                <el-button
+                  link
+                  type="danger"
+                  :icon="Delete"
+                  :disabled="Boolean(deleteDisabledReason(row))"
+                  @click="handleDelete(row)"
+                >删除</el-button>
+              </span>
+            </el-tooltip>
           </template>
         </el-table-column>
         <template #empty>
@@ -185,13 +195,14 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Refresh } from '@element-plus/icons-vue'
+import { Delete, Plus, Refresh } from '@element-plus/icons-vue'
 import DynamicFormRenderer from '@/components/form/DynamicFormRenderer.vue'
 import { getBizTypes } from '@/api/bizType'
 import { getPublishedForms } from '@/api/formDefinition'
 import {
   createProcessTemplate,
   createProcessTemplateVersion,
+  deleteProcessTemplate,
   getProcessTemplateBoundForm,
   getProcessTemplates,
   publishProcessTemplate,
@@ -440,6 +451,31 @@ async function handleWithdraw(row: ProcessTemplate) {
   }
 }
 
+async function handleDelete(row: ProcessTemplate) {
+  const disabledReason = deleteDisabledReason(row)
+  if (disabledReason) {
+    ElMessage.warning(disabledReason)
+    return
+  }
+  try {
+    await ElMessageBox.confirm(
+      `确认删除「${row.templateName}」v${row.version || 1}吗？删除后该版本将不再显示。`,
+      '删除模板版本',
+      {
+        type: 'warning',
+        confirmButtonText: '确认删除',
+        cancelButtonText: '取消'
+      }
+    )
+    await deleteProcessTemplate(row.id)
+    ElMessage.success('模板版本已删除')
+    await loadPageData()
+  } catch (error) {
+    if (error === 'cancel' || error === 'close') return
+    ElMessage.error(error instanceof Error ? error.message : '模板删除失败')
+  }
+}
+
 function goToDesigner(row: ProcessTemplate) {
   router.push(`/process-designer?templateId=${row.id}`)
 }
@@ -467,6 +503,12 @@ function canPublish(status?: string) {
 
 function canCreateVersion(status?: string) {
   return ['published', 'disabled'].includes(normalizeStatus(status))
+}
+
+function deleteDisabledReason(row: ProcessTemplate) {
+  if (normalizeStatus(row.status) === 'published') return '已发布模板需先停用再删除'
+  if (getMarketItem(row.id)) return '该模板仍在模板市场上架，请先下架'
+  return ''
 }
 
 function templateStatusLabel(status?: string) {
@@ -567,6 +609,10 @@ function formatTime(value?: string) {
 .soft-table {
   border-radius: 16px;
   overflow: hidden;
+}
+
+.operation-button-wrap {
+  display: inline-flex;
 }
 
 .form-empty-hint {

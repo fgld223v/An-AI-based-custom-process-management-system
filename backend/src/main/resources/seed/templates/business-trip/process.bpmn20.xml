@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  id="Definitions_BusinessTrip" targetNamespace="http://aiflow.com/seed">
+  <bpmn:process id="Process_Business_Trip" name="出差申请审批" isExecutable="true">
+    <bpmn:startEvent id="Start_Trip" name="提交出差申请"><bpmn:outgoing>Flow_T1</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:userTask id="Approve_Supervisor" name="直属上级审批"><bpmn:incoming>Flow_T1</bpmn:incoming><bpmn:outgoing>Flow_T2</bpmn:outgoing></bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_Supervisor" default="Flow_TReject1"><bpmn:incoming>Flow_T2</bpmn:incoming><bpmn:outgoing>Flow_T3</bpmn:outgoing><bpmn:outgoing>Flow_TReject1</bpmn:outgoing></bpmn:exclusiveGateway>
+    <bpmn:userTask id="Review_Hr" name="人事审核"><bpmn:incoming>Flow_T3</bpmn:incoming><bpmn:outgoing>Flow_T4</bpmn:outgoing></bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_Hr" default="Flow_TReject2"><bpmn:incoming>Flow_T4</bpmn:incoming><bpmn:outgoing>Flow_T5</bpmn:outgoing><bpmn:outgoing>Flow_TReject2</bpmn:outgoing></bpmn:exclusiveGateway>
+    <bpmn:userTask id="Review_Finance" name="财务审核"><bpmn:incoming>Flow_T5</bpmn:incoming><bpmn:outgoing>Flow_T6</bpmn:outgoing></bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_Finance" default="Flow_TReject3"><bpmn:incoming>Flow_T6</bpmn:incoming><bpmn:outgoing>Flow_T7</bpmn:outgoing><bpmn:outgoing>Flow_TReject3</bpmn:outgoing></bpmn:exclusiveGateway>
+    <bpmn:endEvent id="End_Approved" name="审批通过"><bpmn:incoming>Flow_T7</bpmn:incoming></bpmn:endEvent>
+    <bpmn:endEvent id="End_Rejected" name="申请驳回"><bpmn:incoming>Flow_TReject1</bpmn:incoming><bpmn:incoming>Flow_TReject2</bpmn:incoming><bpmn:incoming>Flow_TReject3</bpmn:incoming></bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_T1" sourceRef="Start_Trip" targetRef="Approve_Supervisor" />
+    <bpmn:sequenceFlow id="Flow_T2" sourceRef="Approve_Supervisor" targetRef="Gateway_Supervisor" />
+    <bpmn:sequenceFlow id="Flow_T3" sourceRef="Gateway_Supervisor" targetRef="Review_Hr"><bpmn:conditionExpression xsi:type="bpmn:tFormalExpression" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><![CDATA[${Approve_Supervisor_approved == true}]]></bpmn:conditionExpression></bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_TReject1" sourceRef="Gateway_Supervisor" targetRef="End_Rejected" />
+    <bpmn:sequenceFlow id="Flow_T4" sourceRef="Review_Hr" targetRef="Gateway_Hr" />
+    <bpmn:sequenceFlow id="Flow_T5" sourceRef="Gateway_Hr" targetRef="Review_Finance"><bpmn:conditionExpression xsi:type="bpmn:tFormalExpression" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><![CDATA[${Review_Hr_approved == true}]]></bpmn:conditionExpression></bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_TReject2" sourceRef="Gateway_Hr" targetRef="End_Rejected" />
+    <bpmn:sequenceFlow id="Flow_T6" sourceRef="Review_Finance" targetRef="Gateway_Finance" />
+    <bpmn:sequenceFlow id="Flow_T7" sourceRef="Gateway_Finance" targetRef="End_Approved"><bpmn:conditionExpression xsi:type="bpmn:tFormalExpression" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><![CDATA[${Review_Finance_approved == true}]]></bpmn:conditionExpression></bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_TReject3" sourceRef="Gateway_Finance" targetRef="End_Rejected" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_BusinessTrip"><bpmndi:BPMNPlane id="Plane_BusinessTrip" bpmnElement="Process_Business_Trip">
+    <bpmndi:BPMNShape id="Start_Trip_di" bpmnElement="Start_Trip"><dc:Bounds x="80" y="100" width="36" height="36" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="Approve_Supervisor_di" bpmnElement="Approve_Supervisor"><dc:Bounds x="160" y="78" width="120" height="80" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="Gateway_Supervisor_di" bpmnElement="Gateway_Supervisor" isMarkerVisible="true"><dc:Bounds x="320" y="93" width="50" height="50" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="Review_Hr_di" bpmnElement="Review_Hr"><dc:Bounds x="420" y="78" width="110" height="80" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="Gateway_Hr_di" bpmnElement="Gateway_Hr" isMarkerVisible="true"><dc:Bounds x="570" y="93" width="50" height="50" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="Review_Finance_di" bpmnElement="Review_Finance"><dc:Bounds x="670" y="78" width="110" height="80" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="Gateway_Finance_di" bpmnElement="Gateway_Finance" isMarkerVisible="true"><dc:Bounds x="820" y="93" width="50" height="50" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="End_Approved_di" bpmnElement="End_Approved"><dc:Bounds x="930" y="100" width="36" height="36" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="End_Rejected_di" bpmnElement="End_Rejected"><dc:Bounds x="570" y="240" width="36" height="36" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNEdge id="Flow_T1_di" bpmnElement="Flow_T1"><di:waypoint x="116" y="118" /><di:waypoint x="160" y="118" /></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge id="Flow_T2_di" bpmnElement="Flow_T2"><di:waypoint x="280" y="118" /><di:waypoint x="320" y="118" /></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge id="Flow_T3_di" bpmnElement="Flow_T3"><di:waypoint x="370" y="118" /><di:waypoint x="420" y="118" /></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge id="Flow_T4_di" bpmnElement="Flow_T4"><di:waypoint x="530" y="118" /><di:waypoint x="570" y="118" /></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge id="Flow_T5_di" bpmnElement="Flow_T5"><di:waypoint x="620" y="118" /><di:waypoint x="670" y="118" /></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge id="Flow_T6_di" bpmnElement="Flow_T6"><di:waypoint x="780" y="118" /><di:waypoint x="820" y="118" /></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge id="Flow_T7_di" bpmnElement="Flow_T7"><di:waypoint x="870" y="118" /><di:waypoint x="930" y="118" /></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge id="Flow_TReject1_di" bpmnElement="Flow_TReject1"><di:waypoint x="345" y="143" /><di:waypoint x="345" y="258" /><di:waypoint x="570" y="258" /></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge id="Flow_TReject2_di" bpmnElement="Flow_TReject2"><di:waypoint x="595" y="143" /><di:waypoint x="588" y="240" /></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge id="Flow_TReject3_di" bpmnElement="Flow_TReject3"><di:waypoint x="845" y="143" /><di:waypoint x="845" y="258" /><di:waypoint x="606" y="258" /></bpmndi:BPMNEdge>
+  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
+</bpmn:definitions>

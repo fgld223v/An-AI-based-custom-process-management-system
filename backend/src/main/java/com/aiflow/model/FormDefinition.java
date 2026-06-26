@@ -54,6 +54,12 @@ public class FormDefinition {
     @Column(name = "created_by")
     private Long createdBy;
 
+    @Column(name = "source_type")
+    private String sourceType;
+
+    @Column(name = "source_form_id")
+    private Long sourceFormId;
+
     @Column(name = "published_at")
     private LocalDateTime publishedAt;
 

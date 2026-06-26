@@ -2,9 +2,6 @@
   <div class="monitor-page">
     <section class="monitor-head">
       <div>
-        <el-tag :type="isGlobal ? 'warning' : 'success'" effect="plain">
-          {{ isGlobal ? '全局运行视角' : '负责人视角' }}
-        </el-tag>
         <h1>{{ isGlobal ? '运行监控' : '业务监控' }}</h1>
         <p>{{ isGlobal ? '监控系统内全部业务流程及其实例运行状态。' : '监控由当前账号负责的流程及其实例运行状态。' }}</p>
       </div>

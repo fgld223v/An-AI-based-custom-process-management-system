@@ -2,7 +2,6 @@
   <div class="notification-page">
     <section class="page-head">
       <div>
-        <el-tag type="warning" effect="plain">通知中心</el-tag>
         <h1>站内通知</h1>
         <p>查看流程超时、审批结果与系统提醒，支持已读/未读筛选和跳转目标实例。</p>
       </div>

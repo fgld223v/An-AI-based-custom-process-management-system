@@ -1,0 +1,18 @@
+{
+  "Start_Inspection": {
+    "nodeId":"Start_Inspection","nodeKey":"Start_Inspection","nodeName":"提交巡检记录",
+    "bpmnType":"bpmn:StartEvent","businessType":"start","startMode":"MANUAL","startPermission":"ALL"
+  },
+  "Review_Department": {
+    "nodeId":"Review_Department","nodeKey":"Review_Department","nodeName":"部门审核员复核",
+    "bpmnType":"bpmn:UserTask","businessType":"approval","approvalMode":"SINGLE",
+    "assignStrategy":"ROLE_IN_APPLICANT_DEPT",
+    "assignValue":"DEPT_REVIEWER",
+    "rejectStrategy":"END_PROCESS"
+  },
+  "Confirm_DepartmentLeader": {
+    "nodeId":"Confirm_DepartmentLeader","nodeKey":"Confirm_DepartmentLeader","nodeName":"部门负责人确认",
+    "bpmnType":"bpmn:UserTask","businessType":"approval","approvalMode":"SINGLE",
+    "assignStrategy":"DEPARTMENT_MANAGER","rejectStrategy":"END_PROCESS"
+  }
+}

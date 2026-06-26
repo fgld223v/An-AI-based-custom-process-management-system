@@ -43,3 +43,9 @@ jwt:
 flowable:
   database-schema-update: true
   async-executor-activate: false
+
+aiflow:
+  initializer:
+    reference-data-enabled: ${AIFLOW_REFERENCE_DATA_ENABLED:true}
+    demo-data-enabled: ${AIFLOW_DEMO_DATA_ENABLED:true}
+    market-templates-enabled: ${AIFLOW_MARKET_TEMPLATES_ENABLED:true}

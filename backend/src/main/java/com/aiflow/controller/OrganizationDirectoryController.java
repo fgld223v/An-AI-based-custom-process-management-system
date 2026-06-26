@@ -37,8 +37,7 @@ public class OrganizationDirectoryController {
 
     @GetMapping("/users")
     public ApiResponse<List<Map<String, Object>>> listUsers() {
-        List<Map<String, Object>> result = sysUserRepository.findAllByOrderByIdAsc().stream()
-                .filter(item -> !Integer.valueOf(1).equals(item.getDeleted()))
+        List<Map<String, Object>> result = sysUserRepository.findByDeletedOrderByIdAsc(0).stream()
                 .filter(item -> Integer.valueOf(1).equals(item.getEnabled()))
                 .map(item -> {
                     Map<String, Object> option = new LinkedHashMap<>();

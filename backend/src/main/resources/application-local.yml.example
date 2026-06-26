@@ -15,3 +15,9 @@ ai:
 
 jwt:
   secret: 生成一个长随机字符串至少32字节
+
+# 本地演示数据和模板市场种子。生产环境应设置为 false。
+aiflow:
+  initializer:
+    demo-data-enabled: true
+    market-templates-enabled: true

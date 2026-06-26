@@ -1,0 +1,20 @@
+{
+  "fieldList": [
+    {"field":"reportType","label":"报备类型","type":"select","required":true,"placeholder":"请选择报备类型","options":[{"label":"外出办事","value":"outbound"},{"label":"客户拜访","value":"customer_visit"},{"label":"会议活动","value":"meeting"},{"label":"其他事项","value":"other"}]},
+    {"field":"reportDate","label":"报备日期","type":"date","required":true,"placeholder":"请选择报备日期"},
+    {"field":"destination","label":"地点","type":"input","required":false,"placeholder":"请输入地点"},
+    {"field":"content","label":"报备内容","type":"textarea","required":true,"placeholder":"请说明事项内容、时间安排和预期结果"},
+    {"field":"contactPhone","label":"联系电话","type":"input","required":false,"placeholder":"请输入联系电话"}
+  ],
+  "formSchema": {
+    "layout":"vertical",
+    "fields":[
+      {"field":"reportType","label":"报备类型","type":"select","required":true,"placeholder":"请选择报备类型","options":[{"label":"外出办事","value":"outbound"},{"label":"客户拜访","value":"customer_visit"},{"label":"会议活动","value":"meeting"},{"label":"其他事项","value":"other"}]},
+      {"field":"reportDate","label":"报备日期","type":"date","required":true,"placeholder":"请选择报备日期"},
+      {"field":"destination","label":"地点","type":"input","required":false,"placeholder":"请输入地点"},
+      {"field":"content","label":"报备内容","type":"textarea","required":true,"placeholder":"请说明事项内容、时间安排和预期结果"},
+      {"field":"contactPhone","label":"联系电话","type":"input","required":false,"placeholder":"请输入联系电话"}
+    ],
+    "meta":{"description":"外出、拜访和临时事项工作报备"}
+  }
+}

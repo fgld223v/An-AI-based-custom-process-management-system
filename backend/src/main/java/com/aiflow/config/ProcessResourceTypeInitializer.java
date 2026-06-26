@@ -16,7 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 
 @Slf4j
-@Order(20)
+@Order(90)
 @Component
 @RequiredArgsConstructor
 public class ProcessResourceTypeInitializer implements CommandLineRunner {

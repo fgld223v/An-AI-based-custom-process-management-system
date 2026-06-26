@@ -1,0 +1,22 @@
+{
+  "fieldList": [
+    {"field":"approvalTitle","label":"事项标题","type":"input","required":true,"placeholder":"请输入审批事项标题"},
+    {"field":"approvalCategory","label":"事项类别","type":"select","required":true,"placeholder":"请选择事项类别","options":[{"label":"行政事项","value":"admin"},{"label":"业务事项","value":"business"},{"label":"资源申请","value":"resource"},{"label":"其他","value":"other"}]},
+    {"field":"importance","label":"重要程度","type":"radio","required":true,"options":[{"label":"普通","value":"normal"},{"label":"重大","value":"major"}]},
+    {"field":"description","label":"事项说明","type":"textarea","required":true,"placeholder":"请说明申请背景、处理诉求和预期结果"},
+    {"field":"expectedDate","label":"期望完成日期","type":"date","required":false,"placeholder":"请选择期望完成日期"},
+    {"field":"attachments","label":"相关附件","type":"upload","required":false,"placeholder":"可上传说明材料","maxCount":5}
+  ],
+  "formSchema": {
+    "layout":"vertical",
+    "fields":[
+      {"field":"approvalTitle","label":"事项标题","type":"input","required":true,"placeholder":"请输入审批事项标题"},
+      {"field":"approvalCategory","label":"事项类别","type":"select","required":true,"placeholder":"请选择事项类别","options":[{"label":"行政事项","value":"admin"},{"label":"业务事项","value":"business"},{"label":"资源申请","value":"resource"},{"label":"其他","value":"other"}]},
+      {"field":"importance","label":"重要程度","type":"radio","required":true,"options":[{"label":"普通","value":"normal"},{"label":"重大","value":"major"}]},
+      {"field":"description","label":"事项说明","type":"textarea","required":true,"placeholder":"请说明申请背景、处理诉求和预期结果"},
+      {"field":"expectedDate","label":"期望完成日期","type":"date","required":false,"placeholder":"请选择期望完成日期"},
+      {"field":"attachments","label":"相关附件","type":"upload","required":false,"placeholder":"可上传说明材料","maxCount":5}
+    ],
+    "meta":{"description":"通用事项审批，重大事项追加总经理审批"}
+  }
+}

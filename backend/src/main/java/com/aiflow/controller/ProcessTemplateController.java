@@ -11,6 +11,7 @@ import com.aiflow.model.ProcessTemplate;
 import com.aiflow.security.SecurityUtils;
 import com.aiflow.service.ProcessTemplateService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -85,6 +86,14 @@ public class ProcessTemplateController {
         getSystemTemplate(id);
         ProcessTemplate saved = processTemplateService.unpublishTemplate(id);
         return ApiResponse.success(DtoMapper.toProcessTemplateDTO(saved));
+    }
+
+    /** 删除未发布或已停用的模板版本；已有实例或市场引用时由服务层拒绝。 */
+    @DeleteMapping("/{id}")
+    public ApiResponse<Void> deleteTemplate(@PathVariable Long id) {
+        getSystemTemplate(id);
+        processTemplateService.deleteTemplate(id);
+        return ApiResponse.success();
     }
 
     private ProcessTemplate getSystemTemplate(Long id) {

@@ -15,4 +15,8 @@ public interface DepartmentRepository extends JpaRepository<Department, Long> {
     Optional<Department> findByIdAndDeleted(Long id, Integer deleted);
 
     List<Department> findByDeletedOrderBySortOrder(Integer deleted);
+
+    boolean existsByLeaderUserIdAndDeleted(Long leaderUserId, Integer deleted);
+
+    boolean existsByParentIdAndDeleted(Long parentId, Integer deleted);
 }

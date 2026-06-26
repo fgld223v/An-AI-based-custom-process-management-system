@@ -3,6 +3,7 @@ package com.aiflow.common;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.ConstraintViolationException;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -57,6 +58,12 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.UNAUTHORIZED)
     public ApiResponse<Void> handleAuthenticationException(AuthenticationException e) {
         return ApiResponse.fail(401, "用户名或密码错误");
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ApiResponse<Void> handleHttpMessageNotReadableException(HttpMessageNotReadableException e) {
+        return ApiResponse.fail(400, "请求参数格式错误，请检查数据类型");
     }
 
     @ExceptionHandler(Exception.class)
