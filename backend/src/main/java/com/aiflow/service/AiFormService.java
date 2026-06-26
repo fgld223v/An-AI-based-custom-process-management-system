@@ -11,8 +11,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.regex.Pattern;
 
 @Slf4j
 @Service
@@ -24,7 +27,7 @@ public class AiFormService {
     private final ObjectMapper objectMapper;
 
     private static final String SYSTEM_PROMPT = """
-        你是一个企业级表单设计专家。根据用户描述生成完整、实用的表单字段配置。
+        你是一个企业级数据采集表单设计专家。根据用户描述生成完整、实用的表单字段配置。
 
         输出必须是合法的 JSON 对象，不要包裹在 Markdown 代码块中：
 
@@ -48,12 +51,23 @@ public class AiFormService {
 
         规则：
         1. fieldList 必须是 JSON 数组（不是字符串！），生成 5-10 个字段
-        2. 只有当用户描述明确涉及"审批""审核"等场景时，才额外添加审批字段：审批意见(label:"审批意见",type:"textarea",required:true)、审批结果(label:"审批结果",type:"select",options:[{"label":"同意","value":"agree"},{"label":"驳回","value":"reject"},{"label":"需修改","value":"modify"}],required:true)。如果用户描述的是普通数据填报/申请表单，不要添加审批相关字段
+        2. 【最高优先级限制 — 绝对禁止】你生成的是数据采集表单，仅用于用户填写和提交业务数据。
+           绝对禁止生成以下任何字段，无论用户描述中是否出现相关词汇：
+           × 审批意见、审批结果、审批结论、审批状态、审批结构、审批决定
+           × 审核意见、审核结果、审核结论、审核状态
+           × 批准意见、核准意见、签批意见、阅批意见、批复意见
+           × 处理意见、领导意见、上级意见、主管意见、经理意见、审批人
+           × 是否同意、是否批准、是否通过、同意标识、审批标识
+           × 任何 label 或 field 中包含「审批」「审核」「批准」「核准」「签批」
+             「阅批」「批复」「处理意见」的字段
+           记住：表单 = 数据采集，不是审批决策。用户只是填写信息，不是做审批决定。
+           你永远只生成业务数据字段（姓名、部门、日期、金额、事由、说明、附件等）。
         3. 每个字段必须包含：field（英文驼峰）、label（中文）、type、required
         4. type 取值：text、textarea、number、select、date、datetime、radio、checkbox、upload
         5. select/radio/checkbox 必须包含 options 数组，每个 option 含 label 和 value
         6. formSchema 是 JSON 对象（不是字符串！），含 layout（"vertical"）和 sections 数组
         7. 别用 fieldName/fieldLabel/fieldType，用 field/label/type
+        8. 【再次强调】不要审批字段！不要审批字段！不要审批字段！
         """;
 
     public AiGenerateFormResponse generateForm(String description) {
@@ -146,6 +160,9 @@ public class AiFormService {
             throw new BusinessException("AI 未生成有效的字段列表（fieldList 格式异常），请重试");
         }
 
+        // 6b. 后处理：过滤掉 AI 可能误生成的审批类字段
+        fieldListStr = stripApprovalFields(fieldListStr);
+
         // 7. 提取 formSchema — 同样兼容两种格式
         Object formSchemaObj = resultMap.get("formSchema");
         String formSchemaStr;
@@ -232,5 +249,70 @@ public class AiFormService {
             log.warn("日期范围规则注入失败: {}", e.getMessage());
             return fieldListJson;
         }
+    }
+
+    /** 审批类关键词 — 字段 label 或 field 名包含任一关键词即判定为审批字段并移除 */
+    private static final Set<String> APPROVAL_KEYWORDS = Set.of(
+            "审批", "审核", "批准", "核准", "签批", "阅批", "批复",
+            "处理意见", "领导意见", "上级意见", "主管意见", "经理意见",
+            "是否同意", "是否批准", "是否通过", "审批人"
+    );
+
+    /** 审批类 field 名（英文）— 符合任一模式即判定为审批字段 */
+    private static final Pattern APPROVAL_FIELD_PATTERN = Pattern.compile(
+            "^(approval|audit|review)(Result|Comment|Opinion|Status|Decision|Conclusion|Node|Config|Structure|Suggestion)?$",
+            Pattern.CASE_INSENSITIVE);
+
+    /**
+     * 从 fieldList JSON 中移除所有审批/审核类字段。
+     * 同时返回清理后的 JSON 字符串。
+     */
+    private String stripApprovalFields(String fieldListJson) {
+        try {
+            List<Map<String, Object>> fields = objectMapper.readValue(fieldListJson,
+                    new TypeReference<List<Map<String, Object>>>() {});
+            List<Map<String, Object>> cleaned = new ArrayList<>();
+            int removed = 0;
+            for (Map<String, Object> field : fields) {
+                String label = String.valueOf(field.getOrDefault("label", ""));
+                String fieldName = String.valueOf(field.getOrDefault("field", ""));
+                if (isApprovalField(label, fieldName)) {
+                    log.warn("【审批字段过滤】已移除字段「{}」(field={})，表单不应包含审批类字段",
+                            label, fieldName);
+                    removed++;
+                    continue;
+                }
+                cleaned.add(field);
+            }
+            if (removed > 0) {
+                log.info("审批字段过滤完成：共移除 {} 个审批类字段，保留 {} 个业务字段",
+                        removed, cleaned.size());
+                if (cleaned.isEmpty()) {
+                    throw new BusinessException("AI 生成的所有字段均为审批类字段，已被过滤。请用更具体的业务描述重试（如「员工请假申请表单：包含姓名、部门、请假类型、开始日期、结束日期、请假原因」）");
+                }
+                return objectMapper.writeValueAsString(cleaned);
+            }
+            return fieldListJson;
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            log.warn("审批字段过滤失败，保留原始 fieldList: {}", e.getMessage());
+            return fieldListJson;
+        }
+    }
+
+    /** 判断一个字段是否为审批/审核类字段 */
+    private boolean isApprovalField(String label, String fieldName) {
+        // 中文关键词检查
+        for (String kw : APPROVAL_KEYWORDS) {
+            if (label.contains(kw)) return true;
+        }
+        // 英文 field 名模式匹配
+        if (APPROVAL_FIELD_PATTERN.matcher(fieldName).matches()) return true;
+        // field 名中包含中文审批关键词（兜底）
+        for (String kw : APPROVAL_KEYWORDS) {
+            if (fieldName.contains(kw)) return true;
+        }
+        return false;
     }
 }
