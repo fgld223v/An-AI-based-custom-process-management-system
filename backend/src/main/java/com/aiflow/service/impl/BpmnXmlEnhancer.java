@@ -1,5 +1,9 @@
 package com.aiflow.service.impl;
 
+import com.aiflow.flowable.CcNotificationDelegateBridge;
+import com.aiflow.flowable.MultiInstanceAssigneeExecutionListenerBridge;
+import com.aiflow.flowable.SingleAssigneeTaskListenerBridge;
+import com.aiflow.flowable.TaskCreatedNotificationListenerBridge;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -62,14 +66,7 @@ public class BpmnXmlEnhancer {
      * @return 增强后的 BPMN XML
      */
     public String enhance(String bpmnXml, String nodeConfigJson) {
-        if (nodeConfigJson == null || nodeConfigJson.isBlank()) {
-            return bpmnXml;
-        }
-
         Map<String, Map<String, Object>> nodeConfigMap = parseNodeConfig(nodeConfigJson);
-        if (nodeConfigMap.isEmpty()) {
-            return bpmnXml;
-        }
 
         try {
             Document doc = parseXml(bpmnXml);
@@ -87,6 +84,7 @@ public class BpmnXmlEnhancer {
                 root.setAttributeNS("http://www.w3.org/2000/xmlns/", "xmlns:flowable", FLOWABLE_NS);
             }
 
+            if (!nodeConfigMap.isEmpty()) {
             for (Map.Entry<String, Map<String, Object>> entry : nodeConfigMap.entrySet()) {
                 String nodeId = entry.getKey();
                 Map<String, Object> config = entry.getValue();
@@ -107,6 +105,7 @@ public class BpmnXmlEnhancer {
                 if ("form_fill".equals(businessType) || "approval".equals(businessType)) {
                     injectTaskCreatedNotificationListener(doc, nodeId);
                 }
+            }
             }
 
             return serializeXml(doc);
@@ -170,8 +169,11 @@ public class BpmnXmlEnhancer {
         for (int i = 0; i < listeners.getLength(); i++) {
             Element listener = (Element) listeners.item(i);
             if ("start".equals(listener.getAttribute("event"))
-                    && "${multiInstanceAssigneeListener}".equals(
-                    listener.getAttributeNS(FLOWABLE_NS, "delegateExpression"))) {
+                    && (MultiInstanceAssigneeExecutionListenerBridge.class.getName().equals(getListenerImplementation(listener, "class"))
+                    || "${multiInstanceAssigneeListener}".equals(getListenerImplementation(listener, "delegateExpression")))) {
+                listener.removeAttributeNS(FLOWABLE_NS, "delegateExpression");
+                listener.removeAttribute("delegateExpression");
+                listener.setAttribute("class", MultiInstanceAssigneeExecutionListenerBridge.class.getName());
                 return;
             }
         }
@@ -179,8 +181,7 @@ public class BpmnXmlEnhancer {
         Element listener = doc.createElementNS(FLOWABLE_NS,
                 FLOWABLE_PREFIX + ":executionListener");
         listener.setAttribute("event", "start");
-        listener.setAttributeNS(FLOWABLE_NS, FLOWABLE_PREFIX + ":delegateExpression",
-                "${multiInstanceAssigneeListener}");
+        listener.setAttribute("class", MultiInstanceAssigneeExecutionListenerBridge.class.getName());
         extElements.appendChild(listener);
     }
 
@@ -199,14 +200,107 @@ public class BpmnXmlEnhancer {
             return;
         }
 
-        // 设置 JavaDelegate 实现类
-        task.setAttributeNS(FLOWABLE_NS, FLOWABLE_PREFIX + ":delegateExpression",
-                "${ccNotificationDelegate}");
+        removeImplementationAttribute(task, "delegateExpression");
+        task.setAttributeNS(FLOWABLE_NS, FLOWABLE_PREFIX + ":class",
+                CcNotificationDelegateBridge.class.getName());
 
         log.info("已为抄送节点 {} 注入 CC 通知委托", nodeId);
     }
 
     /**
+<<<<<<< Updated upstream
+=======
+     * 为 system_action（系统自动处理）节点注入 flowable:expression，
+     * 使其在流程到达时自动完成（无需任何 JavaDelegate 实现类）。
+     *
+     * <p>使用 expression 属性：Flowable 评估 "${true}" 后立即标记任务完成，
+     * 不依赖 Spring Bean，彻底避免代理/接口检测问题。</p>
+     *
+     * <p>同时移除可能存在的旧 delegateExpression="${systemActionDelegate}"，
+     * 防止 AI 生成的 BPMN 同时存在两个实现属性导致解析失败。</p>
+     */
+    private void injectSystemActionDelegate(Document doc, String nodeId) {
+        Element task = findElementById(doc, "serviceTask", nodeId);
+        if (task == null) {
+            log.warn("未找到 system_action 节点 {}，跳过委托注入", nodeId);
+            return;
+        }
+        // 移除旧的 delegateExpression，防止与 expression 冲突
+        removeImplementationAttribute(task, "delegateExpression");
+        task.setAttributeNS(FLOWABLE_NS, FLOWABLE_PREFIX + ":expression", "${true}");
+        log.info("已为 system_action 节点 {} 注入自动完成表达式", nodeId);
+    }
+
+    /**
+     * 安全网：为所有仍未设置实现属性的 serviceTask 注入默认委托，
+     * 防止 Flowable 部署时因缺少实现而失败。
+     *
+     * <p>同时处理 AI 生成的 BPMN 中可能残留的
+     * delegateExpression="${systemActionDelegate}"，
+     * 将其替换为 expression="${true}"（无需任何 JavaDelegate 实现类）。</p>
+     */
+    private void ensureServiceTaskImplementation(Document doc) {
+        NodeList serviceTasks = doc.getElementsByTagNameNS(BPMN_NS, "serviceTask");
+        for (int i = 0; i < serviceTasks.getLength(); i++) {
+            Element task = (Element) serviceTasks.item(i);
+
+            // 将无法解析的 delegateExpression="${systemActionDelegate}" 替换为 expression
+            String delegateExpr = getImplementationAttribute(task, "delegateExpression");
+            if ("${systemActionDelegate}".equals(delegateExpr)) {
+                removeImplementationAttribute(task, "delegateExpression");
+                task.setAttributeNS(FLOWABLE_NS, FLOWABLE_PREFIX + ":expression", "${true}");
+                log.info("已将 serviceTask {} 的 systemActionDelegate 替换为 expression={}",
+                        task.getAttribute("id"), "${true}");
+                continue;
+            }
+
+            if (hasServiceTaskImplementation(task)) continue;
+
+            String nodeId = task.getAttribute("id");
+            log.warn("serviceTask {} 缺少实现属性，自动注入默认表达式", nodeId);
+            task.setAttributeNS(FLOWABLE_NS, FLOWABLE_PREFIX + ":expression", "${true}");
+        }
+    }
+
+    /** 检查 serviceTask 是否已有实现属性 */
+    private boolean hasServiceTaskImplementation(Element task) {
+        String[] implAttrs = {"class", "delegateExpression", "type", "operation", "expression"};
+        for (String attr : implAttrs) {
+            if (task.hasAttributeNS(FLOWABLE_NS, attr)
+                    || task.hasAttribute(FLOWABLE_PREFIX + ":" + attr)
+                    || task.hasAttribute("activiti:" + attr)
+                    || task.hasAttribute(attr)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String getImplementationAttribute(Element task, String attr) {
+        if (task.hasAttributeNS(FLOWABLE_NS, attr)) {
+            return task.getAttributeNS(FLOWABLE_NS, attr);
+        }
+        if (task.hasAttribute(FLOWABLE_PREFIX + ":" + attr)) {
+            return task.getAttribute(FLOWABLE_PREFIX + ":" + attr);
+        }
+        if (task.hasAttribute("activiti:" + attr)) {
+            return task.getAttribute("activiti:" + attr);
+        }
+        if (task.hasAttribute(attr)) {
+            return task.getAttribute(attr);
+        }
+        return "";
+    }
+
+    private void removeImplementationAttribute(Element task, String attr) {
+        task.removeAttributeNS(FLOWABLE_NS, attr);
+        task.removeAttribute(FLOWABLE_PREFIX + ":" + attr);
+        task.removeAttribute("activiti:" + attr);
+        task.removeAttribute(attr);
+    }
+
+    /**
+>>>>>>> Stashed changes
      * 为 form_fill 节点注入 {@code flowable:assignee="${initiator}"}，
      * 使任务自动分配给流程发起人（即申请人）。
      */
@@ -251,9 +345,12 @@ public class BpmnXmlEnhancer {
         NodeList existingListeners = extElements.getElementsByTagNameNS(FLOWABLE_NS, "taskListener");
         for (int i = 0; i < existingListeners.getLength(); i++) {
             Element listener = (Element) existingListeners.item(i);
-            String delegateExpression = listener.getAttributeNS(FLOWABLE_NS, "delegateExpression");
             if ("create".equals(listener.getAttribute("event"))
-                    && "${singleAssigneeListener}".equals(delegateExpression)) {
+                    && (SingleAssigneeTaskListenerBridge.class.getName().equals(getListenerImplementation(listener, "class"))
+                    || "${singleAssigneeListener}".equals(getListenerImplementation(listener, "delegateExpression")))) {
+                listener.removeAttributeNS(FLOWABLE_NS, "delegateExpression");
+                listener.removeAttribute("delegateExpression");
+                listener.setAttribute("class", SingleAssigneeTaskListenerBridge.class.getName());
                 return;
             }
         }
@@ -262,8 +359,7 @@ public class BpmnXmlEnhancer {
         Element taskListener = doc.createElementNS(FLOWABLE_NS,
                 FLOWABLE_PREFIX + ":taskListener");
         taskListener.setAttribute("event", "create");
-        taskListener.setAttributeNS(FLOWABLE_NS, FLOWABLE_PREFIX + ":delegateExpression",
-                "${singleAssigneeListener}");
+        taskListener.setAttribute("class", SingleAssigneeTaskListenerBridge.class.getName());
         extElements.appendChild(taskListener);
 
         log.info("已为 SINGLE 审批节点 {} 注入 TaskListener（assignStrategy={}）",
@@ -286,17 +382,35 @@ public class BpmnXmlEnhancer {
         for (int i = 0; i < listeners.getLength(); i++) {
             Element listener = (Element) listeners.item(i);
             if ("create".equals(listener.getAttribute("event"))
-                    && "${taskCreatedNotificationListener}".equals(
-                    listener.getAttributeNS(FLOWABLE_NS, "delegateExpression"))) {
+                    && (TaskCreatedNotificationListenerBridge.class.getName().equals(getListenerImplementation(listener, "class"))
+                    || "${taskCreatedNotificationListener}".equals(getListenerImplementation(listener, "delegateExpression")))) {
+                listener.removeAttributeNS(FLOWABLE_NS, "delegateExpression");
+                listener.removeAttribute("delegateExpression");
+                listener.setAttribute("class", TaskCreatedNotificationListenerBridge.class.getName());
                 return;
             }
         }
 
         Element listener = doc.createElementNS(FLOWABLE_NS, FLOWABLE_PREFIX + ":taskListener");
         listener.setAttribute("event", "create");
-        listener.setAttributeNS(FLOWABLE_NS, FLOWABLE_PREFIX + ":delegateExpression",
-                "${taskCreatedNotificationListener}");
+        listener.setAttribute("class", TaskCreatedNotificationListenerBridge.class.getName());
         extElements.appendChild(listener);
+    }
+
+    private String getListenerImplementation(Element listener, String attr) {
+        if (listener.hasAttribute(attr)) {
+            return listener.getAttribute(attr);
+        }
+        if (listener.hasAttributeNS(FLOWABLE_NS, attr)) {
+            return listener.getAttributeNS(FLOWABLE_NS, attr);
+        }
+        if (listener.hasAttribute(FLOWABLE_PREFIX + ":" + attr)) {
+            return listener.getAttribute(FLOWABLE_PREFIX + ":" + attr);
+        }
+        if (listener.hasAttribute("activiti:" + attr)) {
+            return listener.getAttribute("activiti:" + attr);
+        }
+        return "";
     }
 
     /**
@@ -380,6 +494,9 @@ public class BpmnXmlEnhancer {
      * 前端格式：{ "NodeId1": { "nodeId": "NodeId1", ... }, "NodeId2": { ... } }
      */
     private Map<String, Map<String, Object>> parseNodeConfig(String json) {
+        if (json == null || json.isBlank()) {
+            return Map.of();
+        }
         try {
             return objectMapper.readValue(json,
                     new TypeReference<Map<String, Map<String, Object>>>() {});
