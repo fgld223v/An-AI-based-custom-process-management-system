@@ -15,6 +15,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -63,12 +65,11 @@ public class AiApprovalService {
         ProcessTemplate template = processTemplateRepository.findById(instance.getTemplateId())
                 .orElseThrow(() -> new BusinessException("流程模板不存在"));
 
-        // 2. 查询当前节点表单数据
-        FormSubmission submission = formSubmissionRepository
-                .findByProcessInstanceIdAndNodeKeyAndDeleted(instanceId, nodeKey, 0)
-                .orElse(null);
-        String formData = submission != null && submission.getFormDataJson() != null
-                ? submission.getFormDataJson() : "{}";
+        // 2. 查询表单数据 — 从该实例所有已提交节点中提取，而非仅当前审批节点
+        //    （审批节点的 FormSubmission 通常仅含审批意见，不含业务字段）
+        List<FormSubmission> allSubmissions = formSubmissionRepository
+                .findByProcessInstanceIdAndDeletedOrderByUpdatedAtDescCreatedAtDesc(instanceId, 0);
+        String formData = extractBusinessFormData(allSubmissions);
 
         // 3. 查询节点配置
         String nodeConfigJson = template.getNodeConfig();
@@ -119,6 +120,56 @@ public class AiApprovalService {
         }
 
         return response;
+    }
+
+    /**
+     * 从所有 FormSubmission 中提取业务表单数据（排除审批元数据）。
+     * 优先返回有实际业务字段的节点数据，按更新时间倒序。
+     */
+    private String extractBusinessFormData(List<FormSubmission> submissions) {
+        List<String> candidates = new ArrayList<>();
+        for (FormSubmission sub : submissions) {
+            if (sub.getFormDataJson() == null || sub.getFormDataJson().isBlank()) continue;
+            // 跳过纯审批节点（通常只含 approvalResult/approvalComment 等元数据）
+            if ("approval".equalsIgnoreCase(sub.getBusinessType())
+                    && isApprovalOnlyData(sub.getFormDataJson())) {
+                continue;
+            }
+            candidates.add(sub.getFormDataJson());
+        }
+        // 返回最新的非审批业务数据
+        if (!candidates.isEmpty()) {
+            return candidates.get(0);
+        }
+        // 兜底：返回任意非空数据
+        for (FormSubmission sub : submissions) {
+            if (sub.getFormDataJson() != null && !sub.getFormDataJson().isBlank()) {
+                return sub.getFormDataJson();
+            }
+        }
+        return "{}";
+    }
+
+    /** 判断表单数据是否仅包含审批元数据字段 */
+    private boolean isApprovalOnlyData(String formDataJson) {
+        try {
+            Map<String, Object> data = objectMapper.readValue(formDataJson,
+                    new TypeReference<Map<String, Object>>() {});
+            // 如果所有 key 都是审批元数据，则判定为纯审批节点
+            for (String key : data.keySet()) {
+                if (!("approvalResult".equals(key) || "approvalComment".equals(key)
+                        || "approvalOpinion".equals(key) || "comment".equals(key)
+                        || "approved".equals(key) || "rejected".equals(key)
+                        || "operatedAt".equals(key) || "automatic".equals(key)
+                        || "automaticReason".equals(key)
+                        || "approvalResult".equals(key) || "nodeKey".equals(key))) {
+                    return false; // 包含业务字段
+                }
+            }
+            return !data.isEmpty();
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     private AiApprovalResponse callDeepSeek(String userPrompt) {

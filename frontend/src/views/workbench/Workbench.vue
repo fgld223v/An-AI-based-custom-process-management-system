@@ -2,7 +2,7 @@
   <div class="workbench-page">
     <section class="welcome-band">
       <div>
-        <el-tag effect="plain" type="success">V0.7 第四阶段</el-tag>
+        <el-tag effect="plain" type="success">工作台</el-tag>
         <h1>AI 流程管理系统</h1>
         <p>模板管理 · 表单设计 · 流程编辑器 · BPMN 引擎 · 待办/已办中心</p>
       </div>

@@ -98,7 +98,7 @@ const allMenuGroups: MenuGroup[] = [
   {
     title: '流程',
     items: [
-      { label: '我的流程', path: '/my-processes', icon: Guide, available: true, roles: adminRoles },
+      { label: '我的流程', path: '/my-processes', icon: Guide, available: true, roles: bizAdminOnly },
       { label: '表单设计器', path: '/form-designer', icon: Files, available: true, roles: adminRoles },
       { label: '流程编辑器', path: '/process-designer', icon: EditPen, available: true, roles: adminRoles }
     ]

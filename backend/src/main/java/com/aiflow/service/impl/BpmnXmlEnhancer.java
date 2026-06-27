@@ -101,12 +101,17 @@ public class BpmnXmlEnhancer {
                     injectSingleApprovalListener(doc, nodeId, config);
                 } else if ("notify".equals(businessType)) {
                     injectCcDelegate(doc, nodeId, config);
+                } else if ("system_action".equals(businessType)) {
+                    injectSystemActionDelegate(doc, nodeId);
                 }
                 if ("form_fill".equals(businessType) || "approval".equals(businessType)) {
                     injectTaskCreatedNotificationListener(doc, nodeId);
                 }
             }
             }
+
+            // 安全网：确保所有 serviceTask 都有实现属性，防止 Flowable 部署失败
+            ensureServiceTaskImplementation(doc);
 
             return serializeXml(doc);
         } catch (Exception e) {
@@ -208,8 +213,6 @@ public class BpmnXmlEnhancer {
     }
 
     /**
-<<<<<<< Updated upstream
-=======
      * 为 system_action（系统自动处理）节点注入 flowable:expression，
      * 使其在流程到达时自动完成（无需任何 JavaDelegate 实现类）。
      *
@@ -276,6 +279,7 @@ public class BpmnXmlEnhancer {
         return false;
     }
 
+
     private String getImplementationAttribute(Element task, String attr) {
         if (task.hasAttributeNS(FLOWABLE_NS, attr)) {
             return task.getAttributeNS(FLOWABLE_NS, attr);
@@ -300,7 +304,7 @@ public class BpmnXmlEnhancer {
     }
 
     /**
->>>>>>> Stashed changes
+
      * 为 form_fill 节点注入 {@code flowable:assignee="${initiator}"}，
      * 使任务自动分配给流程发起人（即申请人）。
      */
