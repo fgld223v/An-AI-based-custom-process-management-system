@@ -1,34 +1,32 @@
 package com.aiflow.config;
 
 import com.aiflow.repository.ProcessTemplateRepository;
+import com.aiflow.service.impl.CcNotificationDelegate;
+import com.aiflow.service.impl.MultiInstanceAssigneeListener;
+import com.aiflow.service.impl.SingleAssigneeListener;
+import com.aiflow.service.impl.SystemActionDelegate;
+import com.aiflow.service.impl.TaskCreatedNotificationListener;
 import lombok.extern.slf4j.Slf4j;
 import org.flowable.engine.RepositoryService;
 import org.flowable.engine.delegate.ExecutionListener;
 import org.flowable.engine.delegate.JavaDelegate;
-import org.flowable.task.service.delegate.TaskListener;
 import org.flowable.engine.repository.Deployment;
 import org.flowable.engine.repository.ProcessDefinition;
 import org.flowable.spring.SpringProcessEngineConfiguration;
 import org.flowable.spring.boot.ProcessEngineConfigurationConfigurer;
+import org.flowable.task.service.delegate.TaskListener;
+import org.springframework.aop.framework.Advised;
+import org.springframework.beans.BeansException;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * 三重保障：
- * <ol>
- *   <li>将 Spring 容器中所有 JavaDelegate / TaskListener / ExecutionListener Bean
- *       自动注册到 Flowable beans map，确保各类 delegateExpression 均可解析</li>
- *   <li>启动时修复已部署模板中的 ${systemActionDelegate} → ${true}，
- *       <b>并同步更新 ProcessTemplate 记录</b>，确保新实例使用修正后的定义</li>
- *   <li>@Lazy 打破与 RepositoryService 之间的循环依赖</li>
- * </ol>
- */
 @Slf4j
 @Component
 public class FlowableDelegateConfig implements ProcessEngineConfigurationConfigurer, CommandLineRunner {
@@ -45,40 +43,77 @@ public class FlowableDelegateConfig implements ProcessEngineConfigurationConfigu
         this.processTemplateRepository = processTemplateRepository;
     }
 
-    /**
-     * 自动发现并注册所有委托 Bean 到 Flowable beans map。
-     */
     @Override
     public void configure(SpringProcessEngineConfiguration config) {
-        if (config.getBeans() == null) {
-            config.setBeans(new java.util.HashMap<>());
-        }
+        Map<Object, Object> existingBeans = config.getBeans() == null
+                ? Map.of()
+                : new HashMap<>(config.getBeans());
+        Map<Object, Object> flowableBeans = new HashMap<>(existingBeans);
+        config.setBeans(flowableBeans);
 
         Map<String, JavaDelegate> javaDelegates = applicationContext.getBeansOfType(JavaDelegate.class);
         for (Map.Entry<String, JavaDelegate> entry : javaDelegates.entrySet()) {
-            config.getBeans().put(entry.getKey(), entry.getValue());
-            log.info("已注册 JavaDelegate Bean [{}] → Flowable beans map", entry.getKey());
+            Object candidate = unwrapProxyIfNeeded(entry.getValue(), JavaDelegate.class);
+            config.getBeans().put(entry.getKey(), candidate);
+            log.info("Registered JavaDelegate bean [{}] into Flowable beans map", entry.getKey());
         }
 
         Map<String, TaskListener> taskListeners = applicationContext.getBeansOfType(TaskListener.class);
         for (Map.Entry<String, TaskListener> entry : taskListeners.entrySet()) {
-            config.getBeans().put(entry.getKey(), entry.getValue());
-            log.info("已注册 TaskListener Bean [{}] → Flowable beans map", entry.getKey());
+            Object candidate = unwrapProxyIfNeeded(entry.getValue(), TaskListener.class);
+            config.getBeans().put(entry.getKey(), candidate);
+            log.info("Registered TaskListener bean [{}] into Flowable beans map", entry.getKey());
         }
 
         Map<String, ExecutionListener> executionListeners = applicationContext.getBeansOfType(ExecutionListener.class);
         for (Map.Entry<String, ExecutionListener> entry : executionListeners.entrySet()) {
-            config.getBeans().put(entry.getKey(), entry.getValue());
-            log.info("已注册 ExecutionListener Bean [{}] → Flowable beans map", entry.getKey());
+            Object candidate = unwrapProxyIfNeeded(entry.getValue(), ExecutionListener.class);
+            config.getBeans().put(entry.getKey(), candidate);
+            log.info("Registered ExecutionListener bean [{}] into Flowable beans map", entry.getKey());
+        }
+
+        registerRequiredFlowableBean(config, "systemActionDelegate", SystemActionDelegate.class, JavaDelegate.class);
+        registerRequiredFlowableBean(config, "singleAssigneeListener", SingleAssigneeListener.class, TaskListener.class);
+        registerRequiredFlowableBean(config, "multiInstanceAssigneeListener", MultiInstanceAssigneeListener.class, ExecutionListener.class);
+        registerRequiredFlowableBean(config, "taskCreatedNotificationListener", TaskCreatedNotificationListener.class, TaskListener.class);
+        registerRequiredFlowableBean(config, "ccNotificationDelegate", CcNotificationDelegate.class, JavaDelegate.class);
+    }
+
+    private void registerRequiredFlowableBean(SpringProcessEngineConfiguration config,
+                                              String beanName,
+                                              Class<?> expectedClass,
+                                              Class<?> requiredInterface) {
+        try {
+            Object bean = applicationContext.getBean(beanName);
+            Object candidate = unwrapProxyIfNeeded(bean, requiredInterface);
+            if (!expectedClass.isInstance(candidate) && !requiredInterface.isInstance(candidate)) {
+                log.warn("Flowable delegate bean [{}] type mismatch: actual={}, required={}",
+                        beanName, candidate.getClass().getName(), requiredInterface.getName());
+            }
+            config.getBeans().put(beanName, candidate);
+            log.info("Registered required Flowable bean [{}] ({})", beanName, candidate.getClass().getName());
+        } catch (BeansException ex) {
+            log.warn("Required Flowable bean [{}] was not found: {}", beanName, ex.getMessage());
         }
     }
 
-    /**
-     * 启动时遍历所有已部署的流程定义，将 BPMN XML 中的
-     * delegateExpression="${systemActionDelegate}" 替换为
-     * flowable:expression="${true}"，
-     * <b>并同步更新 ProcessTemplate 记录指向新部署</b>。
-     */
+    private Object unwrapProxyIfNeeded(Object bean, Class<?> requiredInterface) {
+        if (requiredInterface.isInstance(bean)) {
+            return bean;
+        }
+        if (bean instanceof Advised advised) {
+            try {
+                Object target = advised.getTargetSource().getTarget();
+                if (target != null && requiredInterface.isInstance(target)) {
+                    return target;
+                }
+            } catch (Exception ex) {
+                log.warn("Failed to unwrap Flowable delegate proxy {}: {}", bean.getClass().getName(), ex.getMessage());
+            }
+        }
+        return bean;
+    }
+
     @Override
     public void run(String... args) {
         List<ProcessDefinition> definitions = repositoryService.createProcessDefinitionQuery()
@@ -93,26 +128,20 @@ public class FlowableDelegateConfig implements ProcessEngineConfigurationConfigu
                 String bpmnXml = new String(modelBytes, StandardCharsets.UTF_8);
                 if (!bpmnXml.contains("systemActionDelegate")) continue;
 
-                String fixedXml = bpmnXml.replace(
-                        "flowable:delegateExpression=\"${systemActionDelegate}\"",
-                        "flowable:expression=\"${true}\"");
-
+                String fixedXml = replaceSystemActionDelegate(bpmnXml);
                 if (!fixedXml.equals(bpmnXml)) {
                     String oldDefinitionId = pd.getId();
 
-                    // 重新部署修正后的 BPMN
                     Deployment deployment = repositoryService.createDeployment()
                             .name(pd.getName() + "-fixed")
                             .key(pd.getKey())
                             .addString(pd.getResourceName(), fixedXml)
                             .deploy();
 
-                    // 获取新部署的 ProcessDefinition
                     ProcessDefinition newPd = repositoryService.createProcessDefinitionQuery()
                             .deploymentId(deployment.getId())
                             .singleResult();
 
-                    // 更新 ProcessTemplate 记录，使其指向修正后的 Flowable 定义
                     if (newPd != null) {
                         processTemplateRepository.findByFlowableProcessDefinitionId(oldDefinitionId)
                                 .ifPresent(template -> {
@@ -121,20 +150,31 @@ public class FlowableDelegateConfig implements ProcessEngineConfigurationConfigu
                                     template.setBpmnXml(fixedXml);
                                     processTemplateRepository.save(template);
                                     templateUpdated.incrementAndGet();
-                                    log.info("已更新模板 [{}] 的 Flowable 定义 ID: {} → {}",
+                                    log.info("Updated template [{}] Flowable definition id: {} -> {}",
                                             template.getTemplateCode(), oldDefinitionId, newPd.getId());
                                 });
                     }
 
                     fixed++;
-                    log.info("已修复流程定义 [{}] 中的 systemActionDelegate 引用", pd.getKey());
+                    log.info("Fixed systemActionDelegate reference in process definition [{}]", pd.getKey());
                 }
             } catch (Exception e) {
-                log.warn("修复流程定义 [{}] 失败: {}", pd.getKey(), e.getMessage());
+                log.warn("Failed to fix process definition [{}]: {}", pd.getKey(), e.getMessage());
             }
         }
         if (fixed > 0) {
-            log.info("共修复 {} 个包含 systemActionDelegate 的流程定义，更新 {} 个模板记录", fixed, templateUpdated.get());
+            log.info("Fixed {} process definitions containing systemActionDelegate and updated {} templates",
+                    fixed, templateUpdated.get());
         }
+    }
+
+    private String replaceSystemActionDelegate(String bpmnXml) {
+        return bpmnXml
+                .replace("flowable:delegateExpression=\"${systemActionDelegate}\"", "flowable:expression=\"${true}\"")
+                .replace("flowable:delegateExpression='${systemActionDelegate}'", "flowable:expression=\"${true}\"")
+                .replace("activiti:delegateExpression=\"${systemActionDelegate}\"", "flowable:expression=\"${true}\"")
+                .replace("activiti:delegateExpression='${systemActionDelegate}'", "flowable:expression=\"${true}\"")
+                .replace("delegateExpression=\"${systemActionDelegate}\"", "flowable:expression=\"${true}\"")
+                .replace("delegateExpression='${systemActionDelegate}'", "flowable:expression=\"${true}\"");
     }
 }

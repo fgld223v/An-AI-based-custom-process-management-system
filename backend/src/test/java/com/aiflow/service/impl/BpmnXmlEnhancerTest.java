@@ -1,6 +1,9 @@
 package com.aiflow.service.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.aiflow.flowable.MultiInstanceAssigneeExecutionListenerBridge;
+import com.aiflow.flowable.SingleAssigneeTaskListenerBridge;
+import com.aiflow.flowable.TaskCreatedNotificationListenerBridge;
 import org.flowable.engine.ProcessEngine;
 import org.flowable.engine.ProcessEngineConfiguration;
 import org.flowable.engine.impl.cfg.StandaloneInMemProcessEngineConfiguration;
@@ -33,10 +36,32 @@ class BpmnXmlEnhancerTest {
         String enhanced = enhancer.enhance(xml, config);
         String enhancedAgain = enhancer.enhance(enhanced, config);
 
-        assertThat(enhanced).contains("singleAssigneeListener");
-        assertThat(enhanced).contains("taskCreatedNotificationListener");
+        assertThat(enhanced).contains(SingleAssigneeTaskListenerBridge.class.getName());
+        assertThat(enhanced).contains(TaskCreatedNotificationListenerBridge.class.getName());
         assertThat(enhanced).doesNotContain("assignee=\"${initiator}\"");
-        assertThat(count(enhancedAgain, "singleAssigneeListener")).isEqualTo(1);
+        assertThat(count(enhancedAgain, SingleAssigneeTaskListenerBridge.class.getName())).isEqualTo(1);
+    }
+
+    @Test
+    void cleansLegacySystemActionDelegateEvenWhenNodeConfigIsBlank() {
+        String xml = """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                                  xmlns:flowable="http://flowable.org/bpmn"
+                                  id="Definitions_1" targetNamespace="http://example.com">
+                  <bpmn:process id="Process_1" isExecutable="true">
+                    <bpmn:startEvent id="Start_1" />
+                    <bpmn:serviceTask id="Auto_1" name="Auto"
+                                      flowable:delegateExpression="${systemActionDelegate}" />
+                    <bpmn:endEvent id="End_1" />
+                  </bpmn:process>
+                </bpmn:definitions>
+                """;
+
+        String enhanced = enhancer.enhance(xml, null);
+
+        assertThat(enhanced).doesNotContain("systemActionDelegate");
+        assertThat(enhanced).contains("flowable:expression=\"${true}\"");
     }
 
     @Test
@@ -65,8 +90,8 @@ class BpmnXmlEnhancerTest {
 
         assertThat(enhanced)
                 .contains("rejected || nrOfCompletedInstances == nrOfInstances")
-                .contains("multiInstanceAssigneeListener")
-                .contains("taskCreatedNotificationListener")
+                .contains(MultiInstanceAssigneeExecutionListenerBridge.class.getName())
+                .contains(TaskCreatedNotificationListenerBridge.class.getName())
                 .contains("<bpmn:extensionElements>");
 
         StandaloneInMemProcessEngineConfiguration configuration =

@@ -13,6 +13,8 @@
         </div>
         <div class="process-actions">
           <el-button round :icon="ArrowLeft" @click="goBack">返回</el-button>
+          <el-button round :icon="View" @click="openXmlPreview">回显 XML</el-button>
+          <el-button round :icon="Upload" @click="openXmlImport">导入 XML</el-button>
           <el-button round type="success" :icon="Check" @click="saveXml">保存</el-button>
           <el-button round type="primary" :icon="Promotion" @click="publishCurrent">发布</el-button>
           <el-button round :icon="CopyDocument" @click="openSaveAsDialog">另存为</el-button>
@@ -52,10 +54,55 @@
     <aside class="process-property-panel">
       <div class="designer-panel-head">
         <span>节点属性</span>
-        <small>{{ selectedConfig ? getBusinessLabel(selectedConfig.businessType) : '未选择' }}</small>
+        <small>{{ selectedSequenceFlow ? '流程连线' : selectedConfig ? getBusinessLabel(selectedConfig.businessType) : '未选择' }}</small>
       </div>
 
-      <el-empty v-if="!selectedElement || !selectedConfig" description="点击画布节点查看配置" />
+      <el-form v-if="selectedSequenceFlow" label-position="top" class="property-form">
+        <el-alert
+          type="info"
+          :closable="false"
+          show-icon
+          title="当前选中的是流程连线。条件分支的判断条件需要配置在从网关引出的连线上。"
+        />
+        <el-form-item label="连线ID">
+          <el-input :model-value="selectedSequenceFlow.id" disabled />
+        </el-form-item>
+        <el-form-item label="连线名称">
+          <el-input
+            :model-value="selectedSequenceFlowName"
+            placeholder="例如：金额 > 5000"
+            @update:model-value="updateSelectedSequenceFlowName"
+          />
+        </el-form-item>
+        <el-form-item label="来源节点">
+          <el-input :model-value="selectedSequenceFlow.sourceName" disabled />
+        </el-form-item>
+        <el-form-item label="目标节点">
+          <el-input :model-value="selectedSequenceFlow.targetName" disabled />
+        </el-form-item>
+        <el-divider content-position="left">条件表达式</el-divider>
+        <el-form-item label="表达式">
+          <el-input
+            :model-value="selectedSequenceFlowCondition"
+            type="textarea"
+            :rows="3"
+            placeholder="例如：totalAmount > 5000"
+            @update:model-value="updateSelectedSequenceFlowCondition"
+          />
+          <div class="designer-empty-hint">
+            直接填写变量条件即可，系统会保存为 ${...}。例如报销总金额字段为 totalAmount。
+          </div>
+        </el-form-item>
+        <el-button
+          text
+          type="warning"
+          :disabled="!selectedSequenceFlowCondition"
+          @click="clearSelectedSequenceFlowCondition"
+        >
+          清空条件
+        </el-button>
+      </el-form>
+      <el-empty v-else-if="!selectedElement || !selectedConfig" description="点击画布节点查看配置" />
       <el-form v-else label-position="top" class="property-form">
         <el-form-item label="节点ID">
           <el-input :model-value="selectedConfig.nodeId" disabled />
@@ -198,20 +245,53 @@
 
         <template v-else-if="selectedConfig.businessType === 'condition'">
           <el-divider content-position="left">条件分支配置</el-divider>
-          <el-form-item label="分支描述">
-            <el-input v-model="selectedConfig.branchDescription" placeholder="例如：请假天数判断" @change="syncNodeConfig" />
-          </el-form-item>
-          <el-form-item label="条件表达式">
-            <el-input v-model="selectedConfig.conditionExpression" type="textarea" :rows="3"
-              placeholder="例如：leaveDays > 3" @change="syncNodeConfig" />
-            <div class="designer-empty-hint">使用流程变量编写条件，如 leaveDays > 3、amount >= 5000</div>
-          </el-form-item>
-          <el-form-item label="条件字段">
-            <el-input v-model="selectedConfig.conditionField" placeholder="例如：leaveDays" @change="syncNodeConfig" />
-          </el-form-item>
-          <el-form-item label="默认分支">
-            <el-input v-model="selectedConfig.defaultFlow" placeholder="无条件匹配时的兜底分支ID" @change="syncNodeConfig" />
-          </el-form-item>
+          <el-alert
+            type="info"
+            :closable="false"
+            show-icon
+            title="条件判断实际保存在从网关引出的连线上。请在下方为每条出口分支填写判断条件。"
+          />
+          <el-empty
+            v-if="selectedGatewayOutgoingFlows.length === 0"
+            description="当前条件节点还没有出口连线，请先连接后续节点"
+          />
+          <div v-else class="gateway-branch-list">
+            <div
+              v-for="flow in selectedGatewayOutgoingFlows"
+              :key="flow.id"
+              class="gateway-branch-item"
+            >
+              <div class="gateway-branch-head">
+                <strong>{{ flow.name || flow.id }}</strong>
+                <span>到 {{ flow.targetName }}</span>
+              </div>
+              <el-form-item label="分支名称">
+                <el-input
+                  :model-value="flow.name"
+                  placeholder="例如：金额 > 5000"
+                  @update:model-value="updateGatewayBranchName(flow.id, $event)"
+                />
+              </el-form-item>
+              <el-form-item label="条件表达式">
+                <el-input
+                  :model-value="flow.condition"
+                  type="textarea"
+                  :rows="2"
+                  placeholder="例如：totalAmount > 5000"
+                  @update:model-value="updateGatewayBranchCondition(flow.id, $event)"
+                />
+                <div class="designer-empty-hint">直接填写变量条件即可，系统会保存为 ${...}。</div>
+              </el-form-item>
+              <el-button
+                text
+                type="warning"
+                :disabled="!flow.condition"
+                @click="updateGatewayBranchCondition(flow.id, '')"
+              >
+                清空条件
+              </el-button>
+            </div>
+          </div>
         </template>
 
         <template v-else-if="selectedConfig.businessType === 'form_fill'">
@@ -532,6 +612,7 @@ import {
   Promotion,
   Share,
   Switch,
+  Upload,
   VideoPlay,
   MagicStick
 } from '@element-plus/icons-vue'
@@ -573,7 +654,31 @@ interface BpmnElement {
   type: string
   businessObject?: {
     name?: string
+    sourceRef?: {
+      id?: string
+      name?: string
+    }
+    targetRef?: {
+      id?: string
+      name?: string
+    }
+    conditionExpression?: {
+      body?: string
+    } | null
   }
+}
+
+interface SequenceFlowProperty {
+  id: string
+  sourceName: string
+  targetName: string
+}
+
+interface GatewayBranchFlow {
+  id: string
+  name: string
+  targetName: string
+  condition: string
 }
 
 interface NodeBusinessConfig {
@@ -730,6 +835,7 @@ const emit = defineEmits<{
 const canvasRef = ref<HTMLDivElement>()
 const modeler = ref<any>()
 const selectedElement = ref<BpmnElement | null>(null)
+const propertyRevision = ref(0)
 const AI_GENERATED_BPMN_KEY = 'ai-generated-bpmn'
 const AI_GENERATED_NODE_CONFIG_KEY = 'ai-generated-nodeconfig'
 const AI_FORM_PROMPT_KEY = 'ai-form-prompt'
@@ -782,8 +888,46 @@ const templateSaveForm = reactive({
 })
 
 const selectedConfig = computed(() => {
-  if (!selectedElement.value) return null
+  if (!selectedElement.value || isSequenceFlow(selectedElement.value) || !isManagedBpmnElement(selectedElement.value)) return null
   return ensureNodeConfig(selectedElement.value)
+})
+const selectedSequenceFlow = computed<SequenceFlowProperty | null>(() => {
+  const element = selectedElement.value
+  if (!element || !isSequenceFlow(element)) return null
+  const businessObject = element.businessObject || {}
+  const source = businessObject.sourceRef
+  const target = businessObject.targetRef
+  return {
+    id: element.id,
+    sourceName: source?.name || source?.id || '-',
+    targetName: target?.name || target?.id || '-'
+  }
+})
+const selectedSequenceFlowName = computed(() => {
+  propertyRevision.value
+  return selectedElement.value?.businessObject?.name || ''
+})
+const selectedSequenceFlowCondition = computed(() => {
+  propertyRevision.value
+  return stripFlowableExpression(selectedElement.value?.businessObject?.conditionExpression?.body || '')
+})
+const selectedGatewayOutgoingFlows = computed<GatewayBranchFlow[]>(() => {
+  propertyRevision.value
+  const gateway = selectedElement.value
+  if (!gateway || gateway.type !== 'bpmn:ExclusiveGateway' || !modeler.value) return []
+  const elementRegistry = modeler.value.get('elementRegistry')
+  const flows = elementRegistry.filter((element: BpmnElement) => {
+    return isSequenceFlow(element) && element.businessObject?.sourceRef?.id === gateway.id
+  }) as BpmnElement[]
+  return flows.map((flow) => {
+    const target = flow.businessObject?.targetRef
+    return {
+      id: flow.id,
+      name: flow.businessObject?.name || '',
+      targetName: target?.name || target?.id || '-',
+      condition: stripFlowableExpression(flow.businessObject?.conditionExpression?.body || '')
+    }
+  })
 })
 const availableAssigneeRoles = computed(() => {
   if (selectedConfig.value?.assigneeType === 'GLOBAL_ROLE') {
@@ -1048,6 +1192,7 @@ function bindModelerEvents() {
     }
   })
   eventBus.on('commandStack.changed', async () => {
+    propertyRevision.value += 1
     reconcileNodeConfigMapWithCanvas()
     await syncXml(false)
     refreshStats()
@@ -1328,6 +1473,18 @@ async function syncXml(emitChange: boolean) {
   }
 }
 
+async function openXmlPreview() {
+  await syncXml(false)
+  xmlText.value = currentXml.value
+  xmlVisible.value = true
+}
+
+async function openXmlImport() {
+  await syncXml(false)
+  importXmlText.value = currentXml.value
+  importVisible.value = true
+}
+
 async function importFromText() {
   if (!importXmlText.value.trim()) {
     ElMessage.warning('请先粘贴 BPMN XML')
@@ -1377,6 +1534,75 @@ function ensureNodeConfig(element: BpmnElement, defaultName?: string, businessTy
 
 function isManagedBpmnElement(element?: BpmnElement | null) {
   return Boolean(element && MANAGED_BPMN_TYPES.has(element.type))
+}
+
+function isSequenceFlow(element?: BpmnElement | null) {
+  return element?.type === 'bpmn:SequenceFlow'
+}
+
+function stripFlowableExpression(expression: string) {
+  const trimmed = expression.trim()
+  const match = trimmed.match(/^\$\{([\s\S]*)\}$/)
+  return match ? match[1].trim() : trimmed
+}
+
+function wrapFlowableExpression(expression: string) {
+  const trimmed = stripFlowableExpression(expression)
+  return trimmed ? '${' + trimmed + '}' : ''
+}
+
+function updateSelectedSequenceFlowName(value: string | number | boolean) {
+  if (!selectedElement.value || !modeler.value || !isSequenceFlow(selectedElement.value)) return
+  updateSequenceFlowName(selectedElement.value, value)
+}
+
+function updateSelectedSequenceFlowCondition(value: string | number | boolean) {
+  if (!selectedElement.value || !modeler.value || !isSequenceFlow(selectedElement.value)) return
+  updateSequenceFlowCondition(selectedElement.value, value)
+}
+
+function updateGatewayBranchName(flowId: string, value: string | number | boolean) {
+  const flow = findSequenceFlow(flowId)
+  if (!flow) return
+  updateSequenceFlowName(flow, value)
+}
+
+function updateGatewayBranchCondition(flowId: string, value: string | number | boolean) {
+  const flow = findSequenceFlow(flowId)
+  if (!flow) return
+  updateSequenceFlowCondition(flow, value)
+}
+
+function findSequenceFlow(flowId: string): BpmnElement | null {
+  if (!modeler.value) return null
+  const elementRegistry = modeler.value.get('elementRegistry')
+  const flow = elementRegistry.get(flowId) as BpmnElement | undefined
+  return flow && isSequenceFlow(flow) ? flow : null
+}
+
+function updateSequenceFlowName(flow: BpmnElement, value: string | number | boolean) {
+  if (!modeler.value) return
+  const modeling = modeler.value.get('modeling')
+  modeling.updateProperties(flow, { name: String(value).trim() })
+  propertyRevision.value += 1
+  void syncXml(false)
+}
+
+function updateSequenceFlowCondition(flow: BpmnElement, value: string | number | boolean) {
+  if (!modeler.value) return
+  const expression = wrapFlowableExpression(String(value))
+  const moddle = modeler.value.get('moddle')
+  const modeling = modeler.value.get('modeling')
+  const conditionExpression = expression
+    ? moddle.create('bpmn:FormalExpression', { body: expression })
+    : undefined
+  modeling.updateProperties(flow, { conditionExpression })
+  propertyRevision.value += 1
+  void syncXml(false)
+}
+
+function clearSelectedSequenceFlowCondition() {
+  updateSelectedSequenceFlowCondition('')
 }
 
 function normalizeBusinessType(value: unknown): BusinessType | null {
@@ -2165,5 +2391,30 @@ function defaultBpmnXml() {
 .native-select:focus {
   border-color: var(--primary);
   outline: none;
+}
+
+.gateway-branch-list {
+  display: grid;
+  gap: 12px;
+}
+
+.gateway-branch-item {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.74);
+}
+
+.gateway-branch-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.gateway-branch-head strong {
+  color: var(--text);
 }
 </style>

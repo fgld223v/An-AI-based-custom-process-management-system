@@ -37,9 +37,7 @@ public class FlowableDeploymentServiceImpl implements FlowableDeploymentService 
 
         // 注入多实例（会签/或签）和抄送扩展元素
         String nodeConfigJson = normalizeText(template.getNodeConfig());
-        if (hasText(nodeConfigJson)) {
-            bpmnXml = bpmnXmlEnhancer.enhance(bpmnXml, nodeConfigJson);
-        }
+        bpmnXml = bpmnXmlEnhancer.enhance(bpmnXml, nodeConfigJson);
         template.setBpmnXml(bpmnXml);
 
         String deploymentName = buildDeploymentName(template);
