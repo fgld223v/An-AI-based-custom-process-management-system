@@ -1,5 +1,7 @@
 import request from './request'
 
+// 组织目录 API：获取部门/用户选项、工作流角色选项
+
 export interface OrganizationDepartmentOption {
   id: number
   name: string

@@ -3,6 +3,9 @@ package com.aiflow.dto;
 import lombok.Data;
 
 @Data
+/**
+ * 流程模板更新请求DTO
+ */
 public class ProcessTemplateUpdateRequest {
 
     private String templateName;

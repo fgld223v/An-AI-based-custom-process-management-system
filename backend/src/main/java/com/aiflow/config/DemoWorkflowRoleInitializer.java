@@ -18,6 +18,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 
+/**
+ * 演示用流程角色初始化器，创建部门级与全局级流程角色并将演示用户分配到对应角色。
+ */
 @Slf4j
 @Order(30)
 @Component

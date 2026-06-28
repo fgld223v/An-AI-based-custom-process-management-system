@@ -7,6 +7,10 @@ import lombok.AllArgsConstructor;
 
 import java.time.LocalDateTime;
 
+/**
+ * 系统配置实体，存储系统级别的可编辑配置项（键值对）。
+ * 对应数据库表 system_config。
+ */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

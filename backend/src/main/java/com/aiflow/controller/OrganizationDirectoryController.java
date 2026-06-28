@@ -12,6 +12,11 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * 组织目录控制器，提供部门树和用户列表的只读查询，供前端选择器使用。
+ *
+ * <p>基础路径: /api/organization-directory</p>
+ */
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/organization-directory")
@@ -20,6 +25,9 @@ public class OrganizationDirectoryController {
     private final DepartmentRepository departmentRepository;
     private final SysUserRepository sysUserRepository;
 
+    /**
+     * GET /api/organization-directory/departments — 查询所有启用部门列表。
+     */
     @GetMapping("/departments")
     public ApiResponse<List<Map<String, Object>>> listDepartments() {
         List<Map<String, Object>> result = departmentRepository.findByDeletedOrderBySortOrder(0).stream()
@@ -35,6 +43,9 @@ public class OrganizationDirectoryController {
         return ApiResponse.success(result);
     }
 
+    /**
+     * GET /api/organization-directory/users — 查询所有启用用户列表。
+     */
     @GetMapping("/users")
     public ApiResponse<List<Map<String, Object>>> listUsers() {
         List<Map<String, Object>> result = sysUserRepository.findByDeletedOrderByIdAsc(0).stream()

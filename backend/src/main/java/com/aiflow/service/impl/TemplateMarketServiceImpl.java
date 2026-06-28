@@ -18,6 +18,20 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * 模板市场服务实现 — 管理流程模板的上架、下架和复制。
+ *
+ * <p>核心功能：</p>
+ * <ul>
+ *   <li><b>上架（publish）</b> — 将已发布且标记为系统模板的流程模板发布到模板市场，
+ *       包含标题、描述、封面、标签等信息。仅允许 status=PUBLISHED 且 resourceType=SYSTEM_TEMPLATE 的模板上架。</li>
+ *   <li><b>浏览（list）</b> — 查询模板市场中所有已上架的模板，按发布时间降序排列。</li>
+ *   <li><b>下架（withdraw）</b> — 从模板市场中移除指定模板。</li>
+ *   <li><b>复制（copy）</b> — 从模板市场复制模板到当前用户的工作区，复制后 useCount 自增。</li>
+ * </ul>
+ *
+ * <p>所有写操作均在一个事务中完成，确保数据一致性。</p>
+ */
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -25,8 +39,26 @@ public class TemplateMarketServiceImpl implements TemplateMarketService {
 
     private final TemplateMarketRepository templateMarketRepository;
     private final ProcessTemplateRepository processTemplateRepository;
-    private final ProcessTemplateService processTemplateService;
+    private final ProcessTemplateService processTemplateService;  // 用于复制模板
 
+    /**
+     * 将模板发布到模板市场。
+     *
+     * <p>前置校验：</p>
+     * <ul>
+     *   <li>模板必须存在</li>
+     *   <li>模板状态必须为 PUBLISHED（已发布）</li>
+     *   <li>模板资源类型必须为 SYSTEM_TEMPLATE（系统模板）</li>
+     * </ul>
+     *
+     * @param templateId  模板 ID
+     * @param publisherId 发布者用户 ID
+     * @param title       市场展示标题
+     * @param description 市场描述
+     * @param coverUrl    封面图 URL
+     * @param tags        标签
+     * @return 创建的市场条目
+     */
     @Override
     public TemplateMarket publishTemplateToMarket(Long templateId,
                                                   Long publisherId,
@@ -87,6 +119,16 @@ public class TemplateMarketServiceImpl implements TemplateMarketService {
         templateMarketRepository.delete(market);
     }
 
+    /**
+     * 从模板市场复制模板到用户工作区。
+     *
+     * <p>复制后市场条目的 useCount 自增 1，用于记录模板的受欢迎程度。</p>
+     *
+     * @param marketId        市场条目 ID
+     * @param userId          复制者用户 ID
+     * @param newTemplateName 新模板名称
+     * @return 复制后的新模板
+     */
     @Override
     public ProcessTemplate copyTemplateFromMarket(Long marketId, Long userId, String newTemplateName) {
         requireId(marketId, "marketId must not be null");

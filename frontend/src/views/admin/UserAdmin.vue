@@ -1,5 +1,7 @@
 <template>
+  <!-- 用户管理页面 -->
   <div class="admin-page user-admin-page">
+    <!-- 页面标题区：标题说明 + 导出/导入/新增按钮 -->
     <div class="page-head">
       <div>
         <h1>用户管理</h1>
@@ -12,13 +14,19 @@
       </div>
     </div>
 
+    <!-- 操作结果提示 -->
     <el-alert v-if="msg" :title="msg" :type="msgType" show-icon closable @close="msg = ''" />
 
+    <!-- 用户列表表格 -->
     <section class="table-panel" v-loading="loading">
       <el-table :data="users" border stripe table-layout="fixed">
+        <!-- ID 列 -->
         <el-table-column prop="id" label="ID" width="72" align="center" />
+        <!-- 用户名 -->
         <el-table-column prop="username" label="用户名" min-width="130" />
+        <!-- 昵称 -->
         <el-table-column prop="nickname" label="昵称" min-width="130" />
+        <!-- 系统角色标签 -->
         <el-table-column label="系统角色" width="130">
           <template #default="{ row }">
             <el-tag :type="roleTag(row.systemRole)" size="small" effect="plain">
@@ -26,9 +34,11 @@
             </el-tag>
           </template>
         </el-table-column>
+        <!-- 所属部门 -->
         <el-table-column label="所属部门" min-width="140">
           <template #default="{ row }">{{ deptName(row.departmentId) }}</template>
         </el-table-column>
+        <!-- 管辖业务类型 -->
         <el-table-column label="管辖业务" min-width="190">
           <template #default="{ row }">
             <span v-if="row.managedBizTypeIds" class="small-text">
@@ -37,6 +47,7 @@
             <span v-else class="muted-text">-</span>
           </template>
         </el-table-column>
+        <!-- 启用/禁用状态 -->
         <el-table-column label="状态" width="90">
           <template #default="{ row }">
             <el-tag :type="row.enabled === 1 ? 'success' : 'danger'" size="small" effect="plain">
@@ -44,6 +55,7 @@
             </el-tag>
           </template>
         </el-table-column>
+        <!-- 操作：编辑 / 删除 -->
         <el-table-column label="操作" width="150" fixed="right" align="center">
           <template #default="{ row }">
             <div class="table-actions">
@@ -55,17 +67,22 @@
       </el-table>
     </section>
 
+    <!-- 新增/编辑用户弹窗 -->
     <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑用户' : '新增用户'" width="560px" destroy-on-close>
       <el-form :model="form" label-position="top">
+        <!-- 用户名（编辑时不可修改） -->
         <el-form-item label="用户名" required>
           <el-input v-model="form.username" :disabled="isEdit" placeholder="登录用户名" />
         </el-form-item>
+        <!-- 密码（编辑时留空表示不修改） -->
         <el-form-item :label="isEdit ? '新密码（留空不修改）' : '密码'" :required="!isEdit">
           <el-input v-model="form.password" type="password" show-password placeholder="请输入密码" />
         </el-form-item>
+        <!-- 昵称 -->
         <el-form-item label="昵称">
           <el-input v-model="form.nickname" placeholder="页面展示名称" />
         </el-form-item>
+        <!-- 系统角色 + 所属部门（双列） -->
         <el-row :gutter="16">
           <el-col :span="12">
             <el-form-item label="系统角色">
@@ -84,17 +101,20 @@
             </el-form-item>
           </el-col>
         </el-row>
+        <!-- 直属上级 -->
         <el-form-item label="直属上级">
           <el-select v-model="form.supervisorId" clearable filterable placeholder="选择上级用户" style="width: 100%">
             <el-option v-for="u in userOptions" :key="u.value" :label="u.label" :value="u.value" />
           </el-select>
         </el-form-item>
+        <!-- 管辖业务类型（仅业务管理员可见） -->
         <el-form-item v-if="form.systemRole === 'biz_admin'" label="管辖业务类型">
           <el-select v-model="form.bizTypeList" multiple filterable placeholder="选择可管理的业务类型" style="width: 100%">
             <el-option v-for="b in bizTypeOptions" :key="b.value" :label="b.label" :value="b.value" />
           </el-select>
           <div class="hint">业务管理员只能查看和管理管辖范围内的流程数据。</div>
         </el-form-item>
+        <!-- 启用/禁用开关 -->
         <el-form-item label="状态">
           <el-switch
             v-model="form.enabledBool"
@@ -111,6 +131,7 @@
       </template>
     </el-dialog>
 
+    <!-- Excel 导入弹窗组件 -->
     <ImportExcelDialog
       v-model:visible="importVisible"
       title="导入用户"
@@ -133,25 +154,39 @@ import { downloadBlob } from '@/utils/download'
 
 type TagType = 'success' | 'warning' | 'info' | 'primary' | 'danger'
 
+/** 下拉选项数据结构 */
 interface Option {
   value: number
   label: string
 }
 
+/** 表格加载状态 */
 const loading = ref(false)
+/** 保存按钮加载状态 */
 const saving = ref(false)
+/** 用户列表 */
 const users = ref<AdminUser[]>([])
+/** 新增/编辑弹窗可见性 */
 const dialogVisible = ref(false)
+/** 导入弹窗可见性 */
 const importVisible = ref(false)
+/** 是否编辑模式 */
 const isEdit = ref(false)
+/** 编辑模式下的用户 ID */
 const editId = ref<number | null>(null)
+/** 操作结果消息 */
 const msg = ref('')
+/** 消息类型 */
 const msgType = ref<'success' | 'error'>('success')
 
+/** 部门下拉选项 */
 const deptOptions = ref<Option[]>([])
+/** 用户下拉选项 */
 const userOptions = ref<Option[]>([])
+/** 业务类型下拉选项 */
 const bizTypeOptions = ref<Option[]>([])
 
+/** 表单数据（双向绑定） */
 const form = reactive({
   username: '',
   password: '',
@@ -163,10 +198,12 @@ const form = reactive({
   enabledBool: true
 })
 
+/** 页面挂载时并行加载用户列表和下拉选项 */
 onMounted(async () => {
   await Promise.all([loadUsers(), loadOptions()])
 })
 
+/** 加载用户列表 */
 async function loadUsers() {
   loading.value = true
   try {
@@ -179,6 +216,7 @@ async function loadUsers() {
   }
 }
 
+/** 加载部门、用户、业务类型下拉选项 */
 async function loadOptions() {
   try {
     const [depts, usersOpts, bizTypes] = await Promise.all([
@@ -194,11 +232,13 @@ async function loadOptions() {
   }
 }
 
+/** 根据部门 ID 查找部门名称 */
 function deptName(id: number | null | undefined) {
   if (id == null) return '-'
   return deptOptions.value.find(d => d.value === id)?.label || String(id)
 }
 
+/** 解析管辖业务类型 ID 列表，转为可读名称 */
 function bizTypeNames(ids: string | null | undefined) {
   if (!ids) return ''
   try {
@@ -209,6 +249,7 @@ function bizTypeNames(ids: string | null | undefined) {
   }
 }
 
+/** 系统角色对应的标签类型 */
 function roleTag(role: string): TagType {
   const map: Record<string, TagType> = {
     super_admin: 'danger',
@@ -218,6 +259,7 @@ function roleTag(role: string): TagType {
   return map[role] || 'info'
 }
 
+/** 系统角色转中文标签 */
 function roleLabel(role: string) {
   const map: Record<string, string> = {
     super_admin: '超级管理员',
@@ -227,6 +269,7 @@ function roleLabel(role: string) {
   return map[role] || role
 }
 
+/** 打开新建用户弹窗，重置表单 */
 function openCreate() {
   isEdit.value = false
   editId.value = null
@@ -241,6 +284,7 @@ function openCreate() {
   dialogVisible.value = true
 }
 
+/** 打开编辑用户弹窗，预填表单数据 */
 function openEdit(row: AdminUser) {
   isEdit.value = true
   editId.value = row.id
@@ -255,6 +299,11 @@ function openEdit(row: AdminUser) {
   dialogVisible.value = true
 }
 
+/**
+ * 解析管辖业务类型 ID 列表（JSON 数组字符串）
+ * @param ids - JSON 数组字符串
+ * @returns 数字 ID 数组
+ */
 function parseBizIds(ids: string | null | undefined): number[] {
   if (!ids) return []
   try {
@@ -264,6 +313,7 @@ function parseBizIds(ids: string | null | undefined): number[] {
   }
 }
 
+/** 保存新增或编辑用户 */
 async function handleSave() {
   if (!form.username.trim()) {
     ElMessage.warning('请输入用户名')
@@ -276,12 +326,14 @@ async function handleSave() {
 
   saving.value = true
   try {
+    // 仅业务管理员需要设置管辖业务类型
     const managedBizTypeIds =
       form.systemRole === 'biz_admin' && form.bizTypeList.length > 0
         ? JSON.stringify(form.bizTypeList)
         : null
 
     if (isEdit.value && editId.value) {
+      // 更新用户
       const payload: UpdateUserPayload = {
         nickname: form.nickname,
         systemRole: form.systemRole,
@@ -294,6 +346,7 @@ async function handleSave() {
       await updateUser(editId.value, payload)
       ElMessage.success('用户已更新')
     } else {
+      // 创建用户
       const payload: CreateUserPayload = {
         username: form.username.trim(),
         password: form.password,
@@ -316,6 +369,7 @@ async function handleSave() {
   }
 }
 
+/** 导出用户数据为 Excel */
 async function handleExport() {
   try {
     await downloadBlob(USER_EXPORT_URL, '用户数据.xlsx')
@@ -325,6 +379,7 @@ async function handleExport() {
   }
 }
 
+/** 删除用户（需二次确认） */
 async function handleDelete(row: AdminUser) {
   try {
     await ElMessageBox.confirm(`确定删除用户「${row.nickname || row.username}」吗？`, '确认删除', { type: 'warning' })

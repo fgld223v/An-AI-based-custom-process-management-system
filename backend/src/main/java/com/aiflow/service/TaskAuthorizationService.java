@@ -11,6 +11,10 @@ import org.springframework.stereotype.Service;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
+/**
+ * 任务权限服务，校验当前用户是否有权查看或操作 Flowable 任务，
+ * 包含候选人的自动认领逻辑。
+ */
 @Service
 public class TaskAuthorizationService {
 

@@ -13,6 +13,10 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 
+/**
+ * 用户-工作流角色关联实体，记录用户与工作流角色在指定部门下的绑定关系。
+ * 对应数据库表 user_workflow_role。
+ */
 @Data
 @Builder
 @NoArgsConstructor

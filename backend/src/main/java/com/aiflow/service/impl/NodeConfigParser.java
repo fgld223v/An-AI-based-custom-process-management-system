@@ -87,24 +87,30 @@ public class NodeConfigParser {
     }
 
     // ================================================================
-    // 内部解析方法
+    // 内部解析方法 — 先尝试 Map 格式，失败后降级到 List 格式
     // ================================================================
 
+    /**
+     * 尝试解析为 Map 格式 { "NodeId": {...}, ... }，解析失败返回 null。
+     */
     Map<String, Map<String, Object>> parseAsMap(String json) {
         if (!hasText(json)) return null;
         try {
             return objectMapper.readValue(json, new TypeReference<Map<String, Map<String, Object>>>() {});
         } catch (Exception e) {
-            return null;
+            return null;  // 不是 Map 格式，返回 null 让调用方回退到 List 格式
         }
     }
 
+    /**
+     * 尝试解析为 List 格式 [ { "nodeKey": "...", ... }, ... ]，解析失败返回 null。
+     */
     List<Map<String, Object>> parseAsList(String json) {
         if (!hasText(json)) return null;
         try {
             return objectMapper.readValue(json, new TypeReference<List<Map<String, Object>>>() {});
         } catch (Exception e) {
-            return null;
+            return null;  // JSON 格式无效
         }
     }
 

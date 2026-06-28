@@ -1,5 +1,7 @@
 <template>
+  <!-- 部门管理页面 -->
   <div class="admin-page dept-admin-page">
+    <!-- 页面标题区 -->
     <div class="page-head">
       <div>
         <h1>部门管理</h1>
@@ -12,18 +14,26 @@
       </div>
     </div>
 
+    <!-- 部门列表表格 -->
     <section class="table-panel" v-loading="loading">
       <el-table :data="departments" border stripe table-layout="fixed">
+        <!-- ID 列 -->
         <el-table-column prop="id" label="ID" width="72" align="center" />
+        <!-- 父部门名称 -->
         <el-table-column label="父部门" min-width="140">
           <template #default="{ row }">{{ deptName(row.parentId) }}</template>
         </el-table-column>
+        <!-- 部门编码 -->
         <el-table-column prop="deptCode" label="部门编码" min-width="150" />
+        <!-- 部门名称 -->
         <el-table-column prop="deptName" label="部门名称" min-width="160" />
+        <!-- 负责人 -->
         <el-table-column label="负责人" min-width="150">
           <template #default="{ row }">{{ userName(row.leaderUserId) }}</template>
         </el-table-column>
+        <!-- 排序号 -->
         <el-table-column prop="sortOrder" label="排序" width="80" />
+        <!-- 状态 -->
         <el-table-column label="状态" width="90">
           <template #default="{ row }">
             <el-tag :type="row.status === 1 ? 'success' : 'danger'" size="small" effect="plain">
@@ -31,6 +41,7 @@
             </el-tag>
           </template>
         </el-table-column>
+        <!-- 操作：编辑 / 删除 -->
         <el-table-column label="操作" width="150" fixed="right" align="center">
           <template #default="{ row }">
             <div class="table-actions">
@@ -42,8 +53,10 @@
       </el-table>
     </section>
 
+    <!-- 新增/编辑部门弹窗 -->
     <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑部门' : '新增部门'" width="520px" destroy-on-close>
       <el-form :model="form" label-position="top">
+        <!-- 部门编码 + 部门名称（双列） -->
         <el-row :gutter="16">
           <el-col :span="12">
             <el-form-item label="部门编码" required>
@@ -56,6 +69,7 @@
             </el-form-item>
           </el-col>
         </el-row>
+        <!-- 父部门 + 负责人（双列） -->
         <el-row :gutter="16">
           <el-col :span="12">
             <el-form-item label="父部门">
@@ -72,6 +86,7 @@
             </el-form-item>
           </el-col>
         </el-row>
+        <!-- 排序号 -->
         <el-form-item label="排序号">
           <el-input-number v-model="form.sortOrder" :min="0" style="width: 100%" controls-position="right" />
         </el-form-item>
@@ -82,6 +97,7 @@
       </template>
     </el-dialog>
 
+    <!-- Excel 导入弹窗 -->
     <ImportExcelDialog
       v-model:visible="importVisible"
       title="导入部门"
@@ -101,6 +117,7 @@ import { DEPT_TEMPLATE_URL, DEPT_EXPORT_URL, DEPT_IMPORT_URL } from '@/api/admin
 import ImportExcelDialog from '@/components/ImportExcelDialog.vue'
 import { downloadBlob } from '@/utils/download'
 
+/** 部门数据结构 */
 interface Department {
   id: number
   parentId?: number | null
@@ -111,21 +128,32 @@ interface Department {
   status: number
 }
 
+/** 下拉选项数据结构 */
 interface Option {
   value: number
   label: string
 }
 
+/** 表格加载状态 */
 const loading = ref(false)
+/** 保存按钮加载状态 */
 const saving = ref(false)
+/** 部门列表 */
 const departments = ref<Department[]>([])
+/** 部门下拉选项 */
 const deptOptions = ref<Option[]>([])
+/** 用户下拉选项 */
 const userOptions = ref<Option[]>([])
+/** 弹窗可见性 */
 const dialogVisible = ref(false)
+/** 导入弹窗可见性 */
 const importVisible = ref(false)
+/** 是否编辑模式 */
 const isEdit = ref(false)
+/** 编辑模式下的部门 ID */
 const editId = ref<number | null>(null)
 
+/** 表单数据 */
 const form = reactive({
   deptCode: '',
   deptName: '',
@@ -134,10 +162,12 @@ const form = reactive({
   sortOrder: 0
 })
 
+/** 页面挂载时并行加载部门列表和下拉选项 */
 onMounted(async () => {
   await Promise.all([loadDepts(), loadOptions()])
 })
 
+/** 加载部门列表 */
 async function loadDepts() {
   loading.value = true
   try {
@@ -147,6 +177,7 @@ async function loadDepts() {
   }
 }
 
+/** 加载部门和用户下拉选项 */
 async function loadOptions() {
   try {
     const [depts, users] = await Promise.all([
@@ -160,16 +191,19 @@ async function loadOptions() {
   }
 }
 
+/** 根据父部门 ID 查找部门名称 */
 function deptName(id: number | null | undefined) {
   if (id == null) return '-'
   return deptOptions.value.find(d => d.value === id)?.label || String(id)
 }
 
+/** 根据用户 ID 查找用户名称 */
 function userName(id: number | null | undefined) {
   if (id == null) return '-'
   return userOptions.value.find(u => u.value === id)?.label || String(id)
 }
 
+/** 打开新建部门弹窗，重置表单 */
 function openCreate() {
   isEdit.value = false
   editId.value = null
@@ -181,6 +215,7 @@ function openCreate() {
   dialogVisible.value = true
 }
 
+/** 打开编辑部门弹窗，预填表单数据 */
 function openEdit(row: Department) {
   isEdit.value = true
   editId.value = row.id
@@ -192,6 +227,7 @@ function openEdit(row: Department) {
   dialogVisible.value = true
 }
 
+/** 保存新增或编辑部门 */
 async function handleSave() {
   if (!form.deptCode.trim() || !form.deptName.trim()) {
     ElMessage.warning('请填写部门编码和部门名称')
@@ -215,6 +251,7 @@ async function handleSave() {
   }
 }
 
+/** 导出部门数据为 Excel */
 async function handleExport() {
   try {
     await downloadBlob(DEPT_EXPORT_URL, '部门数据.xlsx')
@@ -224,6 +261,7 @@ async function handleExport() {
   }
 }
 
+/** 删除部门（需二次确认） */
 async function handleDelete(row: Department) {
   try {
     await ElMessageBox.confirm(`确定删除部门「${row.deptName}」吗？`, '确认删除', { type: 'warning' })

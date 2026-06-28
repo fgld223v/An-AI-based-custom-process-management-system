@@ -1,5 +1,7 @@
 <template>
+  <!-- 站内通知页面：查看流程超时、审批结果与系统提醒 -->
   <div class="notification-page">
+    <!-- 页面标题区 -->
     <section class="page-head">
       <div>
         <h1>站内通知</h1>
@@ -8,11 +10,14 @@
       <el-button round type="success" :icon="Refresh" :loading="loading" @click="loadNotifications">刷新</el-button>
     </section>
 
+    <!-- 查询筛选面板 -->
     <section class="query-panel">
       <el-form :inline="true" :model="query" class="query-form">
+        <!-- 关键字搜索 -->
         <el-form-item label="关键字">
           <el-input v-model="query.keyword" clearable placeholder="标题 / 内容" @keyup.enter="loadNotifications" />
         </el-form-item>
+        <!-- 通知类型筛选 -->
         <el-form-item label="类型">
           <el-select v-model="query.type" clearable placeholder="全部类型" style="width: 170px">
             <el-option label="任务提醒" value="task_remind" />
@@ -22,12 +27,14 @@
             <el-option label="系统通知" value="system_notice" />
           </el-select>
         </el-form-item>
+        <!-- 已读/未读状态筛选 -->
         <el-form-item label="状态">
           <el-select v-model="query.readStatus" clearable placeholder="全部状态" style="width: 140px">
             <el-option label="未读" value="unread" />
             <el-option label="已读" value="read" />
           </el-select>
         </el-form-item>
+        <!-- 查询/重置按钮 -->
         <el-form-item>
           <el-button type="primary" :icon="Search" :loading="loading" @click="loadNotifications">查询</el-button>
           <el-button @click="resetQuery">重置</el-button>
@@ -35,6 +42,7 @@
       </el-form>
     </section>
 
+    <!-- 通知列表表格 -->
     <section class="table-panel">
       <el-alert v-if="message" class="stage-alert" type="warning" :closable="false" show-icon :title="message" />
       <el-table
@@ -45,6 +53,7 @@
         row-key="id"
         @row-click="openNotification"
       >
+        <!-- 已读/未读状态 -->
         <el-table-column label="状态" width="90">
           <template #default="{ row }">
             <el-tag :type="row.isRead ? 'info' : 'danger'" size="small" effect="plain">
@@ -52,20 +61,25 @@
             </el-tag>
           </template>
         </el-table-column>
+        <!-- 通知类型标签 -->
         <el-table-column label="类型" width="120">
           <template #default="{ row }">
             <el-tag :type="typeTag(row.type)" effect="plain">{{ typeLabel(row.type) }}</el-tag>
           </template>
         </el-table-column>
+        <!-- 通知标题（未读加粗） -->
         <el-table-column label="标题" min-width="190">
           <template #default="{ row }">
             <div class="title-cell" :class="{ unread: !row.isRead }">{{ row.title }}</div>
           </template>
         </el-table-column>
+        <!-- 通知内容（溢出省略） -->
         <el-table-column prop="content" label="内容" min-width="280" show-overflow-tooltip />
+        <!-- 创建时间 -->
         <el-table-column label="创建时间" min-width="170">
           <template #default="{ row }">{{ row.createTime || '-' }}</template>
         </el-table-column>
+        <!-- 操作：查看 / 标记已读/未读 -->
         <el-table-column label="操作" width="190" fixed="right">
           <template #default="{ row }">
             <el-button text type="primary" @click.stop="openNotification(row)">查看</el-button>
@@ -88,17 +102,23 @@ import { getNotifications, markNotificationRead, markNotificationUnread } from '
 import type { NotificationItem } from '@/types/workflow'
 
 const router = useRouter()
+/** 表格加载状态 */
 const loading = ref(false)
+/** 错误消息提示 */
 const message = ref('')
+/** 通知列表 */
 const notifications = ref<NotificationItem[]>([])
+/** 查询条件 */
 const query = reactive<{ keyword: string; type: string; readStatus: '' | 'read' | 'unread' }>({
   keyword: '',
   type: '',
   readStatus: ''
 })
 
+/** 页面挂载时加载通知列表 */
 onMounted(() => loadNotifications())
 
+/** 根据当前查询条件加载通知列表 */
 async function loadNotifications() {
   loading.value = true
   message.value = ''
@@ -115,6 +135,7 @@ async function loadNotifications() {
   }
 }
 
+/** 重置查询条件并重新加载 */
 function resetQuery() {
   query.keyword = ''
   query.type = ''
@@ -122,6 +143,10 @@ function resetQuery() {
   loadNotifications()
 }
 
+/**
+ * 打开通知详情
+ * 未读通知先标记为已读，然后根据 targetType 解析跳转目标路由
+ */
 async function openNotification(row: NotificationItem) {
   if (!row.isRead) {
     try {
@@ -137,6 +162,7 @@ async function openNotification(row: NotificationItem) {
   }
 }
 
+/** 切换通知的已读/未读状态 */
 async function toggleRead(row: NotificationItem) {
   try {
     const updated = row.isRead
@@ -149,6 +175,7 @@ async function toggleRead(row: NotificationItem) {
   }
 }
 
+/** 在本地列表中替换更新后的通知对象 */
 function replaceNotification(item: NotificationItem) {
   const index = notifications.value.findIndex((notification) => notification.id === item.id)
   if (index >= 0) {
@@ -156,6 +183,10 @@ function replaceNotification(item: NotificationItem) {
   }
 }
 
+/**
+ * 解析通知的跳转目标路由
+ * 优先使用 targetUrl，其次根据 targetType 拼接路由
+ */
 function resolveTarget(row: NotificationItem) {
   if (row.targetUrl) return row.targetUrl
   if (row.targetType?.startsWith('flowable_task:')) {
@@ -168,6 +199,7 @@ function resolveTarget(row: NotificationItem) {
   return ''
 }
 
+/** 通知类型转中文标签 */
 function typeLabel(type?: string) {
   const map: Record<string, string> = {
     task_remind: '任务提醒',
@@ -179,6 +211,7 @@ function typeLabel(type?: string) {
   return map[type || ''] || type || '-'
 }
 
+/** 通知类型对应的 Element UI Tag 类型 */
 function typeTag(type?: string) {
   if (type === 'timeout_warning') return 'danger'
   if (type === 'approval_result') return 'success'
@@ -187,6 +220,12 @@ function typeTag(type?: string) {
   return 'info'
 }
 
+/**
+ * 标准化错误信息
+ * @param error - 原始错误对象
+ * @param fallback - 兜底提示文案
+ * @returns 可读的错误消息字符串
+ */
 function normalizeError(error: unknown, fallback: string) {
   if (error instanceof Error && error.message) return error.message
   return fallback

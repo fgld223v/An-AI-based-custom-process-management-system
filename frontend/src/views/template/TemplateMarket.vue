@@ -1,6 +1,7 @@
 <template>
+  <!-- 模板市场页面：浏览并复用已上架的流程模板 -->
   <div class="market-page">
-    <!-- Hero -->
+    <!-- 页面标题区 -->
     <section class="market-hero">
       <div>
         <h1>可复用流程模板</h1>
@@ -9,7 +10,7 @@
       <el-button round :icon="Refresh" @click="loadData">刷新</el-button>
     </section>
 
-    <!-- Filter -->
+    <!-- 筛选区域：关键字搜索 + 业务类型筛选 -->
     <section class="market-filter">
       <el-input v-model="keyword" clearable placeholder="搜索标题或说明" />
       <el-select v-model="selectedBizTypeId" clearable placeholder="业务分类">
@@ -17,27 +18,34 @@
       </el-select>
     </section>
 
-    <!-- Card Grid -->
+    <!-- 卡片网格展示区域 -->
     <section v-loading="loading" class="market-grid">
+      <!-- 单个市场模板卡片 -->
       <article v-for="item in filteredItems" :key="item.id" class="market-card" @click="openDetail(item)">
+        <!-- 封面图或默认占位 -->
         <div class="cover">
           <img v-if="item.coverUrl" :src="item.coverUrl" :alt="item.title" />
           <div v-else class="cover-fallback">FLOW</div>
         </div>
         <div class="market-card-body">
+          <!-- 卡片标题栏：标题 + 类型标签 -->
           <div class="market-card-head">
             <h2>{{ item.title }}</h2>
             <el-tag effect="plain">{{ marketTypeLabel(item.type) }}</el-tag>
           </div>
+          <!-- 模板说明 -->
           <p>{{ item.description || '暂无说明' }}</p>
+          <!-- 元数据：业务类型、使用次数、评分 -->
           <div class="market-meta">
             <span>{{ bizTypeName(item.bizTypeId) }}</span>
             <span>使用 {{ item.useCount || 0 }}</span>
             <span>评分 {{ item.rating ?? 0 }}</span>
           </div>
+          <!-- 标签展示 -->
           <div class="market-tags">
             <el-tag v-for="tag in parseTags(item.tags)" :key="tag" round effect="plain">{{ tag }}</el-tag>
           </div>
+          <!-- 底部：上架时间 + 使用模板按钮 -->
           <div class="market-card-footer">
             <small>{{ formatTime(item.publishedAt) }}</small>
             <el-button v-if="canCopyToMyProcess" type="success" round size="small" @click.stop="copyMarketItem(item)">使用模板</el-button>
@@ -45,14 +53,17 @@
         </div>
       </article>
 
+      <!-- 空状态 -->
       <el-empty v-if="!loading && filteredItems.length === 0" description="暂无模板市场数据" class="market-empty" />
     </section>
 
-    <!-- Detail Overlay -->
+    <!-- 详情侧边面板：通过 Teleport 渲染到 body，实现全屏覆盖 -->
     <Teleport to="body">
+      <!-- 背景遮罩层 -->
       <div v-if="detailVisible" class="detail-backdrop" @click.self="closeDetail" />
+      <!-- 右侧详情面板 -->
       <div v-if="detailVisible" class="detail-panel">
-        <!-- Panel Header -->
+        <!-- 面板顶部栏 -->
         <div class="panel-topbar">
           <div class="topbar-left">
             <div class="brand-mark-sm">AF</div>
@@ -64,15 +75,17 @@
           <el-button circle :icon="Close" @click="closeDetail" />
         </div>
 
-        <!-- Panel Body -->
+        <!-- 面板主体内容 -->
         <div class="panel-body" v-loading="detailLoading">
           <template v-if="selectedItem">
-            <!-- Basic Info -->
+            <!-- 基本信息区块 -->
             <section class="info-section">
+              <!-- 模板说明 -->
               <div class="info-desc">
                 <h3>模板说明</h3>
                 <p>{{ selectedItem.description || '暂无说明' }}</p>
               </div>
+              <!-- 元数据网格：使用次数、评分、标签、上架时间 -->
               <div class="info-meta-grid">
                 <div class="meta-item">
                   <span>使用次数</span>
@@ -93,9 +106,9 @@
               </div>
             </section>
 
-            <!-- Two-column: Form + Flow -->
+            <!-- 双栏工作区：左侧表单 + 右侧流程信息 -->
             <section class="work-area">
-              <!-- Left: Form -->
+              <!-- 左侧：表单预览面板 -->
               <div class="form-panel">
                 <div class="panel-head">
                   <h3>{{ boundForm ? `表单：${boundForm.formName}` : '流程表单' }}</h3>
@@ -114,26 +127,30 @@
                 </div>
               </div>
 
-              <!-- Right: Process Flow -->
+              <!-- 右侧：流程信息面板（审批路径 / 流程图） -->
               <aside class="route-panel">
                 <div class="panel-head">
                   <h3>流程信息</h3>
                   <p>{{ templateDetail ? `版本 v${templateDetail.version || 1}` : '' }}</p>
                 </div>
 
+                <!-- 选项卡切换：审批路径 / 流程图 -->
                 <div class="route-tabs">
                   <button :class="{ active: routeView === 'path' }" type="button" @click="routeView = 'path'">审批路径</button>
                   <button :class="{ active: routeView === 'diagram' }" type="button" @click="routeView = 'diagram'">流程图</button>
                 </div>
 
-                <!-- Approval Path -->
+                <!-- 审批路径时间线视图 -->
                 <div v-if="routeView === 'path'" class="route-content">
+                  <!-- 审批路径摘要 -->
                   <div class="route-summary">
                     <span>共 {{ approvalSteps.length || 0 }} 个审批节点</span>
                     <strong>{{ approvalSteps.length ? '审批人需在流程发起后按规则分配' : '暂无节点数据' }}</strong>
                   </div>
 
+                  <!-- 时间线 -->
                   <div class="timeline">
+                    <!-- 时间线起点：提交申请 -->
                     <div class="timeline-step is-start">
                       <div class="step-mark"><VideoPlay /></div>
                       <div class="step-content">
@@ -142,6 +159,7 @@
                       </div>
                     </div>
 
+                    <!-- 各审批节点 -->
                     <div v-for="(step, index) in approvalSteps" :key="step.nodeKey || index" class="timeline-step">
                       <div class="step-mark">{{ index + 1 }}</div>
                       <div class="step-content">
@@ -153,6 +171,7 @@
                       </div>
                     </div>
 
+                    <!-- 时间线终点：流程完成 -->
                     <div class="timeline-step is-end">
                       <div class="step-mark"><CircleCheck /></div>
                       <div class="step-content">
@@ -163,7 +182,7 @@
                   </div>
                 </div>
 
-                <!-- BPMN Diagram -->
+                <!-- BPMN 流程图视图 -->
                 <div v-if="routeView === 'diagram'" class="diagram-content">
                   <BpmnViewerPanel v-if="templateDetail?.bpmnXml" :bpmn-xml="templateDetail.bpmnXml" />
                   <el-empty v-else description="该模板暂无流程图" :image-size="100" />
@@ -173,7 +192,7 @@
           </template>
         </div>
 
-        <!-- Bottom Bar -->
+        <!-- 底部操作栏 -->
         <div class="panel-bottombar">
           <span class="bottombar-note">{{ marketActionNote }}</span>
           <div class="bottombar-actions">
@@ -200,27 +219,42 @@ import DynamicFormRenderer from '@/components/form/DynamicFormRenderer.vue'
 import { useAuthStore } from '@/stores/auth'
 import type { BizType, FormDefinition, ProcessTemplate, TemplateMarketItem } from '@/types/workflow'
 
+/** 页面加载状态 */
 const loading = ref(false)
 const authStore = useAuthStore()
+/** 搜索关键字 */
 const keyword = ref('')
+/** 选中的业务类型筛选 */
 const selectedBizTypeId = ref<number | null>(null)
+/** 市场模板列表 */
 const marketItems = ref<TemplateMarketItem[]>([])
+/** 业务类型列表 */
 const bizTypes = ref<BizType[]>([])
 
-// Detail state
+/** 详情面板状态 */
 const selectedItem = ref<TemplateMarketItem | null>(null)
+/** 详情面板可见性 */
 const detailVisible = ref(false)
+/** 详情加载状态 */
 const detailLoading = ref(false)
+/** 复制按钮加载状态 */
 const copyLoading = ref(false)
+/** 模板详细信息 */
 const templateDetail = ref<ProcessTemplate | null>(null)
+/** 模板绑定表单信息 */
 const boundForm = ref<FormDefinition | null>(null)
+/** 预览表单数据 */
 const previewFormData = ref<Record<string, unknown>>({})
+/** 右侧视图：审批路径或流程图 */
 const routeView = ref<'path' | 'diagram'>('path')
+/** 是否允许复制到我的流程（仅业务管理员） */
 const canCopyToMyProcess = computed(() => authStore.user?.systemRole === 'biz_admin')
+/** 底部操作提示文案 */
 const marketActionNote = computed(() => canCopyToMyProcess.value
   ? '将此模板复制到你的流程中以开始使用'
   : '系统管理员可预览模板内容，并在流程模板管理中维护模板')
 
+/** 根据关键字和业务类型过滤市场模板列表 */
 const filteredItems = computed(() => {
   const key = keyword.value.trim().toLowerCase()
   return marketItems.value.filter((item) => {
@@ -231,16 +265,20 @@ const filteredItems = computed(() => {
   })
 })
 
-/** Approximate approval steps parsed from nodeConfig JSON */
+/**
+ * 从 nodeConfig JSON 中解析审批节点步骤
+ * 支持数组格式或包含 steps/nodes/approvalSteps 属性的对象格式
+ */
 const approvalSteps = computed(() => {
   if (!templateDetail.value?.nodeConfig) return []
   try {
     const config = JSON.parse(templateDetail.value.nodeConfig)
     if (Array.isArray(config)) return config
-    // nodeConfig may be an object with a steps/nodes array
+    // nodeConfig 可能是包含 steps/nodes 数组的对象
     if (config.steps) return config.steps
     if (config.nodes) return config.nodes
     if (config.approvalSteps) return config.approvalSteps
+    // 回退：提取所有 businessType 为 approval 的字段
     return Object.values(config).filter((item: any) => item?.businessType === 'approval')
   } catch {
     return []
@@ -249,6 +287,7 @@ const approvalSteps = computed(() => {
 
 onMounted(loadData)
 
+/** 加载市场模板列表和业务类型 */
 async function loadData() {
   loading.value = true
   try {
@@ -260,6 +299,7 @@ async function loadData() {
   }
 }
 
+/** 打开模板详情面板，加载模板详情和绑定表单 */
 async function openDetail(item: TemplateMarketItem) {
   selectedItem.value = item
   detailVisible.value = true
@@ -286,6 +326,7 @@ async function openDetail(item: TemplateMarketItem) {
   }
 }
 
+/** 关闭详情面板 */
 function closeDetail() {
   detailVisible.value = false
   selectedItem.value = null
@@ -293,6 +334,7 @@ function closeDetail() {
   boundForm.value = null
 }
 
+/** 将市场模板复制到我的流程 */
 async function copyMarketItem(item: TemplateMarketItem) {
   if (!canCopyToMyProcess.value) {
     ElMessage.warning('只有业务管理员可以复制模板到我的流程')
@@ -314,15 +356,22 @@ async function copyMarketItem(item: TemplateMarketItem) {
   }
 }
 
+/** 根据业务类型 ID 查找名称 */
 function bizTypeName(id?: number | null) {
   return bizTypes.value.find((item) => item.id === id)?.typeName || '未分类'
 }
 
+/** 市场类型转中文标签 */
 function marketTypeLabel(type?: string) {
   const map: Record<string, string> = { template: '流程模板', fragment: '流程片段' }
   return map[(type || '').toLowerCase()] || type || '-'
 }
 
+/**
+ * 解析标签字符串（支持 JSON 数组或逗号分隔字符串）
+ * @param tags - JSON 数组字符串或逗号分隔的标签
+ * @returns 标签字符串数组
+ */
 function parseTags(tags?: string) {
   if (!tags) return []
   try {
@@ -333,15 +382,18 @@ function parseTags(tags?: string) {
   }
 }
 
+/** 格式化 ISO 时间字符串为可读格式 */
 function formatTime(value?: string) {
   return value ? value.replace('T', ' ').slice(0, 19) : '-'
 }
 
+/** 审批模式转中文标签 */
 function approvalModeLabel(mode?: string) {
   const map: Record<string, string> = { SINGLE: '单人审批', ALL: '会签', ANY: '或签', OR: '或签' }
   return map[mode?.toUpperCase() || ''] || mode || '单人审批'
 }
 
+/** 审批人分配策略转中文标签 */
 function strategyLabel(strategy?: string) {
   const map: Record<string, string> = {
     DIRECT: '指定审批人',

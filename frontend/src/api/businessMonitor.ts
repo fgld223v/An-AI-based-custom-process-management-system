@@ -1,6 +1,8 @@
 import request from './request'
 import type { BusinessProcessInstance, BusinessProcessInstanceListParams, FormSubmission, ProcessTimeline } from '@/types/workflow'
 
+// 业务流程监控 API：查询业务实例、时间线、表单提交记录
+
 export async function getBusinessProcessInstances(params: BusinessProcessInstanceListParams = {}) {
   return await request.get<BusinessProcessInstance[]>('/api/business-monitor/instances', { params }) || []
 }

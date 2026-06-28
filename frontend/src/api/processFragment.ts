@@ -1,6 +1,8 @@
 import request from './request'
 import type { ProcessFragment, ProcessFragmentPayload } from '@/types/workflow'
 
+// 流程片段 API：流程片段的增删改查与发布
+
 export async function getProcessFragments() {
   return await request.get<ProcessFragment[]>('/api/process-fragments') || []
 }

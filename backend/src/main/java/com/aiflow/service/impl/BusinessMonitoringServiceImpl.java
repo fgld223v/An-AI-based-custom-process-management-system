@@ -30,6 +30,22 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+/**
+ * 业务流程监控服务实现 — 提供业务管理员和超级管理员的流程实例监控能力。
+ *
+ * <p>两种权限视角：</p>
+ * <ul>
+ *   <li><b>业务管理员 (biz_admin)</b> — 仅查看自己创建的 BUSINESS_PROCESS 类型模板
+ *       所关联的流程实例（owned 系列方法）</li>
+ *   <li><b>超级管理员 (super_admin)</b> — 查看系统中所有流程实例（global 系列方法）</li>
+ * </ul>
+ *
+ * <p>异常筛选：支持按 status=anomaly/abnormal 过滤异常实例。
+ * 异常包括：超时、失败、已终止、已驳回状态的实例，
+ * 以及瓶颈预测标记为异常（anomaly_reason 非空）的实例。</p>
+ *
+ * <p>所有查询方法均标记为只读事务。</p>
+ */
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -39,9 +55,19 @@ public class BusinessMonitoringServiceImpl implements BusinessMonitoringService 
     private final ProcessTemplateRepository processTemplateRepository;
     private final SysUserRepository sysUserRepository;
     private final FormSubmissionRepository formSubmissionRepository;
-    private final ProcessTimelineService processTimelineService;
-    private final InstanceAnomalyService instanceAnomalyService;
+    private final ProcessTimelineService processTimelineService;    // 时间线构建器
+    private final InstanceAnomalyService instanceAnomalyService;    // 异常检测服务
 
+    /**
+     * 查询业务管理员自己创建的模板关联的流程实例列表。
+     *
+     * <p>支持按模板、状态、关键字筛选。状态为 anomaly/abnormal 时仅返回异常实例。</p>
+     *
+     * @param templateId 模板 ID（可选）
+     * @param status     状态筛选（可选，支持 anomaly/abnormal 异常筛选）
+     * @param keyword    关键字搜索（可选）
+     * @return 流程实例 DTO 列表（含模板信息、发起人信息、异常标记）
+     */
     @Override
     public List<BusinessProcessInstanceDTO> listOwnedProcessInstances(Long templateId,
                                                                       String status,
@@ -109,6 +135,16 @@ public class BusinessMonitoringServiceImpl implements BusinessMonitoringService 
         return listSubmissions(instanceId);
     }
 
+    /**
+     * 批量转换 ProcessInstance → BusinessProcessInstanceDTO。
+     *
+     * <p>批量加载关联数据以减少 N+1 查询：</p>
+     * <ol>
+     *   <li>批量加载模板（按 templateId）</li>
+     *   <li>批量加载用户（发起人 + 模板创建者）</li>
+     *   <li>批量加载异常标记（按 instanceId）</li>
+     * </ol>
+     */
     private List<BusinessProcessInstanceDTO> toDtos(List<ProcessInstance> instances) {
         if (instances.isEmpty()) {
             return List.of();

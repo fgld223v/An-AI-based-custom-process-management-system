@@ -17,6 +17,9 @@ import java.time.ZoneId;
 import java.util.Date;
 import java.util.List;
 
+/**
+ * 任务催办定时调度器，按固定频率扫描超时未处理的任务并自动触发催办通知。
+ */
 @Slf4j
 @Component
 @RequiredArgsConstructor

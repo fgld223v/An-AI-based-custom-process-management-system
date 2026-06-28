@@ -187,6 +187,15 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * TaskDetail - 任务详情与处理页面
+ *
+ * 支持两种任务类型：
+ * - form_fill（表单填写节点）：渲染动态表单，供用户填写后提交
+ * - approval（审批节点）：展示申请人表单数据（只读）+ 审批结果/意见表单
+ *
+ * 同时集成 AI 审批建议面板（AiSuggestionPanel），可一键采纳 AI 建议。
+ */
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AiSuggestionPanel from '@/components/ai/AiSuggestionPanel.vue'
@@ -201,29 +210,37 @@ const route = useRoute()
 const router = useRouter()
 const loading = ref(false)
 const submitting = ref(false)
-const message = ref('')
-const successMsg = ref('')
+const message = ref('')     // 错误/警告提示
+const successMsg = ref('')  // 成功提示
 const task = ref<TaskItem | null>(null)
 
+/** 审批表单数据 */
 const form = reactive({
-  approvalResult: 'agree',
-  approvalComment: '',
-  rejectReason: ''
+  approvalResult: 'agree',   // 审批结果：agree / reject
+  approvalComment: '',       // 审批意见
+  rejectReason: ''           // 驳回原因
 })
 
-// ---- 表单填写模式 ----
-const formData = ref<Record<string, unknown>>({})
-const formFields = ref<any[]>([])
-const formLoaded = ref(false)
+// ==================================================================
+// 表单填写模式（form_fill 节点）
+// ==================================================================
+const formData = ref<Record<string, unknown>>({})  // 表单数据
+const formFields = ref<any[]>([])                   // 表单字段配置
+const formLoaded = ref(false)                       // 表单是否已加载
 
+/** 判断当前任务是否为表单填写类型 */
 const isFormFill = computed(() => task.value?.businessType === 'form_fill')
+/** 判断当前任务是否为审批类型（默认） */
 const isApproval = computed(() => !task.value?.businessType || task.value.businessType === 'approval')
 
-// ---- 申请人表单数据（审批人查看） ----
-const applicantFormData = ref<Record<string, unknown>>({})
-const applicantFormFields = ref<any[]>([])
-const applicantFormLoaded = ref(false)
+// ==================================================================
+// 申请人表单数据（审批人查看用）
+// ==================================================================
+const applicantFormData = ref<Record<string, unknown>>({})   // 申请人提交的表单数据
+const applicantFormFields = ref<any[]>([])                    // 申请人表单字段配置
+const applicantFormLoaded = ref(false)                        // 是否已加载
 
+/** 加载当前任务关联的表单定义（用于表单填写模式） */
 async function loadFormDefinition() {
   if (!task.value?.formId) {
     formLoaded.value = true
@@ -231,7 +248,7 @@ async function loadFormDefinition() {
   }
   try {
     const def = await getFormDetail(task.value.formId)
-    // 解析 fieldList
+    // 解析 fieldList：兼容 JSON 字符串和数组两种格式
     const raw = def.fieldList
     if (typeof raw === 'string') {
       formFields.value = JSON.parse(raw)
@@ -253,6 +270,7 @@ async function loadApplicantFormData() {
     const bizSubmission = findBusinessSubmission(submissions)
     if (bizSubmission?.formDataJson) {
       applicantFormData.value = JSON.parse(bizSubmission.formDataJson)
+      // 尝试加载对应的表单定义以获取字段标签
       if (bizSubmission.formId) {
         try {
           const def = await getFormDetail(bizSubmission.formId)
@@ -261,6 +279,7 @@ async function loadApplicantFormData() {
             : Array.isArray(raw) ? raw : []
         } catch { /* ignore */ }
       }
+      // 如果没有字段定义，则用 formData 的 key 自动生成
       if (applicantFormFields.value.length === 0 && Object.keys(applicantFormData.value).length > 0) {
         applicantFormFields.value = Object.keys(applicantFormData.value).map(key => ({
           field: key, label: key, type: 'input'
@@ -271,9 +290,14 @@ async function loadApplicantFormData() {
   applicantFormLoaded.value = true
 }
 
+/**
+ * 从多条提交记录中找出业务表单数据（排除审批意见等系统字段）
+ * 优先匹配 start/form_fill 类型的提交，其次匹配任何包含非审批字段的提交
+ */
 function findBusinessSubmission(submissions: FormSubmission[]): FormSubmission | null {
   const approvalKeys = ['approvalResult', 'approvalComment', 'approvalOpinion',
     'approved', 'rejected', 'operatedAt', 'automatic', 'automaticReason']
+  // 第一遍：只匹配明确的业务节点
   for (const sub of submissions) {
     if (sub.businessType === 'start' || sub.businessType === 'form_fill') {
       if (sub.formDataJson) {
@@ -284,6 +308,7 @@ function findBusinessSubmission(submissions: FormSubmission[]): FormSubmission |
       }
     }
   }
+  // 第二遍：放宽匹配条件
   for (const sub of submissions) {
     if (sub.formDataJson) {
       try {
@@ -301,6 +326,7 @@ watch(() => task.value?.formId, () => {
 
 onMounted(() => loadTask())
 
+/** 加载任务详情及相关数据 */
 async function loadTask() {
   const taskId = route.params.taskId as string
   if (!taskId) {
@@ -319,6 +345,7 @@ async function loadTask() {
   }
 }
 
+/** 表单填写节点提交：调用 completeTask 并跳转到已办 */
 async function handleFormFillSubmit() {
   if (!task.value) return
   submitting.value = true
@@ -340,6 +367,7 @@ async function handleFormFillSubmit() {
   }
 }
 
+/** 采纳 AI 审批建议：自动填入审批结果和意见 */
 function handleAdoptSuggestion(s: { suggestion: string; reason: string }) {
   if (s.suggestion === 'approve') {
     form.approvalResult = 'agree'
@@ -348,9 +376,10 @@ function handleAdoptSuggestion(s: { suggestion: string; reason: string }) {
     form.approvalResult = 'reject'
     form.approvalComment = s.reason
   }
-  // supplement 不自动填入审批结果
+  // supplement（补充建议）类型不自动填入审批结果
 }
 
+/** 提交审批：同意调用 completeTask，驳回调用 rejectTask */
 async function handleSubmit() {
   if (!task.value) return
   submitting.value = true
@@ -358,7 +387,7 @@ async function handleSubmit() {
   successMsg.value = ''
   try {
     if (form.approvalResult === 'reject') {
-      // 驳回：调用 rejectTask
+      // 驳回时审批意见不能为空
       if (!form.approvalComment?.trim()) {
         message.value = '驳回时必须填写审批意见'
         submitting.value = false
@@ -370,7 +399,7 @@ async function handleSubmit() {
       })
       successMsg.value = '已驳回，流程退回至上一节点。'
     } else {
-      // 同意：调用 completeTask
+      // 同意：传递审批结果和意见
       await completeTask(task.value.taskId, {
         instanceId: task.value.businessInstanceId,
         nodeKey: task.value.taskDefinitionKey,
@@ -390,7 +419,7 @@ async function handleSubmit() {
   }
 }
 
-
+/** 对话框式驳回操作（备用） */
 async function handleReject() {
   if (!task.value) return
   try {
@@ -420,6 +449,7 @@ async function handleReject() {
   }
 }
 
+/** 统一错误处理：提取错误消息或返回默认文案 */
 function normalizeError(error: unknown, fallback: string) {
   if (error instanceof Error && error.message) return error.message
   return fallback

@@ -11,6 +11,9 @@ import java.time.LocalDateTime;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+/**
+ * 工作流角色DTO：包含角色编码、名称、范围及成员数量
+ */
 public class WorkflowRoleDTO {
     private Long id;
     private String roleCode;

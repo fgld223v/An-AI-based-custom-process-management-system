@@ -8,6 +8,9 @@ import org.springframework.data.repository.query.Param;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * 通知Repository：支持多条件查询通知列表及未读计数。
+ */
 public interface NotificationRepository extends JpaRepository<Notification, Long> {
 
     Optional<Notification> findByIdAndDeleted(Long id, Integer deleted);

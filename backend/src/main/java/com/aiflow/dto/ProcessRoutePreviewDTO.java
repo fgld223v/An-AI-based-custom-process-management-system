@@ -11,6 +11,9 @@ import java.util.List;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+/**
+ * 流程路由预览DTO：展示审批步骤及各级审批人信息
+ */
 public class ProcessRoutePreviewDTO {
 
     private Long templateId;

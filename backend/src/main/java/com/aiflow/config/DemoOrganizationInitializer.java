@@ -22,7 +22,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
-/** Creates and migrates the coherent organization used by local demonstrations. */
+/** 创建并迁移本地演示所用的组织架构（部门、用户、负责人关系）。 */
 @Slf4j
 @Order(20)
 @Component

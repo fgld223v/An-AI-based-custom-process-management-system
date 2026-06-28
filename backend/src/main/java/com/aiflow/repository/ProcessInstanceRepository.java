@@ -9,6 +9,9 @@ import org.springframework.data.repository.query.Param;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * 流程实例Repository：按模板、状态、关键词多条件查询实例。
+ */
 public interface ProcessInstanceRepository extends JpaRepository<ProcessInstance, Long> {
 
     boolean existsByTemplateIdAndDeleted(Long templateId, Integer deleted);

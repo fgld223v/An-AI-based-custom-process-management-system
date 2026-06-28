@@ -112,6 +112,12 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * AiGenerateForm - AI 智能表单生成页面
+ *
+ * 用户输入自然语言描述表单需求，AI 生成表单字段配置并实时预览。
+ * 支持 sessionStorage 状态持久化、从流程设计器跳转绑定。
+ */
 import { ref, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { MagicStick } from '@element-plus/icons-vue'
@@ -123,6 +129,7 @@ import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 import { getUserSessionItem, removeLegacySessionItems, removeUserSessionItem, setUserSessionItem } from '@/utils/userScopedStorage'
 
+/** sessionStorage 持久化键 */
 const STORAGE_KEY = 'ai-generate-form-state'
 const AI_FORM_PROMPT_KEY = 'ai-form-prompt'
 const PENDING_BIND_KEY = 'pendingBind'
@@ -162,7 +169,7 @@ const createFormData = ref({
   bizTypeId: null as number | null
 })
 
-// 解析 fieldList JSON 字符串为数组
+/** 解析 AI 返回的 fieldList JSON 字符串为字段数组供表格和预览使用 */
 const fieldList = ref<FieldItem[]>([])
 
 watch(() => result.value, () => {
@@ -177,7 +184,7 @@ watch(() => result.value, () => {
   }
 })
 
-// sessionStorage 持久化
+/** sessionStorage 持久化：保存当前页面状态 */
 function saveState() {
   const state = { description: description.value, result: result.value }
   if (state.description || state.result) {
@@ -185,7 +192,9 @@ function saveState() {
   }
 }
 watch([description, result], () => saveState(), { deep: true })
+
 onMounted(() => {
+  // 清理旧版 session 数据
   removeLegacySessionItems([STORAGE_KEY, AI_FORM_PROMPT_KEY, PENDING_BIND_KEY, PENDING_BIND_RESULT_KEY])
   const raw = getUserSessionItem(STORAGE_KEY, authStore.user)
   if (raw) {
@@ -203,6 +212,7 @@ onMounted(() => {
   }
 })
 
+/** 调用 AI 表单生成接口 */
 async function handleGenerate() {
   const text = description.value.trim()
   if (!text) { ElMessage.warning('请先描述您想要的表单'); return }
@@ -221,6 +231,7 @@ async function handleGenerate() {
   }
 }
 
+/** 打开创建表单弹窗 */
 async function handleCreateForm() {
   if (!result.value) return
   createFormData.value = { formName: 'AI生成表单', formCode: 'ai-' + Date.now(), bizTypeId: null }
@@ -228,6 +239,7 @@ async function handleCreateForm() {
   createDialogVisible.value = true
 }
 
+/** 提交创建表单：调用 API 创建，处理设计器跳转绑定场景 */
 async function submitCreateForm() {
   if (!result.value) return
   creating.value = true
@@ -241,7 +253,7 @@ async function submitCreateForm() {
     } as any)
     createDialogVisible.value = false
     ElMessage.success('表单已创建并发布')
-    // 如果是从流程设计器跳转过来的，直接回去完成绑定
+    // 如果是从流程设计器跳转过来的，直接回去完成节点表单绑定
     const pendingBind = getUserSessionItem(PENDING_BIND_KEY, authStore.user)
     if (pendingBind) {
       try {
@@ -264,7 +276,9 @@ async function submitCreateForm() {
   }
 }
 
+/** 清除结果，重新生成 */
 function handleRegenerate() { result.value = null; errorMessage.value = '' }
+/** 清空所有输入和结果 */
 function handleClear() {
   description.value = ''
   result.value = null

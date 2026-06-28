@@ -19,6 +19,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * 表单所有权初始化器，为历史遗留的无所有者表单自动关联到唯一引用该表单的模板创建者。
+ */
 @Slf4j
 @Order(100)
 @Component

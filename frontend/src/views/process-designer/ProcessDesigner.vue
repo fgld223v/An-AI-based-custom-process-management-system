@@ -1,6 +1,15 @@
 <template>
+  <!-- ========================================================================
+       流程设计器主页面：集成 bpmn-js Modeler 实现可视化 BPMN 流程编辑。
+       包含三大区域：顶部工具栏、左侧画布、右侧属性面板。
+       底部还有多个弹窗（XML预览/导入、模板保存、AI表单生成）。
+       ======================================================================== -->
   <div class="process-designer-page">
     <main class="process-workspace">
+      <!-- ================================================================
+           顶部工具栏：显示流程状态标签和操作按钮。
+           包含返回、回显XML、导入XML、保存、发布、另存为等功能。
+           ================================================================ -->
       <section class="process-header-card">
         <div>
           <el-tag type="success" effect="plain">在线</el-tag>
@@ -21,6 +30,11 @@
         </div>
       </section>
 
+      <!-- ================================================================
+           快捷业务节点栏：提供 8 种常用业务节点的快速创建按钮。
+           点击后会在画布可视区域中心创建对应的 BPMN 元素并初始化配置。
+           BUSINESS_NODE_CONFIGS 定义了每种节点的类型、图标和默认名称。
+           ================================================================ -->
       <section class="quick-node-card">
         <div class="quick-node-title">
           <strong>常用业务节点</strong>
@@ -39,6 +53,10 @@
         </div>
       </section>
 
+      <!-- ================================================================
+           BPMN 画布区域：bpmn-js Modeler 渲染的 SVG 流程图编辑器。
+           底部附带一个 Mini map 示意区域（占位装饰，非功能性小地图）。
+           ================================================================ -->
       <section class="bpmn-shell">
         <div ref="canvasRef" class="bpmn-canvas"></div>
         <div class="minimap-card">
@@ -51,12 +69,24 @@
       </section>
     </main>
 
+    <!-- ================================================================
+         右侧属性面板：当选中画布节点时，根据节点的 businessType 动态显示
+         不同的配置表单。每个 BPMN 元素对应一个存储在 nodeConfigMap 中的
+         NodeBusinessConfig 对象。
+         支持的节点类型：start / form_fill / approval / condition /
+         parallel / notify / system_action / end / generic_task
+         ================================================================ -->
     <aside class="process-property-panel">
       <div class="designer-panel-head">
         <span>节点属性</span>
         <small>{{ selectedSequenceFlow ? '流程连线' : selectedConfig ? getBusinessLabel(selectedConfig.businessType) : '未选择' }}</small>
       </div>
 
+      <!-- ----------------------------------------------------------------
+           流程连线属性：当选中 SequenceFlow 时显示。
+           可编辑连线名称、条件表达式（自动包裹为 ${...} 格式）。
+           条件分支的判断条件保存在从网关引出的连线上，而非网关本身。
+           ---------------------------------------------------------------- -->
       <el-form v-if="selectedSequenceFlow" label-position="top" class="property-form">
         <el-alert
           type="info"
@@ -102,7 +132,13 @@
           清空条件
         </el-button>
       </el-form>
+      <!-- 未选择任何节点时的空状态提示 -->
       <el-empty v-else-if="!selectedElement || !selectedConfig" description="点击画布节点查看配置" />
+      <!-- ----------------------------------------------------------------
+           节点属性表单：根据 businessType 动态渲染不同的配置区域。
+           通用部分始终显示：节点ID、BPMN类型、业务类型、节点名称。
+           特殊配置按类型分别渲染在不同 <template> 块中。
+           ---------------------------------------------------------------- -->
       <el-form v-else label-position="top" class="property-form">
         <el-form-item label="节点ID">
           <el-input :model-value="selectedConfig.nodeId" disabled />
@@ -124,6 +160,12 @@
           <el-input v-model="selectedConfig.nodeName" placeholder="请输入节点名称" @change="updateSelectedName" />
         </el-form-item>
 
+        <!-- ----------------------------------------------------------------
+             表单绑定区域：仅当节点类型为 start 或 form_fill 时显示。
+             支持三种绑定模式：不使用表单 / 使用模板默认表单 / 绑定节点表单。
+             「AI 生成此节点表单」按钮会跳转到 AI 表单生成页面，完成后回到此页面绑定。
+             结合 SessionStorage 实现跨页面数据传递。
+             ---------------------------------------------------------------- -->
         <section v-if="isFormBindableNode(selectedConfig)" class="node-form-section">
           <el-divider content-position="left">表单绑定</el-divider>
           <el-alert
@@ -191,6 +233,7 @@
             <el-input v-model="selectedConfig.submitButtonText" placeholder="例如 提交申请" @change="syncNodeConfig" />
           </el-form-item>
         </section>
+        <!-- 当前节点不支持表单绑定时显示此提示 -->
         <el-alert
           v-else
           class="node-form-section"
@@ -199,6 +242,11 @@
           show-icon
           title="当前节点不需要绑定表单。"
         />
+        <!-- ============================================================
+             businessType === 'start': 流程开始节点配置
+             设置发起方式（手动/表单触发/定时）、发起权限（全体用户/部门/角色）
+             以及是否需要登录。
+             ============================================================ -->
         <template v-if="selectedConfig.businessType === 'start'">
           <el-form-item label="发起方式">
             <el-select v-model="selectedConfig.startMode" @change="syncNodeConfig">
@@ -243,6 +291,11 @@
           </el-form-item>
         </template>
 
+        <!-- ============================================================
+             businessType === 'condition': 条件分支节点（排他网关）
+             条件表达式实际保存在从网关引出的每条 SequenceFlow 上。
+             此处展示所有出口连线，允许逐条编辑分支名称和判断条件。
+             ============================================================ -->
         <template v-else-if="selectedConfig.businessType === 'condition'">
           <el-divider content-position="left">条件分支配置</el-divider>
           <el-alert
@@ -294,6 +347,11 @@
           </div>
         </template>
 
+        <!-- ============================================================
+             businessType === 'form_fill': 表单填写节点
+             配置可编辑字段、必填字段、附件上传开关。
+             用于流程中需要用户填写或补充数据的环节。
+             ============================================================ -->
         <template v-else-if="selectedConfig.businessType === 'form_fill'">
           <el-form-item label="可编辑字段">
             <el-input
@@ -314,6 +372,12 @@
           </el-form-item>
           </template>
 
+        <!-- ============================================================
+             businessType === 'approval': 审批节点
+             这是最复杂的节点配置。包含：审批人类型（指定用户/直属上级/
+             部门负责人/流程角色等）、审批方式（单人/会签/或签）、
+             转交/加签/驳回配置、超时设置、自动通过规则等。
+             ============================================================ -->
         <template v-else-if="selectedConfig.businessType === 'approval'">
           <el-form-item label="审批人类型">
             <el-select v-model="selectedConfig.assigneeType" @change="handleAssigneeTypeChange">
@@ -401,6 +465,11 @@
           </el-form-item>
         </template>
 
+        <!-- ============================================================
+             businessType === 'parallel': 并行处理节点（并行网关）
+             配置并行说明、等待策略（全部完成/任一完成）、分支完成条件
+             和异常分支处理方式。
+             ============================================================ -->
         <template v-else-if="selectedConfig.businessType === 'parallel'">
           <el-form-item label="并行说明">
             <el-input v-model="selectedConfig.parallelDescription" type="textarea" :rows="2" @change="syncNodeConfig" />
@@ -423,6 +492,11 @@
           </el-form-item>
         </template>
 
+        <!-- ============================================================
+             businessType === 'notify': 抄送通知节点
+             配置通知对象（申请人/审批人/指定用户/指定角色）、通知渠道
+             （站内信/邮件/短信/企微）、通知模板和发送时机。
+             ============================================================ -->
         <template v-else-if="selectedConfig.businessType === 'notify'">
           <el-form-item label="通知对象">
             <el-select v-model="selectedConfig.notifyTarget" @change="syncNodeConfig">
@@ -455,6 +529,12 @@
           </el-form-item>
         </template>
 
+        <!-- ============================================================
+             businessType === 'system_action': 系统动作节点
+             配置动作类型（HTTP调用/数据库写入/生成编号/创建工单/Webhook）、
+             接口地址、请求方式、参数映射、失败处理（重试/跳过/转人工/终止）
+             和最大重试次数。
+             ============================================================ -->
         <template v-else-if="selectedConfig.businessType === 'system_action'">
           <el-form-item label="动作类型">
             <el-select v-model="selectedConfig.actionType" @change="syncNodeConfig">
@@ -491,6 +571,11 @@
           </el-form-item>
         </template>
 
+        <!-- ============================================================
+             businessType === 'end': 流程结束节点
+             配置结束状态（已完成/已驳回/已取消/异常结束）、完成通知、
+             数据归档和表单数据锁定等选项。
+             ============================================================ -->
         <template v-else-if="selectedConfig.businessType === 'end'">
           <el-form-item label="结束状态">
             <el-select v-model="selectedConfig.endStatus" @change="syncNodeConfig">
@@ -511,17 +596,20 @@
           </el-form-item>
         </template>
 
+        <!-- 未知/通用节点类型：仅显示业务备注字段 -->
         <template v-else>
           <el-form-item label="业务备注">
             <el-input v-model="selectedConfig.remark" type="textarea" :rows="3" placeholder="预留配置" @change="syncNodeConfig" />
           </el-form-item>
         </template>
 
+        <!-- 节点配置 JSON 预览：方便开发者查看完整的数据结构 -->
         <div class="node-config-preview">
           <span>预留保存结构</span>
           <pre>{{ JSON.stringify(selectedConfig, null, 2) }}</pre>
         </div>
 
+        <!-- 属性面板底部操作按钮：复制（占位）、删除节点、保存 -->
         <div class="property-footer">
           <el-button round @click="showComingSoon">复制</el-button>
           <el-button round type="danger" plain @click="deleteSelected">删除</el-button>
@@ -530,6 +618,9 @@
       </el-form>
     </aside>
 
+    <!-- ================================================================
+         XML 预览弹窗：显示当前 BPMN XML 内容，支持复制到剪贴板。
+         ================================================================ -->
     <el-dialog v-model="xmlVisible" title="当前 BPMN XML" width="760px">
       <el-input v-model="xmlText" type="textarea" :rows="18" />
       <template #footer>
@@ -538,6 +629,9 @@
       </template>
     </el-dialog>
 
+    <!-- ================================================================
+         XML 导入弹窗：粘贴已有的 BPMN XML 并导入到画布中回显。
+         ================================================================ -->
     <el-dialog v-model="importVisible" title="从 BPMN XML 回显" width="760px">
       <el-input v-model="importXmlText" type="textarea" :rows="18" placeholder="粘贴已有 BPMN XML" />
       <template #footer>
@@ -546,6 +640,10 @@
       </template>
     </el-dialog>
 
+    <!-- ================================================================
+         模板保存弹窗：支持保存为流程模板（super_admin）或业务流程（biz_admin）。
+         根据角色自动选择保存目标。可配置编码、名称、业务类型和默认表单。
+         ================================================================ -->
     <el-dialog v-model="templateSaveVisible" :title="saveDialogTitle" width="620px">
       <el-form label-position="top">
         <el-form-item v-if="canChooseSaveTarget" label="保存目标">
@@ -578,6 +676,10 @@
       </template>
     </el-dialog>
 
+    <!-- ================================================================
+         AI 表单生成弹窗：输入提示词后跳转到 /ai/generate-form 页面。
+         通过 SessionStorage 传递节点上下文，AI 生成完表单后回到本页面自动绑定。
+         ================================================================ -->
     <!-- AI 表单生成弹窗 -->
     <el-dialog v-model="aiFormDialogVisible" title="为节点生成表单" width="500px" :close-on-click-modal="false">
       <el-form label-position="top">
@@ -597,6 +699,9 @@
 </template>
 
 <script setup lang="ts">
+// ============================================================================
+// 依赖导入
+// ============================================================================
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
@@ -616,6 +721,7 @@ import {
   VideoPlay,
   MagicStick
 } from '@element-plus/icons-vue'
+/** bpmn-js 核心：流程建模器，渲染 SVG 流程图并提供编辑交互 */
 import BpmnModeler from 'bpmn-js/lib/Modeler'
 import 'bpmn-js/dist/assets/diagram-js.css'
 import 'bpmn-js/dist/assets/bpmn-js.css'
@@ -631,24 +737,33 @@ import {
   type OrganizationUserOption,
   type WorkflowRoleOption
 } from '@/api/organizationDirectory'
+/** 流程模板 API（super_admin 使用，保存为公共模板） */
 import { createProcessTemplate, getProcessTemplateDetail, publishProcessTemplate, updateProcessTemplate } from '@/api/processTemplate'
+/** 我的流程 API（biz_admin 使用，保存为业务流程实例） */
 import { createMyProcess, getMyProcessDetail, publishMyProcess, updateMyProcess } from '@/api/myProcess'
 import { useTemplateStore } from '@/stores/template'
 import { useAuthStore } from '@/stores/auth'
+/** 用户维度的 SessionStorage 工具：按 userId 隔离存储，实现跨页面数据传递 */
 import { getUserSessionItem, removeLegacySessionItems, removeUserSessionItem, setUserSessionItem } from '@/utils/userScopedStorage'
 import type { BizType, FormDefinition, ProcessTemplate } from '@/types/workflow'
 
-type BusinessType =
-  | 'start'
-  | 'form_fill'
-  | 'approval'
-  | 'condition'
-  | 'parallel'
-  | 'notify'
-  | 'system_action'
-  | 'end'
-  | 'generic_task'
+// ============================================================================
+// 类型定义
+// ============================================================================
 
+/** 业务节点类型枚举：8 种核心节点 + 1 个通用任务兜底 */
+type BusinessType =
+  | 'start'          // 流程开始
+  | 'form_fill'      // 表单填写
+  | 'approval'       // 审批
+  | 'condition'      // 条件分支（排他网关）
+  | 'parallel'       // 并行处理（并行网关）
+  | 'notify'         // 抄送通知
+  | 'system_action'  // 系统动作（自动任务）
+  | 'end'            // 流程结束
+  | 'generic_task'   // 通用任务（兜底）
+
+/** BPMN 画布元素的基础结构，来自 bpmn-js 内部 API */
 interface BpmnElement {
   id: string
   type: string
@@ -668,12 +783,14 @@ interface BpmnElement {
   }
 }
 
+/** 流程连线（SequenceFlow）属性，用于右侧面板展示 */
 interface SequenceFlowProperty {
   id: string
   sourceName: string
   targetName: string
 }
 
+/** 网关出口分支信息：记录每条连线的名称、目标节点和条件 */
 interface GatewayBranchFlow {
   id: string
   name: string
@@ -681,6 +798,18 @@ interface GatewayBranchFlow {
   condition: string
 }
 
+/**
+ * 节点业务配置数据结构：存储每个 BPMN 元素对应的业务配置。
+ * 不同 businessType 会使用不同的字段子集：
+ * - start:       startMode, startPermission, loginRequired
+ * - form_fill:   editableFields, requiredFields, attachmentAllowed
+ * - approval:    assigneeType, approvalMode, rejectRule, timeoutConfig, approvalRule
+ * - condition:   条件保存在引出的 SequenceFlow 上
+ * - parallel:    waitStrategy, exceptionStrategy
+ * - notify:      notifyTarget, notifyChannel, notifyTemplate, notifyTiming
+ * - system_action: actionType, apiUrl, requestMethod, parameterMapping, failureStrategy
+ * - end:         endStatus, completionNotifyEnabled, archiveEnabled
+ */
 interface NodeBusinessConfig {
   nodeId: string
   bpmnType: string
@@ -752,6 +881,7 @@ interface NodeBusinessConfig {
   remark: string
 }
 
+/** 快捷业务节点的配置项：标签、业务类型、BPMN 类型、默认名称和图标 */
 interface BusinessNodeConfig {
   label: string
   businessType: BusinessType
@@ -760,6 +890,11 @@ interface BusinessNodeConfig {
   icon: object
 }
 
+/**
+ * 8 种快捷业务节点定义。
+ * 每点击一个按钮即在画布可视区域中心创建一个对应的 BPMN 元素。
+ * bpmnType 决定创建哪种 BPMN 元素，businessType 决定右侧面板的配置表单。
+ */
 const BUSINESS_NODE_CONFIGS: BusinessNodeConfig[] = [
   { label: '流程开始', businessType: 'start', bpmnType: 'bpmn:StartEvent', defaultName: '流程开始', icon: VideoPlay },
   { label: '申请填写', businessType: 'form_fill', bpmnType: 'bpmn:UserTask', defaultName: '填写申请', icon: EditPen },
@@ -770,6 +905,8 @@ const BUSINESS_NODE_CONFIGS: BusinessNodeConfig[] = [
   { label: '系统动作', businessType: 'system_action', bpmnType: 'bpmn:ServiceTask', defaultName: '系统处理', icon: Operation },
   { label: '流程结束', businessType: 'end', bpmnType: 'bpmn:EndEvent', defaultName: '流程结束', icon: Finished }
 ]
+
+/** 受本组件管理的 BPMN 元素类型白名单：只有这些类型的节点才会被纳入 nodeConfigMap */
 const MANAGED_BPMN_TYPES = new Set<string>([
   'bpmn:StartEvent',
   'bpmn:UserTask',
@@ -780,6 +917,8 @@ const MANAGED_BPMN_TYPES = new Set<string>([
   'bpmn:ParallelGateway',
   'bpmn:EndEvent'
 ])
+
+/** 所有有效的 businessType 值集合，用于校验 */
 const BUSINESS_TYPE_VALUES = new Set<BusinessType>([
   'start',
   'form_fill',
@@ -791,6 +930,8 @@ const BUSINESS_TYPE_VALUES = new Set<BusinessType>([
   'end',
   'generic_task'
 ])
+
+/** businessType → BPMN 类型的映射表，用于根据业务类型查找对应的 BPMN 元素类型 */
 const FLOWABLE_NODE_TYPE_MAP: Record<BusinessType, string> = {
   start: 'bpmn:StartEvent',
   form_fill: 'bpmn:UserTask',
@@ -803,6 +944,7 @@ const FLOWABLE_NODE_TYPE_MAP: Record<BusinessType, string> = {
   end: 'bpmn:EndEvent'
 }
 
+/** bpmn-js 原生工具板的 tooltip 文案，在画布渲染后注入到 DOM 上 */
 const PALETTE_TOOLTIPS = [
   { selectors: ['[data-action="hand-tool"]', '.bpmn-icon-hand-tool'], text: '拖动画布' },
   { selectors: ['[data-action="lasso-tool"]', '.bpmn-icon-lasso-tool'], text: '框选多个节点' },
@@ -832,10 +974,23 @@ const emit = defineEmits<{
   change: [value: string]
 }>()
 
+// ============================================================================
+// 响应式状态
+// ============================================================================
+
+/** 画布容器 DOM 引用，bpmn-js Modeler 会挂载到此元素 */
 const canvasRef = ref<HTMLDivElement>()
+/** bpmn-js Modeler 实例，负责整个流程图编辑器的渲染和交互 */
 const modeler = ref<any>()
+/** 当前选中的 BPMN 元素（节点或连线） */
 const selectedElement = ref<BpmnElement | null>(null)
+/** 属性面板刷新计数器：每次修改连线属性后 +1，触发 computed 重新计算 */
 const propertyRevision = ref(0)
+
+// ============================================================================
+// SessionStorage Key 常量：用于跨页面数据传递
+// 场景：AI 生成 BPMN → 回显到设计器、AI 生成表单 → 回到设计器绑定到节点
+// ============================================================================
 const AI_GENERATED_BPMN_KEY = 'ai-generated-bpmn'
 const AI_GENERATED_NODE_CONFIG_KEY = 'ai-generated-nodeconfig'
 const AI_FORM_PROMPT_KEY = 'ai-form-prompt'
@@ -843,6 +998,10 @@ const PENDING_BIND_KEY = 'pendingBind'
 const PENDING_BIND_RESULT_KEY = 'pendingBindResult'
 const RETURN_SELECTED_NODE_KEY = 'process-designer-return-selected-node'
 const RETURN_NODE_CONFIG_KEY = 'process-designer-return-node-config'
+
+// ============================================================================
+// 弹窗状态
+// ============================================================================
 const xmlVisible = ref(false)
 const importVisible = ref(false)
 const xmlText = ref('')
@@ -850,26 +1009,50 @@ const importXmlText = ref('')
 const templateSaveVisible = ref(false)
 const templateSaving = ref(false)
 const savedTemplateId = ref<number | null>(null)
+const aiFormDialogVisible = ref(false)
+const aiFormPrompt = ref('')
+
+// ============================================================================
+// 下拉选项数据（从后端加载）
+// ============================================================================
 const bizTypes = ref<BizType[]>([])
 const forms = ref<FormDefinition[]>([])
 const organizationDepartments = ref<OrganizationDepartmentOption[]>([])
 const organizationUsers = ref<OrganizationUserOption[]>([])
 const workflowRoles = ref<WorkflowRoleOption[]>([])
 const formsLoading = ref(false)
-const aiFormDialogVisible = ref(false)
-const aiFormPrompt = ref('')
+
+/** 支持表单绑定的业务节点类型：start（发起节点）和 form_fill（填写节点） */
 const FORM_BINDABLE_BUSINESS_TYPES: BusinessType[] = ['start', 'form_fill']
+
+// ============================================================================
+// 画布状态
+// ============================================================================
 const elementCount = ref(0)
 const zoomPercent = ref(100)
+
+/**
+ * 节点配置映射表：nodeId → NodeBusinessConfig。
+ * 使用 reactive 确保嵌套属性修改也能触发 Vue 响应式更新。
+ * 每个 BPMN 元素创建时自动初始化一个 NodeBusinessConfig 条目。
+ */
 const nodeConfigMap = reactive<Record<string, NodeBusinessConfig>>({})
 const route = useRoute()
 const router = useRouter()
 const templateStore = useTemplateStore()
 const authStore = useAuthStore()
+
+/** 用户维度的 SessionStorage 操作封装，自动按 userId 隔离数据 */
 const userSessionGet = (key: string) => getUserSessionItem(key, authStore.user)
 const userSessionSet = (key: string, value: string) => setUserSessionItem(key, value, authStore.user)
 const userSessionRemove = (key: string) => removeUserSessionItem(key, authStore.user)
+
+// ============================================================================
+// 保存目标逻辑：super_admin 保存为「流程模板」，biz_admin 保存为「业务流程」
+// ============================================================================
+/** 是否处于「我的流程」作用域（biz_admin 角色通过 scope=my 参数进入） */
 const isMyProcessScope = computed(() => authStore.user?.systemRole === 'biz_admin' && route.query.scope === 'my')
+/** 根据用户角色返回默认保存目标 */
 const roleDefaultSaveTarget = () => authStore.user?.systemRole === 'biz_admin' ? 'process' : 'template'
 const saveTarget = ref<'template' | 'process'>(roleDefaultSaveTarget())
 const saveDialogMode = ref<'create' | 'saveAs'>('create')
@@ -879,7 +1062,10 @@ const isProcessSaveTarget = computed(() => authStore.user?.systemRole === 'biz_a
 const saveTargetLabel = computed(() => isProcessSaveTarget.value ? '流程' : '模板')
 const saveDialogTitle = computed(() => saveDialogMode.value === 'saveAs' ? `另存为${saveTargetLabel.value}` : `保存${saveTargetLabel.value}`)
 const saveDialogActionText = computed(() => saveDialogMode.value === 'saveAs' ? `另存为${saveTargetLabel.value}` : `保存${saveTargetLabel.value}`)
+
+/** 当前 BPMN XML 字符串，与画布保持同步 */
 const currentXml = ref(props.modelValue || defaultBpmnXml())
+/** 模板保存表单数据 */
 const templateSaveForm = reactive({
   templateCode: '',
   templateName: '未命名流程',
@@ -887,10 +1073,20 @@ const templateSaveForm = reactive({
   formId: null as number | null
 })
 
+// ============================================================================
+// 核心 computed 属性：驱动右侧属性面板展示
+// ============================================================================
+
+/**
+ * 当前选中节点的配置对象。
+ * 排除连线：连线走 selectedSequenceFlow 逻辑。
+ * 对于受管理的 BPMN 元素，始终返回 nodeConfigMap 中的配置。
+ */
 const selectedConfig = computed(() => {
   if (!selectedElement.value || isSequenceFlow(selectedElement.value) || !isManagedBpmnElement(selectedElement.value)) return null
   return ensureNodeConfig(selectedElement.value)
 })
+/** 当前选中连线的基础属性：ID、来源节点名称、目标节点名称 */
 const selectedSequenceFlow = computed<SequenceFlowProperty | null>(() => {
   const element = selectedElement.value
   if (!element || !isSequenceFlow(element)) return null
@@ -903,14 +1099,20 @@ const selectedSequenceFlow = computed<SequenceFlowProperty | null>(() => {
     targetName: target?.name || target?.id || '-'
   }
 })
+/** 当前选中连线的名称（从 bpmn 业务对象读取） */
 const selectedSequenceFlowName = computed(() => {
   propertyRevision.value
   return selectedElement.value?.businessObject?.name || ''
 })
+/** 当前选中连线的条件表达式（已去除 ${...} 包装） */
 const selectedSequenceFlowCondition = computed(() => {
   propertyRevision.value
   return stripFlowableExpression(selectedElement.value?.businessObject?.conditionExpression?.body || '')
 })
+/**
+ * 排他网关上所有出口连线的分支配置列表。
+ * 用于 condition 类型节点的条件分支配置面板。
+ */
 const selectedGatewayOutgoingFlows = computed<GatewayBranchFlow[]>(() => {
   propertyRevision.value
   const gateway = selectedElement.value
@@ -947,6 +1149,18 @@ watch(
   }
 )
 
+// ============================================================================
+// onMounted: 组件初始化，按 9 个子步骤顺序执行
+//   1. 清理历史遗留的 SessionStorage 数据
+//   2. 实例化 bpmn-js Modeler（挂载到 canvasRef）
+//   3. 绑定模型事件（选择、变更、视口变化）
+//   4. 从查询参数加载模板 BMPN（「查看流程图」入口）
+//   5. 检查是否来自 AI 生成的 BPMN（query 参数 from=ai）
+//   6. 导入 BPMN XML 并渲染画布（含 DI 补全和回退逻辑）
+//   7. 同步画布节点配置（nodeConfigMap）
+//   8. 恢复 AI 返回的节点配置和表单绑定
+//   9. 处理挂起的表单绑定（从 AI 表单生成页跳回）
+// ============================================================================
 onMounted(async () => {
   removeLegacySessionItems([
     AI_GENERATED_BPMN_KEY,
@@ -1176,10 +1390,17 @@ onMounted(async () => {
   await Promise.all([loadBizTypeOptions(), loadPublishedFormOptions(), loadAssigneeOptions()])
 })
 
+/** 组件卸载时销毁 bpmn-js Modeler 实例，释放资源 */
 onBeforeUnmount(() => {
   modeler.value?.destroy()
 })
 
+/**
+ * 绑定 bpmn-js Modeler 的三个核心事件：
+ * - selection.changed: 节点选中变化，更新右侧属性面板
+ * - commandStack.changed: 画布操作栈变化（增删改节点），同步配置和 XML
+ * - canvas.viewbox.changed: 画布缩放/平移，更新缩放百分比
+ */
 function bindModelerEvents() {
   const eventBus = modeler.value.get('eventBus')
   eventBus.on('selection.changed', (event: { newSelection: BpmnElement[] }) => {
@@ -1204,6 +1425,10 @@ function bindModelerEvents() {
   })
 }
 
+/**
+ * 导入 BPMN XML 并渲染到画布，适配视口，同步配置。
+ * 成功后重置选中状态并更新本地缓存。
+ */
 async function importDiagram(xml: string) {
   try {
     await modeler.value.importXML(xml)
@@ -1223,10 +1448,16 @@ async function importDiagram(xml: string) {
   }
 }
 
+/** 加载默认的空白请假审批流程模板 */
 async function loadDefaultDiagram() {
   await importDiagram(defaultBpmnXml())
 }
 
+/**
+ * 将从后端加载的模板/流程数据应用到此组件。
+ * 恢复模板 ID、编码、名称、业务类型、表单绑定等基础信息，
+ * 并解析 nodeConfig JSON 恢复到 nodeConfigMap。
+ */
 function applyLoadedTemplate(template: ProcessTemplate) {
   savedTemplateId.value = template.id
   saveTarget.value = roleDefaultSaveTarget()
@@ -1267,6 +1498,10 @@ async function exportXml() {
   xmlVisible.value = true
 }
 
+/**
+ * 保存流程：同步 XML → 校验（BPMN完整性、节点配置一致性、表单绑定）→ 打开保存弹窗。
+ * 如果已有 templateId 则直接调用 submitTemplateSave 更新。
+ */
 async function saveXml() {
   saveDialogMode.value = 'create'
   await syncXml(true)
@@ -1412,6 +1647,11 @@ function handleFormSelectVisibleChange(visible: boolean) {
   }
 }
 
+/**
+ * 提交模板/流程保存：构建 payload（含 nodeConfig 和 formBindConfig JSON），
+ * 根据角色和 scope 调用不同的 API（createMyProcess / createProcessTemplate 等）。
+ * 保存成功后更新 URL，支持刷新后恢复编辑状态。
+ */
 async function submitTemplateSave() {
   if (!templateSaveForm.templateName.trim()) {
     ElMessage.warning(`请输入${saveTargetLabel.value}名称`)
@@ -1463,6 +1703,10 @@ async function submitTemplateSave() {
   }
 }
 
+/**
+ * 从 bpmn-js Modeler 同步最新 BPMN XML 到 currentXml。
+ * @param emitChange 是否触发 change 事件（保存时需要，画布变更时不需要，避免循环触发）
+ */
 async function syncXml(emitChange: boolean) {
   if (!modeler.value) return
   const result = await modeler.value.saveXML({ format: true })
@@ -1499,6 +1743,14 @@ async function copyXml() {
   ElMessage.success('BPMN XML 已复制')
 }
 
+/**
+ * 在画布可视区域中心创建一个业务节点：
+ * 1. 获取 elementFactory 和 modeling 服务
+ * 2. 在视口中心随机偏移的位置创建 BPMN Shape
+ * 3. 设置为节点默认名称
+ * 4. 在 nodeConfigMap 中初始化对应配置
+ * 5. 自动选中该节点，触发右侧属性面板刷新
+ */
 function createBusinessNode(node: BusinessNodeConfig) {
   if (!modeler.value) return
   const elementFactory = modeler.value.get('elementFactory')
@@ -1520,6 +1772,13 @@ function createBusinessNode(node: BusinessNodeConfig) {
   ElMessage.success(`已创建：${node.label}`)
 }
 
+/**
+ * 确保节点在 nodeConfigMap 中有对应的配置对象。
+ * 如果没有（首次创建或从 XML 导入的节点），则根据 BPMN 类型推断
+ * businessType 并创建默认配置。
+ * 注意：不要在 computed 中调用此函数对已存在配置执行 normalize，
+ * 否则会触发 Vue 递归更新检测。
+ */
 function ensureNodeConfig(element: BpmnElement, defaultName?: string, businessType?: BusinessType) {
   if (!nodeConfigMap[element.id]) {
     const inferredBusinessType = businessType || inferBusinessType(element)
@@ -1642,6 +1901,12 @@ function ensureNodeConfigById(nodeId: string, fallbackName?: string, businessTyp
   return ensureNodeConfig(element, fallbackName, businessType)
 }
 
+/**
+ * 同步 nodeConfigMap 与画布上的实际元素：
+ * - 清理不再存在于画布上的节点配置（用户删除了节点）
+ * - 为画布上新增的节点初始化默认配置
+ * - 更新已有节点的 bpmnType（用户可能在属性面板中修改了业务类型）
+ */
 function reconcileNodeConfigMapWithCanvas() {
   if (!modeler.value) return
   const elementRegistry = modeler.value.get('elementRegistry')
@@ -1661,6 +1926,10 @@ function reconcileNodeConfigMapWithCanvas() {
   }
 }
 
+/**
+ * 创建一个新的默认节点配置对象，填充所有字段的初始值，
+ * 然后根据 businessType 应用特定默认值（如审批节点默认 assigneeType=MANAGER）。
+ */
 function createDefaultNodeConfig(element: BpmnElement, businessType: BusinessType, nodeName: string): NodeBusinessConfig {
   const base: NodeBusinessConfig = {
     nodeId: element.id,
@@ -1757,6 +2026,10 @@ function applyBusinessTypeDefaults(config: NodeBusinessConfig, businessType: Bus
   }
 }
 
+/**
+ * 根据 BPMN 元素类型推断业务类型。
+ * bpmn:UserTask 默认推断为 form_fill（最常用场景）。
+ */
 function inferBusinessType(element: BpmnElement): BusinessType {
   const typeMap: Record<string, BusinessType> = {
     'bpmn:StartEvent': 'start',
@@ -1794,6 +2067,11 @@ function isFormBindableNode(config?: NodeBusinessConfig | null) {
   return Boolean(config && FORM_BINDABLE_BUSINESS_TYPES.includes(config.businessType))
 }
 
+/**
+ * 将从 SessionStorage/API 恢复的节点配置合并到 nodeConfigMap。
+ * 支持 AI 策略名 → 前端 assigneeType 的映射。
+ * 仅覆盖已存在的节点配置，不会新增不在画布上的节点配置。
+ */
 function mergeStoredNodeConfig(raw: unknown) {
   const strategyToAssignee: Record<string, string> = {
     DIRECT_SUPERVISOR: 'MANAGER',
@@ -1835,6 +2113,7 @@ function mergeStoredNodeConfig(raw: unknown) {
   }
 }
 
+/** 表单绑定模式切换时的清理逻辑：切换为 none/template_default/node_form 时自动清理对应字段 */
 async function handleFormBindingModeChange() {
   if (!selectedConfig.value) return
   if (selectedConfig.value.formBindingMode === 'none') {
@@ -1852,6 +2131,10 @@ async function handleFormBindingModeChange() {
   syncNodeConfig()
 }
 
+/**
+ * 打开 AI 表单生成弹窗。根据当前选中节点的配置自动构建提示词，
+ * 提示词会带到 AI 表单生成页面作为初始输入。
+ */
 function handleAiGenerateFormForNode() {
   if (!selectedConfig.value) { ElMessage.warning('请先选择一个节点'); return }
   aiFormPrompt.value = '为流程中的"' + (selectedConfig.value.nodeName || '审批节点') + '"节点生成一个完整的表单'
@@ -1873,6 +2156,10 @@ function openBoundFormDesigner() {
   router.push('/form-designer?id=' + formId)
 }
 
+/**
+ * 跳转到 AI 表单生成页面。先通过 SessionStorage 保存当前节点上下文
+ * （PENDING_BIND_KEY），AI 生成完表单后回到本页面时自动绑定到该节点。
+ */
 function jumpToAiGenerateForm() {
   if (selectedConfig.value) {
     // 保存节点上下文，等表单生成后回来绑定
@@ -1887,6 +2174,11 @@ function jumpToAiGenerateForm() {
 }
 
 
+/**
+ * 根据节点配置自动构建 AI 表单生成的提示词。
+ * 包含：节点名称、类型、表单填写模式、必填/可编辑字段、
+ * 附件要求、校验要求等上下文，让 AI 生成更贴合业务场景的表单。
+ */
 function buildAiFormPrompt(config: NodeBusinessConfig) {
   const nodeName = config.nodeName || '当前节点'
   const businessLabel = getBusinessLabel(config.businessType)
@@ -1935,6 +2227,13 @@ function buildAiFormPrompt(config: NodeBusinessConfig) {
   return parts.join('')
 }
 
+/**
+ * 根据节点业务类型设置表单绑定的默认值：
+ * - start: 使用模板默认表单，模式为「新建填写」
+ * - form_fill: 绑定节点表单（待用户选择），模式为「补充填写」
+ * - approval: 不使用表单绑定
+ * - generic_task: 不使用表单绑定
+ */
 function applyDefaultFormBinding(config: NodeBusinessConfig, businessType: BusinessType) {
   if (businessType === 'start') {
     config.formBindingMode = 'template_default'
@@ -1977,6 +2276,13 @@ function applyDefaultFormBinding(config: NodeBusinessConfig, businessType: Busin
   }
 }
 
+/**
+ * 规范化节点配置，确保所有字段有合法默认值：
+ * - 统一 approvalRule 结构
+ * - 规范化审批人配置（调用 normalizeAssigneeConfig）
+ * - 对非表单绑定节点清理 formId/formBindingMode/useTemplateFallback
+ * - 对表单绑定节点确保 formBindingMode 与 formId 一致
+ */
 function normalizeNodeFormConfig(config: NodeBusinessConfig): NodeBusinessConfig {
   const normalized = config
   if (normalized.startPermission === 'ROLE') {
@@ -2010,6 +2316,10 @@ function normalizeNodeFormConfig(config: NodeBusinessConfig): NodeBusinessConfig
   return normalized
 }
 
+/**
+ * 从后端加载的原始配置数据规范化并合并默认值。
+ * 处理步骤：提取基础信息 → 创建默认配置 → 合并外层字段和嵌套对象 → 规范化。
+ */
 function normalizeLoadedNodeConfig(nodeId: string, raw: unknown): NodeBusinessConfig {
   const incoming = (raw && typeof raw === 'object' ? raw : {}) as Partial<NodeBusinessConfig>
   const bpmnType = incoming.bpmnType || 'bpmn:Task'
@@ -2030,6 +2340,11 @@ function normalizeLoadedNodeConfig(nodeId: string, raw: unknown): NodeBusinessCo
   return normalizeNodeFormConfig(base)
 }
 
+/**
+ * 规范化审批人配置：将 AI 生成的 assignStrategy 映射为前端 assigneeType，
+ * 并确保 assigneeValue / assignValue 一致、rejectRule 从 rejectStrategy 兜底。
+ * 根据 assigneeType 解析结构化数据（userId、departmentId、roleCode）。
+ */
 function normalizeAssigneeConfig(config: NodeBusinessConfig) {
   const strategyToAssignee: Record<string, string> = {
     DIRECT_SUPERVISOR: 'MANAGER',
@@ -2078,6 +2393,10 @@ function normalizeAssigneeConfig(config: NodeBusinessConfig) {
   }
 }
 
+/**
+ * 构建持久化的节点配置对象（map 格式 { nodeId → config }）。
+ * 每个 config 会经过 normalizeNodeFormConfig 规范化。
+ */
 function buildPersistableNodeConfig() {
   return Object.fromEntries(
     Object.entries(nodeConfigMap).map(([nodeId, config]) => [nodeId, normalizeNodeFormConfig({ ...config })])

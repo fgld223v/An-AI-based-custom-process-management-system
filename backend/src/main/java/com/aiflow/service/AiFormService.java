@@ -17,6 +17,24 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 
+/**
+ * AI 表单生成服务。
+ *
+ * <p>核心职责：接收用户自然语言描述（如"员工请假申请表单"），调用 DeepSeek 大模型
+ * 生成企业级数据采集表单的字段配置（fieldList）和布局配置（formSchema）。</p>
+ *
+ * <p>处理流程：</p>
+ * <ol>
+ *   <li>构建包含表单设计规则的 System Prompt 和用户描述的请求体</li>
+ *   <li>调用 DeepSeek Chat Completions API</li>
+ *   <li>提取并清理 JSON 响应</li>
+ *   <li>兼容处理 fieldList 的两种格式（JSON 数组 / JSON 字符串）</li>
+ *   <li>后处理过滤审批类字段（表单只做数据采集，不做审批决策）</li>
+ *   <li>自动注入跨字段校验规则（如 endDate >= startDate）</li>
+ * </ol>
+ *
+ * <p>关键约束：生成的表单仅用于数据采集，绝对禁止包含审批/审核类字段。</p>
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -26,6 +44,7 @@ public class AiFormService {
     private final AiConfig aiConfig;
     private final ObjectMapper objectMapper;
 
+    /** DeepSeek System Prompt：表单设计规则，强调只生成业务数据字段，禁止审批字段 */
     private static final String SYSTEM_PROMPT = """
         你是一个企业级数据采集表单设计专家。根据用户描述生成完整、实用的表单字段配置。
 
@@ -70,10 +89,30 @@ public class AiFormService {
         8. 【再次强调】不要审批字段！不要审批字段！不要审批字段！
         """;
 
+    /**
+     * 根据用户自然语言描述，调用 DeepSeek 生成表单字段配置。
+     *
+     * <p>执行步骤：</p>
+     * <ol>
+     *   <li>构建请求体 — System Prompt 强调只生成业务数据字段，禁止审批字段</li>
+     *   <li>调用 DeepSeek API — temperature=0.3 平衡创造性与稳定性</li>
+     *   <li>提取 JSON — 从 OpenAI 格式响应中解析 choices[0].message.content</li>
+     *   <li>清理 Markdown 代码块包裹</li>
+     *   <li>兼容处理 fieldList — 支持 AI 返回 JSON 数组或 JSON 字符串两种格式</li>
+     *   <li>后处理过滤 — 移除 AI 可能误生成的审批/审核类字段</li>
+     *   <li>兼容处理 formSchema — 支持对象或字符串两种格式，缺失时兜底生成</li>
+     *   <li>校验 fieldList 为合法 JSON</li>
+     *   <li>注入跨字段校验规则 — 自动为 endDate 添加 >=startDate 规则</li>
+     * </ol>
+     *
+     * @param description 用户描述的表单需求
+     * @return 包含 fieldList 和 formSchema JSON 字符串的响应对象
+     * @throws BusinessException AI 调用失败、响应解析失败或生成结果无效时抛出
+     */
     public AiGenerateFormResponse generateForm(String description) {
         log.info("开始生成表单，用户输入长度：{}", description.length());
 
-        // 1. 构建请求体
+        // 1. 构建请求体 — System Prompt 强调禁止审批字段，temperature=0.3 保证合理创造性
         Map<String, Object> requestBody = Map.of(
             "model", aiConfig.getModel(),
             "messages", List.of(
@@ -143,9 +182,10 @@ public class AiFormService {
             throw new BusinessException("AI 生成的表单格式有误，请重试");
         }
 
-        // 6. 提取 fieldList — 兼容两种格式：
-        //    新格式: "fieldList": [{...}, ...]  (JSON 数组)
-        //    旧格式: "fieldList": "[{...},...]"  (JSON 字符串)
+        // 6. 提取 fieldList — 兼容 AI 可能返回的两种格式：
+        //    格式A（JSON 数组）: "fieldList": [{"field":"name","label":"姓名",...}, ...]
+        //    格式B（JSON 字符串）: "fieldList": "[{\"field\":\"name\",\"label\":\"姓名\",...}, ...]"
+        //    统一转换为 JSON 字符串便于存储和后续处理
         Object fieldListObj = resultMap.get("fieldList");
         String fieldListStr;
         if (fieldListObj instanceof String s) {
@@ -160,10 +200,10 @@ public class AiFormService {
             throw new BusinessException("AI 未生成有效的字段列表（fieldList 格式异常），请重试");
         }
 
-        // 6b. 后处理：过滤掉 AI 可能误生成的审批类字段
+        // 6b. 后处理：过滤掉 AI 可能误生成的审批类字段（如审批结果、审批意见等）
         fieldListStr = stripApprovalFields(fieldListStr);
 
-        // 7. 提取 formSchema — 同样兼容两种格式
+        // 7. 提取 formSchema — 同样兼容对象和字符串两种格式
         Object formSchemaObj = resultMap.get("formSchema");
         String formSchemaStr;
         if (formSchemaObj instanceof String s) {
@@ -191,8 +231,9 @@ public class AiFormService {
         }
 
         // 9. 后处理：注入跨字段校验规则
-        // 注意：不再无条件注入审批字段（approvalResult/approvalComment），
-        // 审批字段应由 AI 根据用户描述自行判断是否需要，避免非审批表单出现"审批结果"字段
+        //    自动识别 endDate/startDate 配对，为 endDate 添加 >=startDate 的校验规则
+        //    注意：不再无条件注入审批字段（approvalResult/approvalComment），
+        //    审批字段应由 AI 根据用户描述自行判断是否需要，避免非审批表单出现"审批结果"字段
         fieldListStr = injectDateRangeRules(fieldListStr, objectMapper);
 
         AiGenerateFormResponse result = new AiGenerateFormResponse(fieldListStr, formSchemaStr);
@@ -204,7 +245,10 @@ public class AiFormService {
 
     /**
      * 自动为日期范围字段注入跨字段校验规则。
-     * 识别 endDate/startDate 配对，为 endDate 添加 >=startDate 规则。
+     *
+     * <p>识别逻辑：扫描 fieldList 中 field 名含 "start" + "date"/"time" 和
+     * "end" + "date"/"time" 的字段配对，为 end 字段自动添加
+     * gte（大于等于）校验规则，确保结束日期不早于开始日期。</p>
      */
     private String injectDateRangeRules(String fieldListJson, ObjectMapper mapper) {
         try {
@@ -258,14 +302,18 @@ public class AiFormService {
             "是否同意", "是否批准", "是否通过", "审批人"
     );
 
-    /** 审批类 field 名（英文）— 符合任一模式即判定为审批字段 */
+    /** 审批类 field 名（英文）正则 — 匹配 approval/audit/review + Result/Comment 等组合 */
     private static final Pattern APPROVAL_FIELD_PATTERN = Pattern.compile(
             "^(approval|audit|review)(Result|Comment|Opinion|Status|Decision|Conclusion|Node|Config|Structure|Suggestion)?$",
             Pattern.CASE_INSENSITIVE);
 
     /**
      * 从 fieldList JSON 中移除所有审批/审核类字段。
-     * 同时返回清理后的 JSON 字符串。
+     *
+     * <p>双重检测机制：中文关键词匹配（label/field 名包含审批相关词）+
+     * 英文模式匹配（approvalResult、auditComment 等正则）。</p>
+     *
+     * @return 清理后的 JSON 字符串；如果所有字段都被过滤则抛出 BusinessException
      */
     private String stripApprovalFields(String fieldListJson) {
         try {

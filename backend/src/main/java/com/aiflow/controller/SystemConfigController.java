@@ -10,6 +10,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+/**
+ * 系统配置管理控制器，支持配置项的增删改查以及自动化规则的独立存取。
+ */
 @RestController
 @RequestMapping("/api/system-config")
 public class SystemConfigController {

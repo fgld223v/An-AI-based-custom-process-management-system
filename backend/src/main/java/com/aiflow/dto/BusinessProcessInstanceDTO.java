@@ -11,6 +11,9 @@ import java.time.LocalDateTime;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+/**
+ * 业务流程实例DTO：包含实例完整状态、模板信息及申请人等数据
+ */
 public class BusinessProcessInstanceDTO {
 
     private Long id;

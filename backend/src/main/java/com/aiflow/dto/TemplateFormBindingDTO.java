@@ -9,6 +9,9 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+/**
+ * 模板表单绑定DTO：包含流程模板及其绑定的表单定义
+ */
 public class TemplateFormBindingDTO {
 
     private ProcessTemplateDTO template;

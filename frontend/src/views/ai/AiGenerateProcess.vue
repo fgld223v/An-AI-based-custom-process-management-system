@@ -149,6 +149,13 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * AiGenerateProcess - AI 智能流程生成页面
+ *
+ * 用户输入自然语言描述，AI 生成对应的 BPMN 流程图和节点配置。
+ * 支持步骤式进度展示、结果预览、打开编辑器、创建模板/流程。
+ * 页面离开时通过 sessionStorage 持久化状态。
+ */
 import { computed, ref, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { MagicStick, Edit } from '@element-plus/icons-vue'
@@ -161,40 +168,44 @@ import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 import { getUserSessionItem, removeLegacySessionItems, removeUserSessionItem, setUserSessionItem } from '@/utils/userScopedStorage'
 
+/** sessionStorage 持久化 key */
 const STORAGE_KEY = 'ai-generate-process-state'
 const AI_GENERATED_BPMN_KEY = 'ai-generated-bpmn'
 const AI_GENERATED_NODE_CONFIG_KEY = 'ai-generated-nodeconfig'
 const router = useRouter()
 const authStore = useAuthStore()
 
+/** 业务类型 */
 interface BizType {
   id: number
   typeName: string
   typeCode: string
 }
 
-const description = ref('')
-const generating = ref(false)
-const result = ref<AiGenerateProcessResult | null>(null)
-const errorMessage = ref('')
-const currentStep = ref(0)
-const elapsedSeconds = ref(0)
+// ---- 页面状态 ----
+const description = ref('')                              // 用户输入的需求描述
+const generating = ref(false)                            // 是否正在生成中
+const result = ref<AiGenerateProcessResult | null>(null) // AI 生成结果
+const errorMessage = ref('')                             // 错误消息
+const currentStep = ref(0)                               // 当前进度步骤 (0-4)
+const elapsedSeconds = ref(0)                            // 已等待秒数
 let progressTimer: ReturnType<typeof setInterval> | null = null
 const stageMessages = ['正在分析您的业务需求...', '正在构建 BPMN 流程图...', '正在配置节点审批规则...', '即将完成，准备渲染预览...']
-const createDialogVisible = ref(false)
-const creating = ref(false)
-const bizTypeList = ref<BizType[]>([])
+const createDialogVisible = ref(false)                   // 创建模板弹窗可见性
+const creating = ref(false)                              // 是否正在创建中
+const bizTypeList = ref<BizType[]>([])                   // 业务类型列表
 const createForm = ref({
   templateName: '',
   templateCode: '',
   bizTypeId: null as number | null
 })
+// 根据角色判断创建目标：超管创建模板，普通用户创建我的流程
 const isTemplateTarget = computed(() => authStore.user?.systemRole === 'super_admin')
 const targetLabel = computed(() => isTemplateTarget.value ? '模板' : '流程')
 const confirmCreateText = computed(() => `确认创建${targetLabel.value}`)
 const createDialogTitle = computed(() => `确认创建${targetLabel.value}`)
 
-// 页面离开时保存状态
+/** 页面离开时保存当前状态到 sessionStorage */
 function saveState() {
   const state = {
     description: description.value,
@@ -205,6 +216,7 @@ function saveState() {
   }
 }
 
+/** 从 sessionStorage 恢复上次的页面状态 */
 function restoreState() {
   const raw = getUserSessionItem(STORAGE_KEY, authStore.user)
   if (raw) {
@@ -216,7 +228,7 @@ function restoreState() {
   }
 }
 
-// 监听变化自动保存
+// 监听数据变化，自动保存
 watch([description, result], () => saveState(), { deep: true })
 
 // 浏览器关闭/刷新前保存
@@ -227,6 +239,7 @@ onMounted(() => {
   restoreState()
 })
 
+/** 根据节点业务类型返回 el-tag 的 type 属性 */
 function businessTypeTag(type: string) {
   const map: Record<string, string> = {
     start: 'info',
@@ -237,6 +250,7 @@ function businessTypeTag(type: string) {
   return map[type] || 'info'
 }
 
+/** 调用 AI 接口生成流程，期间模拟四步进度 */
 async function handleGenerate() {
   const text = description.value.trim()
   if (!text) {
@@ -250,7 +264,7 @@ async function handleGenerate() {
   currentStep.value = 0
   elapsedSeconds.value = 0
 
-  // 进度模拟：每 3~6 秒推进一个步骤
+  // 进度模拟：每 4 秒推进一个步骤
   progressTimer = setInterval(() => {
     elapsedSeconds.value++
     if (elapsedSeconds.value >= 4 && currentStep.value === 0) currentStep.value = 1
@@ -259,6 +273,7 @@ async function handleGenerate() {
   }, 1000)
 
   try {
+    // 动态导入 AI API，按需加载
     const { generateProcess } = await import('@/api/ai')
     const data = await generateProcess(text)
     result.value = data
@@ -273,17 +288,19 @@ async function handleGenerate() {
   }
 }
 
+/** 将生成的 BPMN XML 存入 sessionStorage 并跳转到流程设计器 */
 function handleOpenInDesigner() {
   if (!result.value?.bpmnXml) return
   setUserSessionItem(AI_GENERATED_BPMN_KEY, result.value.bpmnXml, authStore.user)
-  // 保存 nodeConfig 以便设计器恢复
+  // 保存 nodeConfig 以便设计器恢复节点配置
   setUserSessionItem(AI_GENERATED_NODE_CONFIG_KEY, JSON.stringify(result.value.nodeConfig || []), authStore.user)
   router.push('/process-designer?from=ai')
 }
 
+/** 打开创建模板/流程弹窗 */
 async function handleCreateTemplate() {
   if (!result.value) return
-  // 预填名称（从摘要取前 20 字）
+  // 从摘要前 20 字预填流程名称
   createForm.value = {
     templateName: result.value.summary?.slice(0, 20) || 'AI生成流程',
     templateCode: 'ai-' + Date.now(),
@@ -296,6 +313,7 @@ async function handleCreateTemplate() {
   createDialogVisible.value = true
 }
 
+/** 提交创建模板/流程：调用对应 API 并跳转 */
 async function submitCreateTemplate() {
   if (!result.value) return
   if (!createForm.value.templateName?.trim()) {
@@ -324,11 +342,13 @@ async function submitCreateTemplate() {
   }
 }
 
+/** 清除生成结果，允许重新生成 */
 function handleRegenerate() {
   result.value = null
   errorMessage.value = ''
 }
 
+/** 清空所有输入和结果 */
 function handleClear() {
   description.value = ''
   result.value = null

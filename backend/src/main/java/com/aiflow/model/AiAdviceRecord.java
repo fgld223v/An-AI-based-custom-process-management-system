@@ -4,6 +4,10 @@ import jakarta.persistence.*;
 import lombok.Data;
 import java.time.LocalDateTime;
 
+/**
+ * AI 建议记录实体，保存 AI 模型对审批节点的建议（通过/核实/驳回/风险提示）。
+ * 对应数据库表 ai_advice_record。
+ */
 @Data
 @Entity
 @Table(name = "ai_advice_record")

@@ -6,6 +6,9 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * 业务类型字典Repository：按编码查询，支持启用状态过滤。
+ */
 public interface BizTypeDictRepository extends JpaRepository<BizTypeDict, Long> {
 
     boolean existsByTypeCode(String typeCode);

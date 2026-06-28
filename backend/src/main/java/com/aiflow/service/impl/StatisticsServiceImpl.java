@@ -24,7 +24,17 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * 统计看板服务实现 — 使用原生 SQL 聚合查询，不依赖额外实体类
+ * 统计看板服务实现 — 使用原生 SQL 聚合查询，不依赖额外实体类。
+ *
+ * <p>统计维度：</p>
+ * <ul>
+ *   <li><b>概览（Overview）</b> — 实例总数、办结率、平均耗时、异常数、状态/业务类型分布、今日新增、待处理任务数</li>
+ *   <li><b>趋势（Trend）</b> — 按天/周统计发起量和办结量，支持按业务类型分组</li>
+ *   <li><b>节点效率（NodeEfficiency）</b> — 各节点任务总数、超时数、平均停留时长</li>
+ *   <li><b>Excel 导出</b> — 将概览、趋势、节点效率数据导出为 Excel 工作簿</li>
+ * </ul>
+ *
+ * <p>异常数统计包含：超时任务 + 瓶颈预测高概率超时 + 驳回审批记录，按 instance_id 去重。</p>
  */
 @Slf4j
 @Service
@@ -32,14 +42,22 @@ import java.util.stream.Collectors;
 @Transactional(readOnly = true)
 public class StatisticsServiceImpl implements StatisticsService {
 
+    /** 日期格式化器：yyyy-MM-dd */
     private static final DateTimeFormatter DAY_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
-    private final EntityManager entityManager;
+    private final EntityManager entityManager;  // 用于执行原生 SQL
 
+    /**
+     * 获取统计概览数据。
+     *
+     * <p>统计项：实例总数、办结率（百分比，保留2位小数）、平均审批耗时（小时）、
+     * 异常实例数（超时+瓶颈预测+驳回），以及状态分布、业务类型分布、
+     * 今日新增实例数、当前用户待处理任务数。</p>
+     */
     @Override
     public StatisticsOverviewDTO getOverview() {
 
-        // 1. 实例总数
+        // 1. 实例总数（未删除的流程实例）
         Long totalInstances = ((Number) entityManager
                 .createNativeQuery("SELECT COUNT(*) FROM process_instance WHERE deleted = 0")
                 .getSingleResult()).longValue();
@@ -143,6 +161,17 @@ public class StatisticsServiceImpl implements StatisticsService {
                 .build();
     }
 
+    /**
+     * 获取统计趋势数据。
+     *
+     * <p>两种模式：</p>
+     * <ul>
+     *   <li><b>summary（概览模式）</b> — 返回发起量 + 办结量两条折线</li>
+     *   <li><b>默认模式</b> — 按业务类型分组，每个业务类型一条折线</li>
+     * </ul>
+     *
+     * <p>时间粒度支持按天（day）或按周（week）聚合。</p>
+     */
     @Override
     public StatisticsTrendDTO getTrend(LocalDate start, LocalDate end, String granularity, String mode) {
         boolean byWeek = "week".equalsIgnoreCase(granularity);
@@ -352,6 +381,12 @@ public class StatisticsServiceImpl implements StatisticsService {
         }
     }
 
+    /**
+     * 获取节点效率排名数据。
+     *
+     * <p>统计每个任务节点的：任务总数、超时数、超时率（百分比）、平均停留时长（小时），
+     * 按平均停留时长降序排列。</p>
+     */
     @Override
     public NodeEfficiencyDTO getNodeEfficiency() {
         @SuppressWarnings("unchecked")
@@ -395,6 +430,20 @@ public class StatisticsServiceImpl implements StatisticsService {
 
         return NodeEfficiencyDTO.builder().rankings(rankings).build();
     }
+    /**
+     * 导出统计 Excel 工作簿。
+     *
+     * <p>包含三个工作表：</p>
+     * <ol>
+     *   <li><b>统计概览</b> — 概览指标、状态分布、业务类型分布</li>
+     *   <li><b>节点效率排名</b> — 各节点任务数、超时率、平均耗时</li>
+     *   <li><b>近30天趋势</b> — 日期、发起量、办结量</li>
+     * </ol>
+     *
+     * @param start 起始日期（默认今日-30天）
+     * @param end   结束日期（默认今日）
+     * @return Excel 文件字节数组
+     */
     @Override
     public byte[] exportExcel(java.time.LocalDate start, java.time.LocalDate end) {
         try (org.apache.poi.ss.usermodel.Workbook wb = new org.apache.poi.xssf.usermodel.XSSFWorkbook()) {

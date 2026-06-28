@@ -1,4 +1,11 @@
 <script setup lang="ts">
+/**
+ * Dashboard - 数据统计仪表盘
+ *
+ * 使用 ECharts 渲染四张图表：办结率仪表盘、状态柱状图、业务类型饼图、趋势折线图。
+ * 支持导出 Excel 报表、节点耗时排名表（点击跳转实例列表）。
+ * 页面挂载后每 60 秒自动刷新数据。
+ */
 import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Download } from '@element-plus/icons-vue'
@@ -6,29 +13,36 @@ import { getStatisticsOverview, getStatisticsTrend, getNodeEfficiency } from '@/
 
 declare const echarts: any
 
-const gaugeRef = ref<HTMLDivElement>()
-const barRef = ref<HTMLDivElement>()
-const pieRef = ref<HTMLDivElement>()
-const trendRef = ref<HTMLDivElement>()
+// ---- ECharts 容器引用 ----
+const gaugeRef = ref<HTMLDivElement>()  // 仪表盘
+const barRef = ref<HTMLDivElement>()    // 柱状图
+const pieRef = ref<HTMLDivElement>()    // 饼图
+const trendRef = ref<HTMLDivElement>()  // 趋势折线图
 
 const router = useRouter()
 const loading = ref(false)
-const overview = ref<any>({})
-const nodeRankings = ref<any[]>([])
+const overview = ref<any>({})           // 统计概览数据
+const nodeRankings = ref<any[]>([])     // 节点耗时排名
 const trendRange = ref<'7d' | '30d' | '90d' | 'custom'>('30d')
 const trendDateLabel = ref('')
 const customDates = ref<[Date, Date] | null>(null)
 
+// ---- ECharts 实例缓存 ----
 let gaugeChart: any = null
 let barChart: any = null
 let pieChart: any = null
 let trendChart: any = null
 
-// ----- 时间范围 -----
+// ==================================================================
+// 时间范围工具函数
+// ==================================================================
+
+/** 格式化日期为 yyyy-MM-dd */
 function fmtLocal(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
+/** 根据当前选择的时间范围计算起止日期 */
 function rangeDates(): { start: string; end: string } {
   if (trendRange.value === 'custom' && customDates.value) {
     return { start: fmtLocal(customDates.value[0]), end: fmtLocal(customDates.value[1]) }
@@ -40,7 +54,7 @@ function rangeDates(): { start: string; end: string } {
   return { start: fmtLocal(start), end: fmtLocal(end) }
 }
 
-// 监听自定义日期选择
+/** 监听自定义日期选择，自动切换为 custom 模式并刷新 */
 watch(customDates, (val) => {
   if (val) {
     trendRange.value = 'custom'
@@ -48,12 +62,16 @@ watch(customDates, (val) => {
   }
 })
 
-// 禁止选择未来日期
+/** 禁止选择未来日期 */
 function disableFuture(date: Date): boolean {
   return date.getTime() > Date.now()
 }
 
-// ----- 加载概览 -----
+// ==================================================================
+// 数据加载
+// ==================================================================
+
+/** 加载统计概览并渲染三张图表 */
 async function loadOverview() {
   const res: any = await getStatisticsOverview()
   overview.value = res
@@ -63,7 +81,7 @@ async function loadOverview() {
   renderPie()
 }
 
-// ----- 加载趋势 -----
+/** 加载趋势数据并渲染折线图 */
 async function loadTrend() {
   const { start, end } = rangeDates()
   trendDateLabel.value = `${start} ~ ${end}`
@@ -73,7 +91,7 @@ async function loadTrend() {
   } catch { /* empty */ }
 }
 
-// ----- 加载节点效率 -----
+/** 加载节点效率排名数据 */
 async function loadNodeEfficiency() {
   try {
     const res: any = await getNodeEfficiency()
@@ -81,11 +99,12 @@ async function loadNodeEfficiency() {
   } catch { /* empty */ }
 }
 
-// ----- 点击节点行 → 跳转实例列表 -----
+/** 点击节点行跳转到实例列表（按节点过滤） */
 function goToInstances(nodeKey: string) {
   router.push({ path: '/process/instances', query: { nodeKey } })
 }
 
+/** 并行加载所有仪表盘数据 */
 async function loadData() {
   loading.value = true
   try {

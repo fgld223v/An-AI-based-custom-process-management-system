@@ -10,6 +10,8 @@ import type {
   StartProcessPreviewPayload
 } from '@/types/workflow'
 
+// 流程实例 API：创建草稿、填写表单、提交、查看流转图、运行时状态、催办
+
 export async function getProcessInstanceList(params: ProcessInstanceListParams = {}) {
   return await request.get<ProcessInstance[]>('/api/process-instances', { params }) || []
 }

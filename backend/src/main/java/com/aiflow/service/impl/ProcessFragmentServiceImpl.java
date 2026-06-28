@@ -12,6 +12,9 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * 流程片段服务实现，负责片段的创建、更新、发布与查询等生命周期管理。
+ */
 @Service
 @RequiredArgsConstructor
 @Transactional

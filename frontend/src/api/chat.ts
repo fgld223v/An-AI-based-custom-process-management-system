@@ -1,6 +1,8 @@
 import request from './request'
 import type { ChatSession, ChatMessage } from '@/types/chat'
 
+// AI 对话 API：管理聊天会话、获取消息、流式对话
+
 /** List all chat sessions for current user */
 export function listSessions() {
   return request.get<ChatSession[]>('/api/ai/chat/sessions')

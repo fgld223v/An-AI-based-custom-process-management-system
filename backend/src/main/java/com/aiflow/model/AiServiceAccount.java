@@ -4,6 +4,10 @@ import jakarta.persistence.*;
 import lombok.Data;
 import java.time.LocalDateTime;
 
+/**
+ * AI 服务账号实体，存储 AI 服务的 API 密钥及访问控制信息。
+ * 对应数据库表 ai_service_account。
+ */
 @Data
 @Entity
 @Table(name = "ai_service_account")

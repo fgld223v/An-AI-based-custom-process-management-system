@@ -14,6 +14,19 @@ import java.util.List;
 import java.util.Optional;
 import org.springframework.security.access.AccessDeniedException;
 
+/**
+ * 表单定义服务实现。
+ *
+ * <p>核心职责：表单定义的 CRUD 和生命周期管理，包括创建、更新、
+ * 发布、列表查询、查找、停用（软删除）等操作。</p>
+ *
+ * <p>权限控制：</p>
+ * <ul>
+ *   <li>超级管理员可查看/管理所有表单</li>
+ *   <li>普通用户只能查看/管理自己创建的表单</li>
+ *   <li>发布后的表单不可修改（需先创建新版本）</li>
+ * </ul>
+ */
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -21,6 +34,10 @@ public class FormDefinitionServiceImpl implements FormDefinitionService {
 
     private final FormDefinitionRepository formDefinitionRepository;
 
+    /**
+     * 创建表单定义（草稿状态）。
+     * 校验 formCode+version 唯一性，自动设置默认值。
+     */
     @Override
     public FormDefinition createForm(FormDefinition form) {
         if (form == null) {
@@ -50,6 +67,10 @@ public class FormDefinitionServiceImpl implements FormDefinitionService {
         return formDefinitionRepository.save(form);
     }
 
+    /**
+     * 更新表单定义 — 仅允许修改 formName、bizTypeId、fieldList、formSchema。
+     * 需校验操作权限（超级管理员或创建者）。
+     */
     @Override
     public FormDefinition updateForm(Long id, FormDefinition form) {
         requireId(id, "id must not be null");
@@ -69,6 +90,10 @@ public class FormDefinitionServiceImpl implements FormDefinitionService {
         return formDefinitionRepository.save(existing);
     }
 
+    /**
+     * 发布表单 — 将草稿状态改为 PUBLISHED。
+     * 仅 DRAFT 状态可发布；需校验 fieldList 或 formSchema 非空。
+     */
     @Override
     public FormDefinition publishForm(Long id) {
         requireId(id, "id must not be null");

@@ -11,6 +11,9 @@ import java.time.LocalDateTime;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+/**
+ * 流程实例DTO：包含实例状态、当前节点、Flowable关联信息
+ */
 public class ProcessInstanceDTO {
     private Long id;
     private Long templateId;

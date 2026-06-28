@@ -9,6 +9,9 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+/**
+ * 流程图DTO：包含流程模板ID、名称及BPMN XML
+ */
 public class ProcessDiagramDTO {
     private Long templateId;
     private String templateName;

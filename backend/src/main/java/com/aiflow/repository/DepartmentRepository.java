@@ -6,6 +6,9 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * 部门Repository：按编码、父级ID、负责人等查询部门信息。
+ */
 public interface DepartmentRepository extends JpaRepository<Department, Long> {
 
     boolean existsByDeptCode(String deptCode);

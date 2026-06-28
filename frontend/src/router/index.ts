@@ -1,19 +1,36 @@
+/**
+ * 前端路由配置。
+ *
+ * 路由分为两层：
+ *  1. 公开路由（/login, /register 等）—— meta.public = true，无需登录即可访问。
+ *  2. 布局路由（/）—— 包裹在 BasicLayout 中，按角色（roles）控制可见性。
+ *
+ * 路由守卫（beforeEach）负责：
+ *  - 补全缺失的 systemRole（兼容旧 localStorage 数据）
+ *  - 已登录用户访问 /login 时按角色跳转到默认页
+ *  - 未登录用户强制跳转到 /login
+ *  - 角色不满足时跳转到 403 页面
+ */
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import type { SystemRole } from '@/types/auth'
 
+/** 路由元数据扩展 */
 type RouteMeta = {
-  public?: boolean
-  title?: string
-  group?: string
-  roles?: SystemRole[]
+  public?: boolean      // 是否无需登录即可访问
+  title?: string        // 页面标题（用于面包屑）
+  group?: string        // 菜单分组标识
+  roles?: SystemRole[]  // 允许访问的系统角色，空数组或不存在表示所有角色
 }
 
+// 预定义角色组合，避免处处重复字面量
 const ADMIN_ROLES: SystemRole[] = ['super_admin', 'biz_admin']
 const SUPER_ADMIN: SystemRole[] = ['super_admin']
 const BIZ_ADMIN: SystemRole[] = ['biz_admin']
 
+/** 全量路由定义 */
 const routes: RouteRecordRaw[] = [
+  // ==================== 公开路由（无需登录） ====================
   {
     path: '/login',
     name: 'Login',
@@ -38,23 +55,27 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/error/Forbidden.vue'),
     meta: { public: true, title: '403 无权限' }
   },
+  // ==================== 布局路由（需登录） ====================
   {
     path: '/',
     component: () => import('@/layouts/BasicLayout.vue'),
+    // 根据角色重定向到各自的默认页
     redirect: () => {
       const authStore = useAuthStore()
       const role = authStore.user?.systemRole
       if (role === 'super_admin') return '/workbench'
       if (role === 'biz_admin') return '/my-processes'
-      return '/process/start-preview'
+      return '/process/start-preview'  // 普通用户默认页
     },
     children: [
+      // ---- 概览 ----
       {
         path: 'workbench',
         name: 'Workbench',
         component: () => import('@/views/workbench/Workbench.vue'),
         meta: { title: '工作台', group: '概览', roles: SUPER_ADMIN }
       },
+      // ---- 流程设计 ----
       {
         path: 'form-designer',
         name: 'FormDesigner',
@@ -73,6 +94,7 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/process/MyProcessList.vue'),
         meta: { title: '我的流程', group: '流程', roles: ADMIN_ROLES }
       },
+      // ---- 资源 ----
       {
         path: 'templates',
         name: 'TemplateList',
@@ -85,6 +107,7 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/template/TemplateMarket.vue'),
         meta: { title: '模板市场', group: '资源', roles: ADMIN_ROLES }
       },
+      // ---- AI ----
       {
         path: 'ai/generate-process',
         name: 'AiGenerateProcess',
@@ -103,6 +126,7 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/ai/AiOptimize.vue'),
         meta: { title: 'AI 流程优化', group: 'AI', roles: ADMIN_ROLES }
       },
+      // ---- 运行 ----
       {
         path: 'runtime-monitor',
         name: 'RuntimeMonitor',
@@ -127,7 +151,7 @@ const routes: RouteRecordRaw[] = [
         path: 'process/start-preview',
         name: 'StartPreview',
         component: () => import('@/views/process/StartPreview.vue'),
-        meta: { title: '流程发起', group: '运行' }
+        meta: { title: '流程发起', group: '运行' }  // 所有角色均可访问
       },
       {
         path: 'process/instances',
@@ -141,6 +165,7 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/process/InstanceDetail.vue'),
         meta: { title: '我的申请详情', group: '运行' }
       },
+      // ---- 任务 ----
       {
         path: 'tasks/todo',
         name: 'TaskTodoList',
@@ -159,12 +184,14 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/task/TaskDetail.vue'),
         meta: { title: '任务详情', group: '运行' }
       },
+      // ---- 通知 ----
       {
         path: 'notifications',
         name: 'NotificationList',
         component: () => import('@/views/notification/NotificationList.vue'),
         meta: { title: '通知中心', group: '运行' }
       },
+      // ---- 系统管理（仅超级管理员） ----
       {
         path: 'admin/users',
         name: 'UserAdmin',
@@ -183,6 +210,7 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/admin/WorkflowRoleAdmin.vue'),
         meta: { title: '流程角色管理', group: '系统', roles: SUPER_ADMIN }
       },
+      // ---- 设置 ----
       {
         path: 'settings',
         name: 'Settings',
@@ -201,7 +229,7 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/settings/SystemSettings.vue'),
         meta: { title: '系统设置', group: '系统', roles: SUPER_ADMIN }
       },
-      // ---- 占位页面 ----
+      // ---- 占位页面（功能预告） ----
       {
         path: 'placeholder/:feature',
         name: 'Placeholder',
@@ -231,7 +259,7 @@ const routes: RouteRecordRaw[] = [
       }
     ]
   },
-  // ---- 全局 404（未登录或未匹配任何路由） ----
+  // ---- 全局 404（未登录或未匹配任何路由，兜底跳转登录） ----
   {
     path: '/:pathMatch(.*)*',
     name: 'GlobalCatchAll',
@@ -240,16 +268,31 @@ const routes: RouteRecordRaw[] = [
 ]
 
 const router = createRouter({
-  history: createWebHistory(),
+  history: createWebHistory(),  // HTML5 History 模式，需要服务端配合 fallback
   routes,
-  scrollBehavior: () => ({ top: 0 })
+  scrollBehavior: () => ({ top: 0 })  // 路由切换后滚动到顶部
 })
 
+/**
+ * 检查用户角色是否有权访问某条路由。
+ * @param userRole   当前用户角色
+ * @param routeRoles 路由配置的允许角色列表（undefined/空数组表示公开）
+ */
 function hasRouteAccess(userRole: SystemRole | undefined, routeRoles?: SystemRole[]): boolean {
-  if (!routeRoles || routeRoles.length === 0) return true
+  if (!routeRoles || routeRoles.length === 0) return true  // 无角色限制
   return Boolean(userRole && routeRoles.includes(userRole))
 }
 
+/**
+ * 全局前置路由守卫。
+ *
+ * 执行顺序：
+ *  1. 尝试补全 systemRole（兼容旧 localStorage 数据）
+ *  2. 已登录用户访问 /login → 按角色跳转默认页
+ *  3. 公开路由直接放行
+ *  4. 未登录 → /login
+ *  5. 无角色权限 → /403
+ */
 router.beforeEach(async (to) => {
   const authStore = useAuthStore()
   const meta = to.meta as RouteMeta
@@ -259,11 +302,13 @@ router.beforeEach(async (to) => {
     try {
       await authStore.fetchMe()
     } catch {
+      // 补全失败说明 token 无效，退出并重定向
       authStore.logout()
       return to.path === '/login' ? true : '/login'
     }
   }
 
+  // 已登录用户访问登录页 → 按角色跳转到默认页
   if (to.path === '/login' && authStore.isLoggedIn) {
     const role = authStore.user?.systemRole
     if (role === 'normal_user') return '/process/start-preview'
@@ -271,10 +316,13 @@ router.beforeEach(async (to) => {
     return '/workbench'
   }
 
+  // 公开路由无需登录
   if (meta.public) return true
 
+  // 未登录 → 强制跳转登录页
   if (!authStore.isLoggedIn) return '/login'
 
+  // 已登录但角色不满足路由要求的角色列表 → 403
   if (!hasRouteAccess(authStore.user?.systemRole, meta.roles)) {
     return '/403'
   }

@@ -11,6 +11,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+/**
+ * 工作流通知服务，负责在关键流程事件（任务创建、审批结果、流程完成）发生时
+ * 向相关用户发送站内通知，避免重复通知。
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor

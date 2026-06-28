@@ -34,6 +34,7 @@ public class AiOptimizationService {
     private final ProcessInstanceRepository processInstanceRepository;
     private final ProcessTemplateRepository processTemplateRepository;
 
+    /** DeepSeek System Prompt：BPM 优化专家，基于历史指标生成流程优化建议 */
     private static final String OPTIMIZE_SYSTEM_PROMPT = """
         你是一个业务流程优化专家（BPM Optimization Expert）。
 
@@ -112,7 +113,7 @@ public class AiOptimizationService {
     }
 
     // ================================================================
-    // 指标采集
+    // 指标采集 — 从数据库查询模板的整体统计、节点统计、驳回率、审批人效率等
     // ================================================================
 
     private Map<String, Object> collectTemplateMetrics(Long templateId) {
@@ -198,7 +199,7 @@ public class AiOptimizationService {
     }
 
     // ================================================================
-    // LLM 调用
+    // LLM 调用 — 构建 Prompt、调用 DeepSeek、解析优化建议响应
     // ================================================================
 
     private String buildOptimizationPrompt(Map<String, Object> metrics) {

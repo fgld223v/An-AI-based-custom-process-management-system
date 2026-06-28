@@ -11,6 +11,9 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+/**
+ * 流程片段DTO：包含片段编码、名称、类型、状态及BPMN数据
+ */
 public class ProcessFragmentDTO {
 
     private Long id;

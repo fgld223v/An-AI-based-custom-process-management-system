@@ -1,5 +1,7 @@
 <template>
+  <!-- 待办任务页面 -->
   <div class="task-page">
+    <!-- 页面标题区 -->
     <section class="page-head">
       <div>
         <h1>待办任务</h1>
@@ -7,13 +9,19 @@
       </div>
     </section>
 
+    <!-- 错误/提示信息 -->
     <el-alert v-if="message" type="warning" show-icon :closable="false" :title="message" />
 
+    <!-- 待办任务表格 -->
     <section class="table-panel" v-loading="loading">
       <el-table :data="tasks" border empty-text="暂无待办任务" @row-click="goDetail" style="cursor:pointer">
+        <!-- 任务名称列 -->
         <el-table-column prop="taskName" label="任务名称" min-width="140" />
+        <!-- 流程实例标题 -->
         <el-table-column prop="instanceTitle" label="流程实例" min-width="180" />
+        <!-- 实例编号 -->
         <el-table-column prop="instanceCode" label="实例编号" min-width="160" />
+        <!-- 审批方式列：会签/或签/单人 -->
         <el-table-column label="审批方式" width="100">
           <template #default="{ row }">
             <template v-if="row.approvalMode === 'ALL'">
@@ -27,6 +35,7 @@
             </template>
           </template>
         </el-table-column>
+        <!-- 审批进度列：显示完成数/总数和进度条 -->
         <el-table-column label="进度" min-width="140">
           <template #default="{ row }">
             <template v-if="row.approvalMode === 'ALL' || row.approvalMode === 'ANY'">
@@ -48,12 +57,15 @@
             </template>
           </template>
         </el-table-column>
+        <!-- 任务状态列 -->
         <el-table-column label="状态" width="100">
           <template #default="{ row }">
             <el-tag type="warning" size="small" effect="plain">{{ row.status === 'active' ? '待处理' : row.status }}</el-tag>
           </template>
         </el-table-column>
+        <!-- 创建时间 -->
         <el-table-column prop="createTime" label="创建时间" min-width="170" />
+        <!-- 操作列：点击处理跳转到任务详情 -->
         <el-table-column label="操作" width="120" fixed="right">
           <template #default="{ row }">
             <el-button text type="primary" @click.stop="goDetail(row)">处理</el-button>
@@ -71,12 +83,17 @@ import { getMyTasks } from '@/api/task'
 import type { TaskItem } from '@/types/workflow'
 
 const router = useRouter()
+/** 表格加载状态 */
 const loading = ref(false)
+/** 错误消息提示 */
 const message = ref('')
+/** 待办任务列表 */
 const tasks = ref<TaskItem[]>([])
 
+/** 页面挂载时加载待办任务 */
 onMounted(() => loadTasks())
 
+/** 加载我的待办任务列表 */
 async function loadTasks() {
   loading.value = true
   try {
@@ -88,10 +105,17 @@ async function loadTasks() {
   }
 }
 
+/** 跳转到任务详情页 */
 function goDetail(row: TaskItem) {
   router.push(`/tasks/${row.taskId}`)
 }
 
+/**
+ * 标准化错误信息
+ * @param error - 原始错误对象
+ * @param fallback - 兜底提示文案
+ * @returns 可读的错误消息字符串
+ */
 function normalizeError(error: unknown, fallback: string) {
   if (error instanceof Error && error.message) return error.message
   return fallback

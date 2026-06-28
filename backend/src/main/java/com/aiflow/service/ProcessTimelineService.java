@@ -15,6 +15,9 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * 流程时间线服务，根据流程实例的审批记录构造从发起到结束的完整时间线节点。
+ */
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)

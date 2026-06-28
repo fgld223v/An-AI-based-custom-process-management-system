@@ -7,6 +7,9 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * 表单定义Repository：按编码/版本、状态、创建者查询表单定义。
+ */
 public interface FormDefinitionRepository extends JpaRepository<FormDefinition, Long> {
 
     Optional<FormDefinition> findByFormCodeAndVersion(String formCode, Integer version);

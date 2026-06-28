@@ -8,6 +8,10 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+/**
+ * 审批变量服务，负责构建审批节点所需的 Flowable 流程变量。
+ * 将审批结果、意见等数据组装为标准变量 Map 写入流程实例。
+ */
 @Service
 public class ApprovalVariableService {
 
@@ -22,6 +26,18 @@ public class ApprovalVariableService {
         this.runtimeService = runtimeService;
     }
 
+    /**
+     * 构建审批变量 Map，包含 allFormData、approvalResults、审批结果、最后审批节点等。
+     *
+     * @param flowableProcessInstanceId Flowable 流程实例ID
+     * @param nodeKey                   当前节点标识
+     * @param result                    审批结果（agree/reject 等）
+     * @param comment                   审批意见
+     * @param automatic                 是否为自动审批
+     * @param automaticReason           自动审批原因
+     * @param operatedAt                操作时间
+     * @return 组装好的流程变量
+     */
     public Map<String, Object> build(String flowableProcessInstanceId,
                                      String nodeKey,
                                      String result,

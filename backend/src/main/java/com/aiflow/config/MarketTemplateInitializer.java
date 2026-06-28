@@ -45,6 +45,15 @@ import java.util.Set;
 
 import javax.xml.parsers.DocumentBuilderFactory;
 
+/**
+ * 模板市场种子数据初始化器。
+ *
+ * <p>在应用启动时（通过 aiflow.initializer.market-templates-enabled 开关控制）
+ * 从 classpath:seed/templates/ 读取预置模板的 JSON 配置和 BPMN 文件，
+ * 自动创建/更新对应的表单定义、流程模板和市场条目。</p>
+ *
+ * <p>支持幂等执行：已存在的种子数据仅在内容变更时更新。</p>
+ */
 @Slf4j
 @Order(40)
 @Component

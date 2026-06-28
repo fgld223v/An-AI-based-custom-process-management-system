@@ -7,6 +7,10 @@ import org.springframework.security.core.userdetails.UserDetails;
 import java.util.Collection;
 import java.util.List;
 
+/**
+ * 当前登录用户主体，实现 Spring Security UserDetails 接口。
+ * 封装用户实体信息，提供 id、角色、部门、主管等字段的便捷访问。
+ */
 public class CurrentUser implements UserDetails {
 
     private final UserEntity user;

@@ -7,6 +7,10 @@ import org.springframework.web.socket.config.annotation.EnableWebSocket;
 import org.springframework.web.socket.config.annotation.WebSocketConfigurer;
 import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry;
 
+/**
+ * 通知 WebSocket 配置，注册通知推送的 WebSocket 端点 /ws/notifications，
+ * 允许前端开发服务器（localhost:5173/5174）跨域连接。
+ */
 @Configuration
 @EnableWebSocket
 @RequiredArgsConstructor

@@ -11,6 +11,9 @@ import java.time.LocalDateTime;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+/**
+ * 工作流角色分配DTO：记录用户与角色的绑定关系
+ */
 public class WorkflowRoleAssignmentDTO {
     private Long id;
     private Long roleId;

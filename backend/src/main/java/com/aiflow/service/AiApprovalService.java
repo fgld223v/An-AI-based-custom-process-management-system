@@ -20,6 +20,22 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * AI 审批辅助服务。
+ *
+ * <p>核心职责：根据流程上下文（流程定义、节点配置）和业务表单数据，
+ * 调用 DeepSeek 大模型生成审批建议（建议通过/驳回/补充材料）。</p>
+ *
+ * <p>处理流程：</p>
+ * <ol>
+ *   <li>查询流程实例、模板、节点配置</li>
+ *   <li>提取业务表单数据（排除审批元数据字段，仅保留业务字段）</li>
+ *   <li>构建包含流程上下文和表单数据的 Prompt</li>
+ *   <li>调用 DeepSeek 生成审批建议（suggestion/reason/confidence/riskPoints）</li>
+ *   <li>保存 AI 建议记录到 ai_advice_record 表</li>
+ *   <li>推送通知给当前审批人</li>
+ * </ol>
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -35,6 +51,7 @@ public class AiApprovalService {
     private final ApproverResolverService approverResolverService;
     private final NotificationService notificationService;
 
+    /** DeepSeek System Prompt：企业审批辅助专家，输出审批建议 JSON */
     private static final String SYSTEM_PROMPT = """
         你是企业审批辅助专家。根据流程上下文和表单数据给出审批建议。
 
@@ -54,12 +71,29 @@ public class AiApprovalService {
         5. 综合考虑金额、申请人、业务类型等因素
         """;
 
+    /**
+     * 根据流程上下文生成 AI 审批建议。
+     *
+     * <p>执行步骤：</p>
+     * <ol>
+     *   <li>查询流程实例和模板，获取流程上下文</li>
+     *   <li>提取业务表单数据（从所有已提交节点中提取，排除纯审批元数据）</li>
+     *   <li>解析节点名称（从 nodeConfig 中获取）</li>
+     *   <li>构建 Prompt（流程名 + 节点名 + 表单数据）</li>
+     *   <li>调用 DeepSeek API 生成审批建议</li>
+     *   <li>保存建议记录到 ai_advice_record</li>
+     *   <li>通过 ApproverResolverService 获取当前审批人并推送通知</li>
+     * </ol>
+     *
+     * @param request 包含 instanceId 和 nodeKey 的审批建议请求
+     * @return AI 审批建议响应（suggestion/reason/confidence/riskPoints）
+     */
     public AiApprovalResponse suggest(AiApprovalRequest request) {
         Long instanceId = request.getInstanceId();
         String nodeKey = request.getNodeKey();
         log.info("AI 审批建议：instanceId={}, nodeKey={}", instanceId, nodeKey);
 
-        // 1. 查询流程上下文
+        // 1. 查询流程上下文 — 获取流程实例和模板信息
         ProcessInstance instance = processInstanceRepository.findById(instanceId)
                 .orElseThrow(() -> new BusinessException("流程实例不存在"));
         ProcessTemplate template = processTemplateRepository.findById(instance.getTemplateId())

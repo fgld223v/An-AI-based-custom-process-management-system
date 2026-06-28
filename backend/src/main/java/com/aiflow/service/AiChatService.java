@@ -31,11 +31,29 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
 
+/**
+ * AI 对话服务。
+ *
+ * <p>核心职责：提供企业流程管理 AI 助手（BPM AI Assistant）的对话功能，
+ * 支持多轮对话会话管理、SSE 流式回复和历史上下文滑动窗口。</p>
+ *
+ * <p>主要功能：</p>
+ * <ul>
+ *   <li>会话管理 — 创建、列表、删除对话会话</li>
+ *   <li>消息管理 — 获取会话历史消息</li>
+ *   <li>流式对话 — 通过 SSE 实时推送 DeepSeek 大模型回复 token</li>
+ *   <li>上下文构建 — 滑动窗口限制历史消息 token 数（~6000），为模型回复预留空间</li>
+ *   <li>自动标题 — 首次对话后根据 AI 回复自动生成会话标题</li>
+ * </ul>
+ *
+ * <p>并发控制：使用 per-session ReentrantLock 防止同一会话的并发流式请求。</p>
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class AiChatService {
 
+    /** DeepSeek System Prompt：定义 AI 助手角色——企业流程管理专家 */
     private static final String SYSTEM_PROMPT = """
         你是一个企业流程管理 AI 助手（BPM AI Assistant）。你可以帮助用户：
         1. 理解和设计 BPMN 工作流
@@ -63,9 +81,16 @@ public class AiChatService {
     private final ConcurrentHashMap<Long, ReentrantLock> sessionLocks = new ConcurrentHashMap<>();
 
     // ================================================================
-    // Session CRUD
+    // 会话 CRUD — 对话会话的创建、列表、删除和消息查询
     // ================================================================
 
+    /**
+     * 创建新的对话会话。
+     *
+     * @param userId 用户 ID
+     * @param title  会话标题，为空时默认"新对话"
+     * @return 新创建的会话响应
+     */
     @Transactional
     public AiChatSessionResponse createSession(Long userId, String title) {
         AiChatSession session = new AiChatSession();
@@ -110,7 +135,7 @@ public class AiChatService {
     }
 
     // ================================================================
-    // Streaming Chat
+    // SSE 流式对话 — 实时推送 AI 回复 token，支持并发锁保护
     // ================================================================
 
     /**
@@ -155,7 +180,7 @@ public class AiChatService {
             "max_tokens", 4096
         );
 
-        // 4. Call DeepSeek streaming API — use DataBuffer to avoid buffering
+        // 4. 调用 DeepSeek SSE 流式 API — 使用 DataBuffer 逐块读取，避免内存缓冲整个响应
         StringBuilder fullResponse = new StringBuilder();
         try {
             log.info("Starting DeepSeek stream for session {}", sessionId);
@@ -190,7 +215,14 @@ public class AiChatService {
     }
 
     /**
-     * Parse a raw SSE chunk from DeepSeek and emit tokens to the client.
+     * 解析 DeepSeek SSE 流式响应块，提取 token 并通过 SseEmitter 推送给客户端。
+     *
+     * <p>DeepSeek 流式格式（与 OpenAI 兼容）：</p>
+     * <pre>
+     *   data: {"choices":[{"delta":{"content":"token文本"}}],"object":"chat.completion.chunk"}
+     *   data: [DONE]
+     * </pre>
+     * <p>解析时跳过 [DONE] 标记和无法解析的块。</p>
      */
     private void processStreamChunk(String rawChunk, SseEmitter emitter, StringBuilder fullResponse) {
         if (rawChunk == null) return;
@@ -199,6 +231,7 @@ public class AiChatService {
             String trimmed = line.trim();
             if (!trimmed.startsWith("data:")) continue;
             String data = trimmed.substring(5).trim();
+            // 跳过空数据和流结束标记 [DONE]
             if (data.isEmpty() || "[DONE]".equals(data)) continue;
 
             try {
@@ -214,11 +247,11 @@ public class AiChatService {
                 if (content == null) continue;
                 String token = content.toString();
                 fullResponse.append(token);
-                // Send each token as a separate SSE event
+                // 将每个 token 作为独立的 SSE 事件推送给前端
                 emitter.send(SseEmitter.event()
                         .data(Map.of("content", token)));
             } catch (Exception e) {
-                // Skip unparseable chunks gracefully
+                // 跳过无法解析的块（非关键路径，不中断整个流）
             }
         }
     }
@@ -267,9 +300,15 @@ public class AiChatService {
     }
 
     // ================================================================
-    // Context Building
+    // 上下文构建 — 滑动窗口限制历史消息 token 数，为模型回复预留空间
     // ================================================================
 
+    /**
+     * 构建发送给 DeepSeek 的消息列表（含 System Prompt + 历史消息滑动窗口）。
+     *
+     * <p>滑动窗口策略：从最新到最旧加载历史消息，累计 token 数不超过 ~6000，
+     * 为模型回复（max_tokens=4096）预留充足空间。</p>
+     */
     private List<Map<String, Object>> buildContextMessages(Long sessionId, String userMessage) {
         List<Map<String, Object>> messages = new ArrayList<>();
         messages.add(Map.of("role", "system", "content", SYSTEM_PROMPT));

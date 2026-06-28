@@ -12,6 +12,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * 实例异常检测服务，查询指定流程实例集合是否存在异常，
+ * 异常原因包括：任务超时、高风险超时预测、存在驳回记录。
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -24,6 +28,12 @@ public class InstanceAnomalyService {
     private static final String REASON_HIGH_RISK_TIMEOUT = "\u9ad8\u98ce\u9669\u8d85\u65f6";
     private static final String REASON_REJECTED = "\u5b58\u5728\u9a73\u56de";
 
+    /**
+     * 查询指定流程实例集合的异常信息。
+     *
+     * @param instanceIds 流程实例ID集合
+     * @return instanceId -> 异常原因（多个原因用顿号分隔）
+     */
     public Map<Long, String> findAnomalies(Collection<Long> instanceIds) {
         if (instanceIds == null || instanceIds.isEmpty()) {
             return Map.of();

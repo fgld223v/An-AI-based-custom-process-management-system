@@ -42,6 +42,26 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
+/**
+ * 流程模板服务实现。
+ *
+ * <p>核心职责：流程模板的全生命周期管理，包括创建、更新、发布、
+ * 新版本创建、列表查询、复制、停用、删除等操作。</p>
+ *
+ * <p>发布流程（publishTemplate）关键步骤：</p>
+ * <ol>
+ *   <li>校验模板状态（仅 DRAFT/REVIEWING 可发布）</li>
+ *   <li>权限校验</li>
+ *   <li>校验 BPMN XML 和 nodeConfig 合法性</li>
+ *   <li>校验审批节点配置（assignStrategy/assignValue 完整性）</li>
+ *   <li>调用 FlowableDeploymentService 部署到 Flowable 引擎</li>
+ *   <li>将同模板代码的旧发布版本标记为 DISABLED</li>
+ *   <li>更新当前模板状态为 PUBLISHED</li>
+ * </ol>
+ *
+ * <p>复制模板（copyTemplate）：从模板市场复制时，会深度复制绑定的表单定义，
+ * 并重写 nodeConfig 和 formBindConfig 中的 formId 引用。</p>
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -63,6 +83,10 @@ public class ProcessTemplateServiceImpl implements ProcessTemplateService {
     private final SysUserRepository sysUserRepository;
     private final TemplateMarketRepository templateMarketRepository;
 
+    /**
+     * 创建流程模板（草稿状态）。
+     * 校验 templateCode+version 唯一性，设置默认状态为 DRAFT。
+     */
     @Override
     public ProcessTemplate createTemplate(ProcessTemplate template) {
         if (template == null) {
@@ -121,6 +145,10 @@ public class ProcessTemplateServiceImpl implements ProcessTemplateService {
         return processTemplateRepository.save(existing);
     }
 
+    /**
+     * 发布流程模板 — 校验 BPMN XML 和 nodeConfig 合法性后部署到 Flowable 引擎。
+     * 发布成功后，将同 templateCode 的旧版本标记为 DISABLED（仅保留一个已发布版本）。
+     */
     @Override
     public ProcessTemplate publishTemplate(Long id) {
         requireId(id, "id must not be null");
@@ -296,6 +324,17 @@ public class ProcessTemplateServiceImpl implements ProcessTemplateService {
         processTemplateRepository.save(existing);
     }
 
+    /**
+     * 从模板市场复制模板 — 深度复制绑定的表单并重写 formId 引用。
+     *
+     * <p>复制逻辑：</p>
+     * <ol>
+     *   <li>生成唯一的 templateCode（COPY_原code_时间戳）</li>
+     *   <li>深度复制所有关联的表单定义（从市场中复制的表单需重新发布）</li>
+     *   <li>重写 nodeConfig 和 formBindConfig 中的 formId 引用为新表单 ID</li>
+     *   <li>新模板 status=DRAFT, sourceType=MARKET_COPY</li>
+     * </ol>
+     */
     @Override
     public ProcessTemplate copyTemplate(ProcessTemplate sourceTemplate, Long createdBy, String newTemplateName) {
         if (sourceTemplate == null) {
@@ -305,6 +344,7 @@ public class ProcessTemplateServiceImpl implements ProcessTemplateService {
         requireText(sourceTemplate.getTemplateName(), "source templateName must not be blank");
 
         LocalDateTime now = LocalDateTime.now();
+        // 深度复制所有绑定的表单定义，获得 oldFormId → newFormId 映射
         Map<Long, Long> copiedFormIds = copyBoundForms(sourceTemplate, createdBy, now);
         ProcessTemplate copied = ProcessTemplate.builder()
                 .templateCode("COPY_" + sourceTemplate.getTemplateCode() + "_" + now.format(COPY_CODE_TIME_FORMATTER))

@@ -130,35 +130,45 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * AiOptimize - AI 流程优化建议页面
+ *
+ * 三栏布局：左侧流程列表 -> 中间优化建议卡片 -> 右侧版本变更对比。
+ * 支持逐条采纳/忽略、全部采纳、查看变更对比。
+ */
 import { computed, onMounted, reactive, ref } from 'vue'
 import { Check, Refresh } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { optimizeAll, adoptSuggestion } from '@/api/ai'
 
+/** 单条优化建议 */
 interface Suggestion {
   type: string; nodeKey?: string; nodeName?: string; severity: string
   description: string; suggestion: string; expectedImprovement?: string
-  _metrics?: Record<string, string>
-  _applied?: boolean; _ignored?: boolean; _adopting?: boolean
+  _metrics?: Record<string, string>  // 关联指标数据
+  _applied?: boolean; _ignored?: boolean; _adopting?: boolean  // 前端状态标记
 }
+/** 单个流程的分析结果 */
 interface AnalysisResult {
   templateId: number; templateName: string; analysis: string
   suggestions: Suggestion[]; metrics: any
 }
 
-const scanning = ref(false)
-const scanned = ref(false)
-const allResults = ref<AnalysisResult[]>([])
-const selectedTemplateId = ref<number | null>(null)
-const selectedSug = ref<Suggestion | null>(null)
-const selectedSugIdx = ref(-1)
-const diffChoice = ref('keep')
+// ---- 页面状态 ----
+const scanning = ref(false)                    // 是否正在扫描
+const scanned = ref(false)                     // 是否已扫描过
+const allResults = ref<AnalysisResult[]>([])   // 全部流程分析结果
+const selectedTemplateId = ref<number | null>(null)  // 当前选中的流程模板
+const selectedSug = ref<Suggestion | null>(null)     // 当前查看的建议
+const selectedSugIdx = ref(-1)                       // 当前建议索引
+const diffChoice = ref('keep')                       // 变更对比选择
 
+/** 根据 selectedTemplateId 获取当前选中流程的分析结果 */
 const selectedResult = computed(() =>
   allResults.value.find(r => r.templateId === selectedTemplateId.value) || null
 )
 
-// 模拟差异行数据（后端应返回 before/after 结构）
+/** 模拟版本变更差异行（后端应返回 before/after 结构） */
 const diffLines = computed(() => {
   if (!selectedSug.value) return []
   const s = selectedSug.value
@@ -168,8 +178,10 @@ const diffLines = computed(() => {
   ]
 })
 
+/** 页面加载时自动触发扫描 */
 onMounted(() => handleScan())
 
+/** 扫描全部流程，获取优化建议 */
 async function handleScan() {
   scanning.value = true; scanned.value = true
   try {
@@ -183,16 +195,21 @@ async function handleScan() {
   } finally { scanning.value = false }
 }
 
+/** 选中流程模板 */
 function selectTemplate(id: number) { selectedTemplateId.value = id; selectedSug.value = null }
+/** 选中某条建议查看变更 */
 function selectSuggestion(i: number) {
   if (!selectedResult.value) return
   selectedSug.value = selectedResult.value.suggestions[i]
   selectedSugIdx.value = i
 }
 
+/** 判断流程是否有高严重度建议 */
 function hasHighSeverity(r: AnalysisResult) { return r.suggestions?.some(s => s.severity === 'high') }
+/** 统计高严重度建议数量 */
 function highCount(r: AnalysisResult) { return r.suggestions?.filter(s => s.severity === 'high').length }
 
+/** 采纳单条优化建议 */
 async function handleAdopt(i: number) {
   if (!selectedResult.value) return
   const s = selectedResult.value.suggestions[i]
@@ -206,11 +223,13 @@ async function handleAdopt(i: number) {
   } finally { s._adopting = false }
 }
 
+/** 忽略单条建议 */
 function handleIgnore(i: number) {
   if (!selectedResult.value) return
   selectedResult.value.suggestions[i]._ignored = true
 }
 
+/** 全部采纳当前流程的所有未处理建议 */
 async function handleAdoptAll() {
   if (!selectedResult.value) return
   let count = 0

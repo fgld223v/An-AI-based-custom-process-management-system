@@ -27,6 +27,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Flowable 委托 Bean 自动注册配置。
+ *
+ * <p>在引擎配置阶段自动扫描并注册所有 JavaDelegate、TaskListener、ExecutionListener
+ * 的实现 Bean 到 Flowable beans map，确保 delegateExpression 能正确解析。</p>
+ *
+ * <p>启动时同时执行兼容性修复：将旧版 systemActionDelegate 引用替换为表达式。</p>
+ */
 @Slf4j
 @Component
 public class FlowableDelegateConfig implements ProcessEngineConfigurationConfigurer, CommandLineRunner {

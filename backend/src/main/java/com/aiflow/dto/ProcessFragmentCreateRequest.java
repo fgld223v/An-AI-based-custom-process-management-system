@@ -3,6 +3,9 @@ package com.aiflow.dto;
 import lombok.Data;
 
 @Data
+/**
+ * 流程片段创建请求DTO
+ */
 public class ProcessFragmentCreateRequest {
 
     private String fragmentCode;

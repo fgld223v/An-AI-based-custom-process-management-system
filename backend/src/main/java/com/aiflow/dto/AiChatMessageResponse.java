@@ -7,6 +7,9 @@ import java.time.LocalDateTime;
 
 @Data
 @Builder
+/**
+ * AI聊天消息响应DTO
+ */
 public class AiChatMessageResponse {
 
     private Long id;

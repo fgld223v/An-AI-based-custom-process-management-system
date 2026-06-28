@@ -16,6 +16,10 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 
+/**
+ * 模板-片段引用实体，记录流程模板与流程片段的关联关系及同步状态。
+ * 对应数据库表 template_fragment_ref。
+ */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

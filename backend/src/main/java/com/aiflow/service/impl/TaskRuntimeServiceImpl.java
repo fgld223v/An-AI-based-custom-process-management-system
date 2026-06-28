@@ -38,14 +38,19 @@ import java.util.regex.Pattern;
  *
  * <p>审批链路（不可跳跃）：</p>
  * <ol>
- *   <li>查询 Flowable Task</li>
- *   <li>查询业务 ProcessInstance，校验状态</li>
+ *   <li>查询 Flowable Task（校验存在性与权限）</li>
+ *   <li>查询业务 ProcessInstance，校验状态为 running</li>
  *   <li>保存 FormSubmission（历史表单永久保留，禁止删除）</li>
- *   <li>更新 Flowable Variables（合并 allFormData）</li>
- *   <li>TaskService.complete(taskId, variables)</li>
- *   <li>查询下一任务</li>
+ *   <li>更新 Flowable Variables（合并 allFormData，审批节点设置审批变量）</li>
+ *   <li>收集所有已提交表单字段为顶层变量（供网关条件表达式使用）</li>
+ *   <li>预填充 BPMN 排他网关条件引用的缺失变量（防止 Unknown property 错误）</li>
+ *   <li>TaskService.complete(taskId, variables) — 执行任务完成</li>
+ *   <li>查询下一任务并执行审批规则自动流转（evaluateAndAutoComplete）</li>
  *   <li>刷新 ProcessInstance 状态（currentNodeKey/Name/BusinessType 或标记 completed）</li>
  * </ol>
+ *
+ * <p>驳回链路（独立处理）：校验实例状态 → 保存驳回 FormSubmission → 设置审批变量 reject
+ * → complete 任务 → 记录审批轨迹 → 刷新实例状态。</p>
  */
 @Slf4j
 @Service
@@ -53,22 +58,52 @@ import java.util.regex.Pattern;
 @Transactional
 public class TaskRuntimeServiceImpl implements TaskRuntimeService {
 
+    /** 流程状态：运行中 */
     private static final String STATUS_RUNNING = "running";
+    /** 流程状态：已完成 */
     private static final String STATUS_COMPLETED = "completed";
+    /** 表单提交状态：已提交 */
     private static final String STATUS_SUBMITTED = "submitted";
 
+    // Flowable 服务
     private final TaskService taskService;
     private final RuntimeService runtimeService;
+
+    // 业务数据访问
     private final ProcessInstanceRepository processInstanceRepository;
     private final FormSubmissionRepository formSubmissionRepository;
     private final ProcessTemplateRepository processTemplateRepository;
+
+    // 业务服务
     private final RuleEvaluatorService ruleEvaluatorService;
     private final ObjectMapper objectMapper;
     private final NodeConfigParser nodeConfigParser;
     private final TaskAuthorizationService taskAuthorizationService;
-    private final ApprovalVariableService approvalVariableService;
-    private final ApprovalRecordService approvalRecordService;
+    private final ApprovalVariableService approvalVariableService;  // 审批变量构建器
+    private final ApprovalRecordService approvalRecordService;       // 审批记录（审计追踪）
 
+    /**
+     * 完成任务 — 核心审批链路入口。
+     *
+     * <p>严格遵循 9 步审批链路，任何一步失败都会抛出异常并回滚事务：</p>
+     * <ol>
+     *   <li>参数校验（request / instanceId / nodeKey 非空）</li>
+     *   <li>查询 Flowable Task，校验存在性与权限</li>
+     *   <li>查询业务 ProcessInstance，校验状态为 running，校验 task 与 instance 关联</li>
+     *   <li>保存 FormSubmission（upsert by instanceId + nodeKey，历史可追溯）</li>
+     *   <li>构建 Flowable 变量：
+     *       <ul><li>审批节点：设置 approvalResult / approvalComment / approved 等变量</li>
+     *           <li>非审批节点：合并当前节点表单数据到 allFormData</li></ul></li>
+     *   <li>收集所有已提交表单字段为顶层变量（供后续网关条件使用）</li>
+     *   <li>预填充 BPMN 排他网关条件引用的缺失变量（防止 Unknown property 错误）</li>
+     *   <li>taskService.complete(taskId, variables) — 执行 Flowable 任务完成</li>
+     *   <li>记录审批轨迹 → 查询下一任务并自动流转 → 返回下一任务（或 null if completed）</li>
+     * </ol>
+     *
+     * @param taskId  Flowable 任务 ID
+     * @param request 任务完成请求（含 instanceId、nodeKey、formData）
+     * @return 下一任务 DTO，如果流程已完成则返回 null
+     */
     @Override
     public TaskDTO completeTask(String taskId, TaskCompleteRequest request) {
         if (request == null) {
@@ -295,6 +330,23 @@ public class TaskRuntimeServiceImpl implements TaskRuntimeService {
     // 驳回/退回
     // ========================================================================
 
+    /**
+     * 驳回任务 — 独立的审批驳回链路。
+     *
+     * <p>处理流程：</p>
+     * <ol>
+     *   <li>查询 Flowable Task，校验存在性与权限</li>
+     *   <li>查询业务 ProcessInstance，校验状态为 running</li>
+     *   <li>保存驳回 FormSubmission（upsert by instanceId + nodeKey，永久保留）</li>
+     *   <li>构建驳回变量（approvalResult=reject）、添加审批评论</li>
+     *   <li>taskService.complete(taskId, variables) — 由 BPMN 条件网关决定驳回后的去向</li>
+     *   <li>记录审批轨迹 → 刷新实例状态（确保业务状态与引擎状态同步）</li>
+     * </ol>
+     *
+     * @param taskId       Flowable 任务 ID
+     * @param instanceId   业务流程实例 ID
+     * @param rejectReason 驳回原因（必填）
+     */
     @Override
     public void rejectTask(String taskId, Long instanceId, String rejectReason) {
         if (instanceId == null) throw new IllegalArgumentException("instanceId must not be null");
@@ -390,6 +442,13 @@ public class TaskRuntimeServiceImpl implements TaskRuntimeService {
         return value == null ? null : value.toString().trim();
     }
 
+    /**
+     * 合并节点表单变量到 allFormData，同时提取简单类型字段为顶层变量。
+     *
+     * <p>allFormData 是一个嵌套 Map（key=nodeKey, value=该节点提交的表单数据），
+     * 用于跨节点共享表单数据。同时将表单中的 Number/String/Boolean 字段提取为
+     * Flowable 顶层变量，方便 BPMN 条件表达式直接引用。</p>
+     */
     private Map<String, Object> mergeNodeFormVariables(String flowableProcessInstanceId,
                                                         String nodeKey,
                                                         Map<String, Object> formData) {

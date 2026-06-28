@@ -9,6 +9,9 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+/**
+ * 业务类型DTO：用于业务分类字典数据传输
+ */
 public class BizTypeDTO {
 
     private Long id;

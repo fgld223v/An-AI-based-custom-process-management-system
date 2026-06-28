@@ -15,6 +15,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
+/**
+ * 流程资源类型回填初始化器，为历史遗留的流程资源自动推断并设置 resource_type 字段。
+ */
 @Slf4j
 @Order(90)
 @Component

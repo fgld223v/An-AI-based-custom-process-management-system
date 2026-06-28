@@ -1,9 +1,12 @@
 <template>
+  <!-- 登录页：左侧品牌介绍 + 右侧登录表单，双栏居中布局 -->
   <div class="login-page">
+    <!-- 左侧：品牌介绍区域 -->
     <section class="login-hero">
       <div class="hero-pill">AI Workflow Builder</div>
       <h1>AI Flow</h1>
       <p>面向流程自动化、表单采集与低代码编排的现代流程管理系统。</p>
+      <!-- 核心能力展示卡片 -->
       <div class="hero-grid">
         <div v-for="item in heroItems" :key="item.title" class="hero-card">
           <span>{{ item.value }}</span>
@@ -12,7 +15,9 @@
       </div>
     </section>
 
+    <!-- 右侧：登录表单面板 -->
     <section class="login-panel">
+      <!-- 面板头部：品牌标识 + 欢迎标题 -->
       <div class="panel-heading">
         <div class="brand-mark large">AF</div>
         <div>
@@ -21,6 +26,7 @@
         </div>
       </div>
 
+      <!-- 登录表单：用户名 + 密码 + 提交按钮 -->
       <el-form ref="formRef" :model="form" :rules="rules" size="large" @keyup.enter="submit">
         <el-form-item prop="username">
           <el-input v-model="form.username" placeholder="请输入用户名" :prefix-icon="User" />
@@ -33,6 +39,7 @@
         </el-button>
       </el-form>
 
+      <!-- 注册入口 -->
       <div class="panel-footer">
         <span class="footer-text">还没有账号？</span>
         <el-button text type="success" size="default" @click="goRegister">
@@ -40,6 +47,7 @@
         </el-button>
       </div>
 
+      <!-- 忘记密码入口 -->
       <div class="forgot-row">
         <el-button text type="primary" size="default" @click="goResetPassword">
           忘记密码？
@@ -50,6 +58,12 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * Login - 登录页面
+ *
+ * 收集用户名密码并调用认证接口，登录后根据用户角色（super_admin / biz_admin / 普通用户）
+ * 跳转到不同的默认路由。
+ */
 import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import type { FormInstance, FormRules } from 'element-plus'
@@ -62,23 +76,28 @@ const authStore = useAuthStore()
 const formRef = ref<FormInstance>()
 const loading = ref(false)
 
+/** 登录表单数据 */
 const form = reactive({
   username: '',
   password: ''
 })
 
+/** 表单校验规则 */
 const rules: FormRules = {
   username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
   password: [{ required: true, message: '请输入密码', trigger: 'blur' }]
 }
 
+/** 左侧品牌区域展示的核心能力卡片数据 */
 const heroItems = [
   { value: 'AI', title: '智能构建' },
   { value: 'BPMN', title: '流程建模' },
   { value: 'JSON', title: '表单配置' }
 ]
 
+/** 提交登录：表单校验 -> 调用认证 -> 按角色路由 */
 async function submit() {
+  // 先触发表单校验
   try {
     await formRef.value?.validate()
   } catch {
@@ -86,9 +105,10 @@ async function submit() {
   }
   loading.value = true
   try {
-    authStore.logout()
+    authStore.logout()  // 清除旧状态
     await authStore.login(form)
     ElMessage.success('登录成功')
+    // 根据角色跳转不同首页
     const role = authStore.user?.systemRole
     if (role === 'super_admin') router.push('/workbench')
     else if (role === 'biz_admin') router.push('/my-processes')
@@ -100,16 +120,19 @@ async function submit() {
   }
 }
 
+/** 跳转到注册页 */
 function goRegister() {
   router.push('/register')
 }
 
+/** 跳转到密码重置页 */
 function goResetPassword() {
   router.push('/reset-password')
 }
 </script>
 
 <style scoped>
+/* ---- 页面整体：双栏居中布局 ---- */
 .login-page {
   display: flex;
   min-height: 100vh;
@@ -120,10 +143,12 @@ function goResetPassword() {
   flex-wrap: wrap;
 }
 
+/* ---- 左侧品牌介绍区域 ---- */
 .login-hero {
   max-width: 380px;
 }
 
+/* 顶部小标签 */
 .hero-pill {
   display: inline-block;
   padding: 4px 14px;
@@ -147,6 +172,7 @@ function goResetPassword() {
   margin-bottom: 28px;
 }
 
+/* 核心能力展示卡片行 */
 .hero-grid {
   display: flex;
   gap: 16px;
@@ -171,6 +197,7 @@ function goResetPassword() {
   font-size: 12px;
 }
 
+/* ---- 右侧登录面板 ---- */
 .login-panel {
   width: 380px;
   padding: 36px 32px;
@@ -180,6 +207,7 @@ function goResetPassword() {
   box-shadow: var(--shadow);
 }
 
+/* 面板头部品牌标识与文字 */
 .panel-heading {
   display: flex;
   align-items: center;
@@ -217,11 +245,13 @@ function goResetPassword() {
   font-size: 13px;
 }
 
+/* 登录按钮全宽 */
 .login-button {
   width: 100%;
   margin-top: 8px;
 }
 
+/* 注册入口 */
 .panel-footer {
   display: flex;
   align-items: center;
@@ -235,11 +265,13 @@ function goResetPassword() {
   font-size: 13px;
 }
 
+/* 忘记密码入口 */
 .forgot-row {
   text-align: center;
   margin-top: 8px;
 }
 
+/* ---- 响应式：窄屏幕时上下堆叠 ---- */
 @media (max-width: 860px) {
   .login-page {
     flex-direction: column;

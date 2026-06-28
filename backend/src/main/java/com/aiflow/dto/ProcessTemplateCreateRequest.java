@@ -3,6 +3,9 @@ package com.aiflow.dto;
 import lombok.Data;
 
 @Data
+/**
+ * 流程模板创建请求DTO
+ */
 public class ProcessTemplateCreateRequest {
 
     private String templateCode;

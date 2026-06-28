@@ -20,6 +20,10 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * 流程权限校验服务，负责对流程模板的发布、版本管理、部署及发起等操作进行权限断言。
+ * 校验维度包括：用户角色（超级管理员/业务管理员）、业务类型管理范围、部门归属等。
+ */
 @Service
 @RequiredArgsConstructor
 public class ProcessAuthorizationService {

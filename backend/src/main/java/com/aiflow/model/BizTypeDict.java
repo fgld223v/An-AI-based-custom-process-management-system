@@ -13,6 +13,10 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 
+/**
+ * 业务类型字典实体，定义流程所属的业务分类树形结构。
+ * 对应数据库表 biz_type_dict。
+ */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

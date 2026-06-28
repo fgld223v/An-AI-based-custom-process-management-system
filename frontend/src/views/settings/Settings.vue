@@ -1,13 +1,16 @@
 <template>
+  <!-- 个人设置页面 -->
   <div class="settings-page">
-    <!-- 个人信息卡片 -->
+    <!-- 个人信息卡片：头像 + 姓名 + 角色标签 -->
     <section class="profile-card">
       <div class="profile-cover"></div>
       <div class="profile-body">
+        <!-- 用户头像，取昵称或用户名的首字 -->
         <el-avatar :size="72" class="profile-avatar">{{ displayName.slice(0, 1) }}</el-avatar>
         <div class="profile-info">
           <h2>{{ displayName }}</h2>
           <p class="profile-username">@{{ authStore.user?.username }}</p>
+          <!-- 角色和部门标签 -->
           <div class="profile-tags">
             <el-tag :type="roleTagType" effect="dark" size="small">{{ roleLabel }}</el-tag>
             <el-tag v-if="currentDeptName" type="success" effect="plain" size="small">{{ currentDeptName }}</el-tag>
@@ -16,13 +19,14 @@
       </div>
     </section>
 
-    <!-- 部门 & 上级设置 -->
+    <!-- 组织信息表单卡片：部门 & 上级设置 -->
     <section class="form-card">
       <div class="form-card-head">
         <h3>组织信息</h3>
         <p>设置所属部门与直属上级，用于审批链路由。</p>
       </div>
 
+      <!-- 保存结果提示 -->
       <el-alert
         v-if="saveMsg"
         :title="saveMsg"
@@ -34,6 +38,7 @@
 
       <el-form label-position="top" class="settings-form" :disabled="saving">
         <div class="form-row">
+          <!-- 所属部门选择 -->
           <el-form-item label="所属部门">
             <el-select
               v-model="form.departmentId"
@@ -51,6 +56,7 @@
             </el-select>
           </el-form-item>
 
+          <!-- 直属上级选择（可选） -->
           <el-form-item label="直属上级">
             <el-select
               v-model="form.supervisorId"
@@ -69,6 +75,7 @@
           </el-form-item>
         </div>
 
+        <!-- 保存/刷新按钮 -->
         <div class="form-actions">
           <el-button type="success" :loading="saving" :icon="Check" round @click="saveProfile">
             {{ saving ? '保存中...' : '保存修改' }}
@@ -78,7 +85,7 @@
       </el-form>
     </section>
 
-    <!-- 联系信息 -->
+    <!-- 联系信息表单卡片：手机号 + 邮箱 -->
     <section class="form-card">
       <div class="form-card-head">
         <h3>联系信息</h3>
@@ -87,9 +94,11 @@
 
       <el-form label-position="top" class="settings-form" :disabled="saving">
         <div class="form-row">
+          <!-- 手机号码 -->
           <el-form-item label="手机号码">
             <el-input v-model="form.phone" placeholder="请输入手机号" maxlength="32" clearable />
           </el-form-item>
+          <!-- 电子邮箱 -->
           <el-form-item label="电子邮箱">
             <el-input v-model="form.email" placeholder="请输入邮箱地址" maxlength="128" clearable />
           </el-form-item>
@@ -97,7 +106,7 @@
       </el-form>
     </section>
 
-    <!-- 账号信息只读 -->
+    <!-- 账号详情只读卡片：ID、用户名、昵称、系统角色等 -->
     <section class="form-card">
       <div class="form-card-head">
         <h3>账号详情</h3>
@@ -141,15 +150,24 @@ import { useAuthStore } from '@/stores/auth'
 import { getDepartments, getUserList, updateUser, type DepartmentItem, type UserBrief } from '@/api/admin'
 
 const authStore = useAuthStore()
+/** 页面数据加载状态 */
 const loading = ref(false)
+/** 部门下拉加载状态 */
 const deptLoading = ref(false)
+/** 用户下拉加载状态 */
 const userLoading = ref(false)
+/** 保存按钮加载状态 */
 const saving = ref(false)
+/** 保存结果消息 */
 const saveMsg = ref('')
+/** 保存是否出错 */
 const saveError = ref(false)
+/** 部门列表 */
 const departments = ref<DepartmentItem[]>([])
+/** 用户列表（用于上级选择） */
 const userList = ref<UserBrief[]>([])
 
+/** 用户可编辑的表单数据 */
 const form = reactive({
   phone: '' as string,
   email: '' as string,
@@ -157,14 +175,17 @@ const form = reactive({
   supervisorId: null as number | null
 })
 
+/** 显示名称：优先昵称，其次用户名 */
 const displayName = computed(() => authStore.user?.nickname || authStore.user?.username || '用户')
 
+/** 当前所属部门名称 */
 const currentDeptName = computed(() => {
   if (!authStore.user?.departmentId) return ''
   const d = departments.value.find(item => item.id === authStore.user?.departmentId)
   return d?.deptName || ''
 })
 
+/** 系统角色转中文标签 */
 const roleLabel = computed(() => {
   const map: Record<string, string> = {
     super_admin: '超级管理员',
@@ -174,6 +195,7 @@ const roleLabel = computed(() => {
   return map[authStore.user?.systemRole || ''] || authStore.user?.role || '-'
 })
 
+/** 角色对应的 Element UI Tag 类型 */
 const roleTagType = computed(() => {
   const map: Record<string, string> = {
     super_admin: 'danger',
@@ -183,12 +205,15 @@ const roleTagType = computed(() => {
   return map[authStore.user?.systemRole || ''] || 'info'
 })
 
+/** 页面挂载时加载用户数据 */
 onMounted(() => loadData())
 
+/** 加载用户信息和下拉选项数据 */
 async function loadData() {
   loading.value = true
   saveMsg.value = ''
   try {
+    // 从服务器获取最新用户信息
     await authStore.fetchMe()
     form.phone = authStore.user?.phone || ''
     form.email = authStore.user?.email || ''
@@ -200,6 +225,7 @@ async function loadData() {
   }
 }
 
+/** 加载部门下拉选项 */
 async function loadDepartments() {
   deptLoading.value = true
   try {
@@ -208,6 +234,7 @@ async function loadDepartments() {
   finally { deptLoading.value = false }
 }
 
+/** 加载用户下拉选项（用于直属上级选择） */
 async function loadUserList() {
   userLoading.value = true
   try {
@@ -216,6 +243,7 @@ async function loadUserList() {
   finally { userLoading.value = false }
 }
 
+/** 保存个人信息（部门、上级、电话、邮箱） */
 async function saveProfile() {
   if (!authStore.user?.id) {
     ElMessage.warning('用户信息未加载，请刷新后重试')
@@ -231,7 +259,7 @@ async function saveProfile() {
       departmentId: form.departmentId,
       supervisorId: form.supervisorId
     })
-    // 重新从数据库加载最新数据
+    // 重新从数据库加载最新数据，确保页面状态与后端一致
     await authStore.fetchMe()
     saveError.value = false
     saveMsg.value = '个人信息已更新'

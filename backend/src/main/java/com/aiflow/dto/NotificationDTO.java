@@ -11,6 +11,9 @@ import java.time.LocalDateTime;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+/**
+ * 通知DTO：包含通知类型、标题、内容及已读状态
+ */
 public class NotificationDTO {
     private Long id;
     private Long receiverId;

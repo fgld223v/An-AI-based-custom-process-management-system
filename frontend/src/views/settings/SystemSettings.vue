@@ -1,6 +1,7 @@
 <template>
+  <!-- 系统配置页面：管理全局运行参数，所有修改即时生效 -->
   <div class="sys-config-page">
-    <!-- Hero -->
+    <!-- 页面标题区 -->
     <section class="page-hero">
       <div>
         <el-tag type="success" effect="plain">系统管理</el-tag>
@@ -10,9 +11,11 @@
       <el-button type="success" :icon="Plus" round @click="openCreate">新增配置</el-button>
     </section>
 
-    <!-- Config Cards Grid -->
+    <!-- 配置卡片网格 -->
     <section class="config-grid" v-loading="loading">
+      <!-- 单个配置卡片 -->
       <div v-for="item in configs" :key="item.id" class="config-card">
+        <!-- 卡片头部：类型图标 + 名称/键 + 更多操作下拉菜单 -->
         <div class="card-header">
           <div class="card-title-row">
             <div class="card-icon" :class="typeClass(item.valueType)">
@@ -23,6 +26,7 @@
               <code class="card-key">{{ item.configKey }}</code>
             </div>
           </div>
+          <!-- 下拉操作菜单：修改 / 删除 -->
           <el-dropdown trigger="click" @command="(cmd: string) => handleCommand(cmd, item)">
             <el-button text circle :icon="MoreFilled" />
             <template #dropdown>
@@ -38,8 +42,10 @@
           </el-dropdown>
         </div>
 
+        <!-- 卡片主体：根据值类型渲染不同的展示控件 -->
         <div class="card-body">
           <div class="value-display">
+            <!-- 布尔类型：开关控件 -->
             <template v-if="item.valueType === 'bool'">
               <el-switch
                 :model-value="item.configValue === 'true'"
@@ -50,31 +56,37 @@
                 {{ item.configValue === 'true' ? '已开启' : '已关闭' }}
               </span>
             </template>
+            <!-- 整数/浮点类型 -->
             <template v-else-if="item.valueType === 'int' || item.valueType === 'float'">
               <span class="value-number">{{ item.configValue }}</span>
               <el-tag size="small" effect="plain" type="info">{{ item.valueType === 'float' ? '浮点' : '整数' }}</el-tag>
             </template>
+            <!-- JSON 类型：截断展示 -->
             <template v-else-if="item.valueType === 'json'">
               <el-tag size="small" effect="plain" type="warning">JSON</el-tag>
               <code class="value-json">{{ item.configValue?.substring(0, 80) }}{{ (item.configValue?.length || 0) > 80 ? '…' : '' }}</code>
             </template>
+            <!-- 字符串类型 -->
             <template v-else>
               <span class="value-text">{{ item.configValue }}</span>
             </template>
           </div>
+          <!-- 配置说明 -->
           <p class="card-desc" v-if="item.description">{{ item.description }}</p>
         </div>
 
+        <!-- 卡片底部：类型标签 + 更新时间 -->
         <div class="card-footer">
           <el-tag size="small" effect="plain">{{ typeLabel(item.valueType) }}</el-tag>
           <span class="footer-time">{{ item.updatedAt ? formatTime(item.updatedAt) : '' }}</span>
         </div>
       </div>
 
+      <!-- 空状态 -->
       <el-empty v-if="!loading && configs.length === 0" description="暂无配置项，点击右上角新增" :image-size="80" />
     </section>
 
-    <!-- Create / Edit Dialog -->
+    <!-- 新增/编辑配置弹窗 -->
     <el-dialog
       v-model="dialogVisible"
       :title="isCreating ? '新增系统配置' : '修改系统配置'"
@@ -82,12 +94,15 @@
       destroy-on-close
     >
       <el-form ref="formRef" :model="form" :rules="rules" label-width="90px" label-position="left">
+        <!-- 配置名称 -->
         <el-form-item label="配置名称" prop="configName">
           <el-input v-model="form.configName" placeholder="如：AI 置信度阈值" maxlength="128" />
         </el-form-item>
+        <!-- 配置键（仅创建时可修改） -->
         <el-form-item label="配置键" prop="configKey">
           <el-input v-model="form.configKey" placeholder="如：ai.confidence.threshold" maxlength="128" :disabled="!isCreating" />
         </el-form-item>
+        <!-- 值类型（仅创建时可修改） -->
         <el-form-item label="值类型" prop="valueType">
           <el-select v-model="form.valueType" :disabled="!isCreating" @change="onTypeChange">
             <el-option label="字符串 (string)" value="string" />
@@ -97,6 +112,7 @@
             <el-option label="JSON" value="json" />
           </el-select>
         </el-form-item>
+        <!-- 配置值：根据值类型切换输入控件 -->
         <el-form-item label="配置值" prop="configValue">
           <template v-if="form.valueType === 'bool'">
             <el-switch v-model="form.boolVal" active-text="true" inactive-text="false" />
@@ -108,6 +124,7 @@
             <el-input v-model="form.configValue" :type="form.valueType === 'json' ? 'textarea' : 'text'" :rows="3" placeholder="输入配置值" />
           </template>
         </el-form-item>
+        <!-- 说明 -->
         <el-form-item label="说明">
           <el-input v-model="form.description" type="textarea" :rows="2" placeholder="配置项用途说明" maxlength="512" />
         </el-form-item>
@@ -129,6 +146,7 @@ import type { FormInstance, FormRules } from 'element-plus'
 import { Delete, Edit, MoreFilled, Plus, Setting, Switch, Tickets } from '@element-plus/icons-vue'
 import { createSystemConfig, deleteSystemConfig, getSystemConfigList, updateSystemConfig } from '@/api/systemConfig'
 
+/** 配置项数据结构 */
 interface ConfigItem {
   id: number
   configKey: string
@@ -140,14 +158,22 @@ interface ConfigItem {
   updatedAt?: string
 }
 
+/** 数据加载状态 */
 const loading = ref(false)
+/** 保存按钮加载状态 */
 const saving = ref(false)
+/** 配置项列表 */
 const configs = ref<ConfigItem[]>([])
+/** 弹窗可见性 */
 const dialogVisible = ref(false)
+/** 是否创建模式 */
 const isCreating = ref(false)
+/** 编辑模式下的配置项 */
 const editingItem = ref<ConfigItem | null>(null)
+/** 表单实例引用 */
 const formRef = ref<FormInstance>()
 
+/** 表单数据 */
 const form = reactive({
   configName: '',
   configKey: '',
@@ -158,6 +184,7 @@ const form = reactive({
   numVal: 0,
 })
 
+/** 表单校验规则 */
 const rules: FormRules = {
   configName: [{ required: true, message: '请输入配置名称', trigger: 'blur' }],
   configKey: [
@@ -167,8 +194,10 @@ const rules: FormRules = {
   valueType: [{ required: true, message: '请选择值类型', trigger: 'change' }],
 }
 
+/** 页面挂载时加载配置列表 */
 onMounted(loadConfigs)
 
+/** 加载系统配置列表 */
 async function loadConfigs() {
   loading.value = true
   try {
@@ -176,6 +205,7 @@ async function loadConfigs() {
   } finally { loading.value = false }
 }
 
+/** 打开新增配置弹窗 */
 function openCreate() {
   isCreating.value = true
   editingItem.value = null
@@ -189,6 +219,7 @@ function openCreate() {
   dialogVisible.value = true
 }
 
+/** 打开编辑配置弹窗，预填表单数据 */
 function openEdit(item: ConfigItem) {
   isCreating.value = false
   editingItem.value = item
@@ -196,6 +227,7 @@ function openEdit(item: ConfigItem) {
   form.configKey = item.configKey
   form.valueType = item.valueType
   form.description = item.description || ''
+  // 根据值类型预填对应的表单控件
   if (item.valueType === 'bool') {
     form.boolVal = item.configValue === 'true'
   } else if (item.valueType === 'int' || item.valueType === 'float') {
@@ -206,17 +238,20 @@ function openEdit(item: ConfigItem) {
   dialogVisible.value = true
 }
 
+/** 处理下拉菜单命令 */
 function handleCommand(cmd: string, item: ConfigItem) {
   if (cmd === 'edit') openEdit(item)
   else if (cmd === 'delete') confirmDelete(item)
 }
 
+/** 值类型切换时清空对应字段 */
 function onTypeChange() {
   form.configValue = ''
   form.boolVal = false
   form.numVal = 0
 }
 
+/** 快速切换布尔类型配置项 */
 async function quickToggle(item: ConfigItem, val: boolean) {
   try {
     await updateSystemConfig(item.configKey, String(val))
@@ -227,10 +262,12 @@ async function quickToggle(item: ConfigItem, val: boolean) {
   }
 }
 
+/** 提交新增或编辑配置 */
 async function submitForm() {
   try { await formRef.value?.validate() } catch { return }
   saving.value = true
   try {
+    // 根据值类型序列化配置值
     let configValue: string
     if (form.valueType === 'bool') {
       configValue = String(form.boolVal)
@@ -260,6 +297,7 @@ async function submitForm() {
   } finally { saving.value = false }
 }
 
+/** 删除配置项（需二次确认） */
 async function confirmDelete(item: ConfigItem) {
   try {
     await ElMessageBox.confirm(
@@ -277,19 +315,24 @@ async function confirmDelete(item: ConfigItem) {
   }
 }
 
-// --- helpers ---
+// --- 辅助函数 ---
+
+/** 值类型对应的 CSS 类名 */
 function typeClass(vt: string) {
   const m: Record<string, string> = { bool: 't-bool', int: 't-num', float: 't-num', json: 't-json' }
   return m[vt] || 't-str'
 }
+/** 值类型对应的图标组件 */
 function typeIcon(vt: string) {
   const m: Record<string, any> = { bool: Switch, int: Tickets, float: Tickets, json: Setting }
   return m[vt] || Setting
 }
+/** 值类型转中文标签 */
 function typeLabel(vt: string) {
   const m: Record<string, string> = { string: '字符串', int: '整数', float: '浮点', bool: '布尔', json: 'JSON' }
   return m[vt] || vt
 }
+/** 格式化 ISO 时间字符串为简洁格式 */
 function formatTime(v?: string) {
   return v ? v.replace('T', ' ').slice(0, 16) : ''
 }

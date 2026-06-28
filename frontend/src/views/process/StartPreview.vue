@@ -179,6 +179,13 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * StartPreview - 流程发起预览页面
+ *
+ * 展示可发起流程列表、审批路径预览、流程图预览。
+ * 用户选择流程模板后填写表单，可保存草稿或直接提交启动流程实例。
+ * 支持从 instanceId 恢复草稿继续编辑。
+ */
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
@@ -209,8 +216,10 @@ import type {
   ProcessTemplate
 } from '@/types/workflow'
 
+/** 表单绑定模式 */
 type FormBindingMode = 'none' | 'template_default' | 'node_form'
 
+/** 发起节点配置（从 nodeConfig 解析） */
 interface PreviewNodeConfig {
   nodeId: string
   nodeName: string
@@ -220,6 +229,7 @@ interface PreviewNodeConfig {
   useTemplateFallback?: boolean
 }
 
+/** 需要展示表单预览的节点类型 */
 const FORM_PREVIEW_TYPES = ['start', 'form_fill']
 const route = useRoute()
 const router = useRouter()

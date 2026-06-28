@@ -1,6 +1,8 @@
 import request from './request'
 import type { MarketCopyPayload, MarketPublishPayload, ProcessTemplate, TemplateMarketItem } from '@/types/workflow'
 
+// 模板市场 API：市场模板的发布、复制与撤回
+
 export async function getTemplateMarketList() {
   return await request.get<TemplateMarketItem[]>('/api/template-market') || []
 }

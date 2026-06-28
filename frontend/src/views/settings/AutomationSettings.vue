@@ -1,5 +1,7 @@
 <template>
+  <!-- 自动化策略配置页面：维护审批自动通过规则 -->
   <div class="automation-page">
+    <!-- 页面标题区 -->
     <section class="page-head">
       <div>
         <h1>自动化策略配置</h1>
@@ -8,6 +10,7 @@
       <el-button round type="success" :icon="Plus" @click="openCreate">新增规则</el-button>
     </section>
 
+    <!-- 统计指标卡片 -->
     <section class="metric-row">
       <div class="metric-card">
         <span>全部规则</span>
@@ -23,17 +26,21 @@
       </div>
     </section>
 
+    <!-- 筛选查询面板 -->
     <section class="query-panel">
       <el-form :inline="true" :model="query" class="query-form">
+        <!-- 关键字搜索 -->
         <el-form-item label="关键字">
           <el-input v-model="query.keyword" clearable placeholder="规则名称 / 适用流程" />
         </el-form-item>
+        <!-- 启用/停用状态筛选 -->
         <el-form-item label="状态">
           <el-select v-model="query.status" clearable placeholder="全部状态" style="width: 140px">
             <el-option label="启用" value="enabled" />
             <el-option label="停用" value="disabled" />
           </el-select>
         </el-form-item>
+        <!-- 字段类型筛选 -->
         <el-form-item label="字段">
           <el-select v-model="query.field" clearable placeholder="全部字段" style="width: 160px">
             <el-option label="请假天数" value="leaveDays" />
@@ -41,19 +48,23 @@
             <el-option label="金额" value="amount" />
           </el-select>
         </el-form-item>
+        <!-- 重置按钮 -->
         <el-form-item>
           <el-button :icon="Refresh" @click="resetQuery">重置</el-button>
         </el-form-item>
       </el-form>
     </section>
 
+    <!-- 规则列表表格 -->
     <section class="table-panel">
       <el-table :data="filteredRules" border row-key="id" empty-text="暂无自动化策略">
+        <!-- 启用开关（即时生效） -->
         <el-table-column label="状态" width="96">
           <template #default="{ row }">
             <el-switch v-model="row.enabled" @change="persistRules" />
           </template>
         </el-table-column>
+        <!-- 规则名称 + 适用范围 -->
         <el-table-column label="规则名称" min-width="170">
           <template #default="{ row }">
             <div class="rule-name">
@@ -62,6 +73,7 @@
             </div>
           </template>
         </el-table-column>
+        <!-- 触发条件 -->
         <el-table-column label="触发条件" min-width="220">
           <template #default="{ row }">
             <div class="condition-cell">
@@ -70,6 +82,7 @@
             </div>
           </template>
         </el-table-column>
+        <!-- 命中动作 -->
         <el-table-column label="动作" width="150">
           <template #default="{ row }">
             <el-tag :type="row.action === 'approve' ? 'success' : 'warning'" effect="plain">
@@ -77,7 +90,9 @@
             </el-tag>
           </template>
         </el-table-column>
+        <!-- 更新时间 -->
         <el-table-column prop="updatedAt" label="更新时间" min-width="170" />
+        <!-- 操作：编辑 / 删除 -->
         <el-table-column label="操作" width="170" fixed="right">
           <template #default="{ row }">
             <el-button text type="primary" @click="openEdit(row)">编辑</el-button>
@@ -87,14 +102,18 @@
       </el-table>
     </section>
 
+    <!-- 新增/编辑策略抽屉 -->
     <el-drawer v-model="drawerVisible" :title="editingId ? '编辑策略' : '新增策略'" size="420px">
       <el-form label-position="top" :model="form" class="drawer-form">
+        <!-- 规则名称 -->
         <el-form-item label="规则名称">
           <el-input v-model="form.name" placeholder="例如 请假小于 3 天自动通过" />
         </el-form-item>
+        <!-- 适用流程 -->
         <el-form-item label="适用流程">
           <el-input v-model="form.scope" placeholder="可填模板名称，留空表示全部流程" />
         </el-form-item>
+        <!-- 规则字段（支持自定义输入） -->
         <el-form-item label="规则字段">
           <el-select v-model="form.field" allow-create filterable default-first-option>
             <el-option label="请假天数 leaveDays" value="leaveDays" />
@@ -102,6 +121,7 @@
             <el-option label="金额 amount" value="amount" />
           </el-select>
         </el-form-item>
+        <!-- 判断条件：操作符 + 阈值 -->
         <el-form-item label="判断条件">
           <el-input v-model="form.value" placeholder="例如 3">
             <template #prepend>
@@ -116,15 +136,18 @@
             </template>
           </el-input>
         </el-form-item>
+        <!-- 命中动作 -->
         <el-form-item label="命中动作">
           <el-select v-model="form.action">
             <el-option label="系统自动通过" value="approve" />
             <el-option label="仅提醒" value="notify" />
           </el-select>
         </el-form-item>
+        <!-- 启用状态 -->
         <el-form-item label="启用状态">
           <el-switch v-model="form.enabled" active-text="启用" inactive-text="停用" />
         </el-form-item>
+        <!-- 说明 -->
         <el-form-item label="说明">
           <el-input v-model="form.remark" type="textarea" :rows="3" placeholder="记录策略适用场景或审批说明" />
         </el-form-item>
@@ -146,15 +169,21 @@ import { getAutomationRules, saveAutomationRules, type AutomationRule } from '@/
 type RuleAction = 'approve' | 'notify'
 type RuleStatus = '' | 'enabled' | 'disabled'
 
+/** 规则列表 */
 const rules = ref<AutomationRule[]>([])
+/** 抽屉可见性 */
 const drawerVisible = ref(false)
+/** 编辑模式下的规则 ID */
 const editingId = ref('')
+/** 数据加载状态 */
 const loading = ref(false)
+/** 查询条件 */
 const query = reactive<{ keyword: string; status: RuleStatus; field: string }>({
   keyword: '',
   status: '',
   field: ''
 })
+/** 表单数据（不含 id 和 updatedAt） */
 const form = reactive<Omit<AutomationRule, 'id' | 'updatedAt'>>({
   name: '',
   scope: '',
@@ -166,8 +195,11 @@ const form = reactive<Omit<AutomationRule, 'id' | 'updatedAt'>>({
   remark: ''
 })
 
+/** 启用规则数量 */
 const enabledCount = computed(() => rules.value.filter((rule) => rule.enabled).length)
+/** 自动通过动作的规则数量 */
 const autoApproveCount = computed(() => rules.value.filter((rule) => rule.action === 'approve').length)
+/** 根据查询条件过滤后的规则列表 */
 const filteredRules = computed(() => {
   const keyword = query.keyword.trim().toLowerCase()
   return rules.value.filter((rule) => {
@@ -181,20 +213,23 @@ const filteredRules = computed(() => {
   })
 })
 
+/** 页面挂载时加载规则列表 */
 onMounted(() => {
   loadRules()
 })
 
+/** 加载自动化规则列表 */
 async function loadRules() {
   loading.value = true
   try {
     rules.value = await getAutomationRules()
+    // 首次加载无数据时初始化默认规则
     if (rules.value.length === 0) {
       rules.value = defaultRules()
       await persistRules()
     }
   } catch {
-    // 后端不可用时回退到 localStorage
+    // 后端不可用时回退到 localStorage 缓存
     ElMessage.warning('自动化策略服务暂不可用，使用本地缓存')
     const raw = localStorage.getItem('aiflow.automation.rules')
     if (raw) {
@@ -212,6 +247,7 @@ async function loadRules() {
   }
 }
 
+/** 持久化规则列表到后端或 localStorage */
 async function persistRules() {
   try {
     await saveAutomationRules(rules.value)
@@ -221,6 +257,7 @@ async function persistRules() {
   }
 }
 
+/** 打开新增规则抽屉 */
 function openCreate() {
   editingId.value = ''
   Object.assign(form, {
@@ -236,6 +273,7 @@ function openCreate() {
   drawerVisible.value = true
 }
 
+/** 打开编辑规则抽屉，预填表单数据 */
 function openEdit(rule: AutomationRule) {
   editingId.value = rule.id
   Object.assign(form, {
@@ -251,6 +289,7 @@ function openEdit(rule: AutomationRule) {
   drawerVisible.value = true
 }
 
+/** 保存新增或编辑规则 */
 function saveRule() {
   if (!form.name.trim()) {
     ElMessage.warning('请输入规则名称')
@@ -270,11 +309,13 @@ function saveRule() {
     updatedAt: formatNow()
   }
   if (editingId.value) {
+    // 编辑模式：替换已有规则
     const index = rules.value.findIndex((rule) => rule.id === editingId.value)
     if (index >= 0) {
       rules.value[index] = payload
     }
   } else {
+    // 新建模式：添加到列表头部
     rules.value.unshift(payload)
   }
   persistRules()
@@ -282,6 +323,7 @@ function saveRule() {
   ElMessage.success('策略已保存')
 }
 
+/** 删除规则（需二次确认） */
 async function removeRule(rule: AutomationRule) {
   await ElMessageBox.confirm(`确认删除「${rule.name}」？`, '删除策略', {
     type: 'warning',
@@ -293,12 +335,17 @@ async function removeRule(rule: AutomationRule) {
   ElMessage.success('策略已删除')
 }
 
+/** 重置查询条件 */
 function resetQuery() {
   query.keyword = ''
   query.status = ''
   query.field = ''
 }
 
+/**
+ * 获取默认规则列表（系统预设规则）
+ * 对应后端 RuleEvaluatorService 的 approvalRule 配置
+ */
 function defaultRules(): AutomationRule[] {
   return [
     {
@@ -328,6 +375,7 @@ function defaultRules(): AutomationRule[] {
   ]
 }
 
+/** 字段名转中文标签 */
 function fieldLabel(field: string) {
   const map: Record<string, string> = {
     leaveDays: '请假天数',
@@ -337,6 +385,7 @@ function fieldLabel(field: string) {
   return map[field] || field
 }
 
+/** 操作符转中文标签 */
 function operatorLabel(operator: string) {
   const map: Record<string, string> = {
     '<': '小于',
@@ -349,10 +398,12 @@ function operatorLabel(operator: string) {
   return map[operator] || operator
 }
 
+/** 动作类型转中文标签 */
 function actionLabel(action: RuleAction) {
   return action === 'approve' ? '系统自动通过' : '仅提醒'
 }
 
+/** 获取当前时间格式化字符串 */
 function formatNow() {
   const date = new Date()
   const pad = (value: number) => String(value).padStart(2, '0')

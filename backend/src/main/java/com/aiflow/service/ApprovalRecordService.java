@@ -11,6 +11,10 @@ import java.time.LocalDateTime;
 import static com.aiflow.service.ApprovalVariableService.ACTION_APPROVE;
 import static com.aiflow.service.ApprovalVariableService.ACTION_REJECT;
 
+/**
+ * 审批记录服务，负责记录每一次审批操作（通过/驳回），
+ * 并在记录后触发审批结果通知。
+ */
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -19,6 +23,18 @@ public class ApprovalRecordService {
     private final ApprovalRecordRepository approvalRecordRepository;
     private final WorkflowNotificationService workflowNotificationService;
 
+    /**
+     * 记录一条审批操作。同一 taskId+action 只会保留一条记录（幂等）。
+     *
+     * @param instanceId 流程实例ID
+     * @param taskId     当前任务ID
+     * @param nodeKey    节点标识
+     * @param approverId 审批人ID
+     * @param action     操作类型（approve / reject）
+     * @param comment    审批意见
+     * @param operatedAt 操作时间，为null时使用当前时间
+     * @return 已保存的审批记录
+     */
     public ApprovalRecord record(Long instanceId,
                                  String taskId,
                                  String nodeKey,

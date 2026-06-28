@@ -19,6 +19,11 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+/**
+ * 流程目录控制器（普通用户视角），提供用户有权限发起的已发布流程列表及路由预览。
+ *
+ * <p>基础路径: /api/process-catalog</p>
+ */
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/process-catalog")
@@ -28,6 +33,9 @@ public class ProcessCatalogController {
     private final ProcessAuthorizationService processAuthorizationService;
     private final ProcessRoutePreviewService processRoutePreviewService;
 
+    /**
+     * GET /api/process-catalog — 查询当前用户有权限发起的所有已发布流程。
+     */
     @GetMapping
     public ApiResponse<List<ProcessTemplateDTO>> listAvailableProcesses() {
         List<ProcessTemplateDTO> result = processTemplateService.listPublishedBusinessProcesses()
@@ -38,6 +46,9 @@ public class ProcessCatalogController {
         return ApiResponse.success(result);
     }
 
+    /**
+     * GET /api/process-catalog/{id} — 查询单个可发起流程详情。
+     */
     @GetMapping("/{id}")
     public ApiResponse<ProcessTemplateDTO> getAvailableProcess(@PathVariable Long id) {
         ProcessTemplate process = processTemplateService.findPublishedBusinessProcessById(id)
@@ -46,6 +57,9 @@ public class ProcessCatalogController {
         return ApiResponse.success(DtoMapper.toProcessTemplateDTO(process));
     }
 
+    /**
+     * GET /api/process-catalog/{id}/route-preview — 预览流程审批路由。
+     */
     @GetMapping("/{id}/route-preview")
     public ApiResponse<ProcessRoutePreviewDTO> previewRoute(@PathVariable Long id) {
         ProcessTemplate process = processTemplateService.findPublishedBusinessProcessById(id)

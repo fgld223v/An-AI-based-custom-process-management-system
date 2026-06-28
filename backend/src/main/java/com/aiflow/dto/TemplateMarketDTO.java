@@ -12,6 +12,9 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+/**
+ * 模板市场DTO：包含市场中的模板/片段信息、使用统计及评分
+ */
 public class TemplateMarketDTO {
 
     private Long id;

@@ -6,6 +6,9 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * 工作流角色Repository：按编码查询，支持启用状态过滤。
+ */
 public interface WorkflowRoleRepository extends JpaRepository<WorkflowRole, Long> {
 
     Optional<WorkflowRole> findByIdAndDeleted(Long id, Integer deleted);

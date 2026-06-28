@@ -7,6 +7,9 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * AI聊天会话Repository：按用户查询会话列表。
+ */
 @Repository
 public interface AiChatSessionRepository extends JpaRepository<AiChatSession, Long> {
 

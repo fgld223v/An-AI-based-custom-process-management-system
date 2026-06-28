@@ -6,6 +6,9 @@ import com.aiflow.model.TemplateMarket;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * 模板市场服务接口，提供模板发布到市场、下架、复制等操作。
+ */
 public interface TemplateMarketService {
 
     TemplateMarket publishTemplateToMarket(Long templateId,

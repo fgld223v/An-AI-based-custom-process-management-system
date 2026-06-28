@@ -31,6 +31,21 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 
+/**
+ * 流程实例服务实现。
+ *
+ * <p>核心职责：流程实例（申请单）的全生命周期管理，包括：</p>
+ * <ul>
+ *   <li>创建草稿 — 用户填写表单后保存为 draft 状态</li>
+ *   <li>节点表单保存 — 支持 draft 阶段和 running 阶段的表单数据保存</li>
+ *   <li>提交启动 — 调用 FlowableRuntimeService 启动 Flowable 流程实例</li>
+ *   <li>运行时状态查询 — 通过 Flowable TaskQuery 查询当前任务和表单</li>
+ *   <li>表单提交记录 — upsert 方式按 nodeKey 唯一保存 FormSubmission</li>
+ * </ul>
+ *
+ * <p>权限控制：仅申请人可查看/操作自己的流程实例；
+ * 当前审批人也可查看该实例的表单数据（用于审批参考）。</p>
+ */
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -39,6 +54,7 @@ public class ProcessInstanceServiceImpl implements ProcessInstanceService {
     private static final String STATUS_DRAFT = "draft";
     private static final String STATUS_SUBMITTED = "submitted";
     private static final String STATUS_RUNNING = "running";
+    /** 实例编码时间戳格式：yyyyMMddHHmmssSSS（精确到毫秒） */
     private static final DateTimeFormatter CODE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS");
 
     private final ProcessInstanceRepository processInstanceRepository;
@@ -130,6 +146,10 @@ public class ProcessInstanceServiceImpl implements ProcessInstanceService {
         }
     }
 
+    /**
+     * 创建流程实例草稿 — 用户发起新申请的第一步。
+     * 创建 ProcessInstance（status=draft）并保存起始节点的表单提交记录。
+     */
     @Override
     public ProcessInstanceDTO createDraft(StartProcessPreviewRequest request) {
         if (request == null) {
@@ -172,6 +192,17 @@ public class ProcessInstanceServiceImpl implements ProcessInstanceService {
         return toDto(saved);
     }
 
+    /**
+     * 保存节点表单数据 — 支持 draft 和 running 两种状态。
+     *
+     * <p>状态约束：</p>
+     * <ul>
+     *   <li>running 状态下仅允许保存 form_fill 节点的表单（流程中间节点的数据采集）</li>
+     *   <li>start 节点和其他类型仅允许在 draft 阶段保存</li>
+     *   <li>running 状态下表单保存但不更新实例元数据（由 Flowable 任务完成时更新）</li>
+     * </ul>
+     * <p>保存策略：按 nodeKey 唯一 upsert（已存在则更新，不存在则创建）。</p>
+     */
     @Override
     public FormSubmissionDTO saveNodeForm(SaveNodeFormRequest request) {
         if (request == null) {
@@ -215,6 +246,17 @@ public class ProcessInstanceServiceImpl implements ProcessInstanceService {
         return toDto(submission);
     }
 
+    /**
+     * 提交（启动）流程实例 — 从 draft 状态转为 running。
+     *
+     * <p>执行步骤：</p>
+     * <ol>
+     *   <li>委托 FlowableRuntimeService 完成全部校验与 Flowable 流程启动</li>
+     *   <li>将所有 FormSubmission 状态更新为 submitted</li>
+     *   <li>检查 Flowable 流程是否已立即结束（如排他网关条件直接路由到 EndEvent）</li>
+     *   <li>若无活跃任务则标记为 completed；否则调用规则引擎评估自动完成</li>
+     * </ol>
+     */
     @Override
     public ProcessInstanceDTO submitInstance(Long id) {
         // 委托 FlowableRuntimeService 完成全部校验与启动

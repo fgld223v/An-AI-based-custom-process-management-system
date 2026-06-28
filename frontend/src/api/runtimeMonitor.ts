@@ -1,6 +1,8 @@
 import request from './request'
 import type { BusinessProcessInstance, BusinessProcessInstanceListParams, FormSubmission, ProcessTimeline } from '@/types/workflow'
 
+// 全局运行时监控 API：查看所有流程实例、时间线、表单提交
+
 export async function getGlobalProcessInstances(params: BusinessProcessInstanceListParams = {}) {
   return await request.get<BusinessProcessInstance[]>('/api/runtime-monitor/instances', { params }) || []
 }

@@ -21,18 +21,43 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * 审批角色解析器实现。
+ * 审批人解析器实现 — 根据分配策略动态解析审批人列表。
+ *
+ * <p>支持的审批人分配策略：</p>
+ * <ul>
+ *   <li><b>DEPARTMENT_MANAGER</b> — 发起人所属部门的负责人</li>
+ *   <li><b>SPECIFIC_USERS</b> — 指定用户（JSON 数组格式）</li>
+ *   <li><b>DIRECT_SUPERVISOR</b> — 发起人的直属上级</li>
+ *   <li><b>SPECIFIED_DEPARTMENT_MANAGER</b> — 指定部门的负责人</li>
+ *   <li><b>ROLE_IN_APPLICANT_DEPT</b> — 发起人所在部门中拥有指定角色的成员</li>
+ *   <li><b>ROLE_IN_SPECIFIED_DEPT</b> — 指定部门中拥有指定角色的成员</li>
+ *   <li><b>GLOBAL_ROLE</b> — 全局范围内拥有指定角色的成员</li>
+ *   <li><b>ROLE</b> — 兼容模式：优先按工作流角色解析，失败则按旧角色字段解析</li>
+ * </ul>
+ *
+ * <p>所有方法都会过滤掉已删除或已禁用的用户，确保返回的是活跃用户列表。</p>
  */
 @Service
 @RequiredArgsConstructor
 public class ApproverResolverServiceImpl implements ApproverResolverService {
 
     private final ProcessInstanceRepository processInstanceRepository;
-    private final DepartmentRepository departmentRepository;
-    private final SysUserMapper sysUserMapper;
+    private final DepartmentRepository departmentRepository;       // 部门信息
+    private final SysUserMapper sysUserMapper;                    // 用户 Mapper
     private final ObjectMapper objectMapper;
-    private final WorkflowRoleService workflowRoleService;
+    private final WorkflowRoleService workflowRoleService;        // 工作流角色服务
 
+    /**
+     * 根据流程实例和任务节点解析审批人列表。
+     *
+     * <p>先从数据库加载流程实例（获取发起人 ID），再根据分配策略和参数值进行解析。</p>
+     *
+     * @param instanceId       业务流程实例 ID
+     * @param taskDefinitionKey 任务节点 key
+     * @param assignStrategy    分配策略（如 DEPARTMENT_MANAGER）
+     * @param assignValue       分配参数值（如指定用户 ID 列表）
+     * @return 审批人 ID 列表（已过滤禁用/删除用户）
+     */
     @Override
     public List<Long> resolveApprovers(Long instanceId, String taskDefinitionKey,
                                        String assignStrategy, String assignValue) {
@@ -56,12 +81,32 @@ public class ApproverResolverServiceImpl implements ApproverResolverService {
         return resolveForApplicant(applicantId, assignStrategy, assignValue);
     }
 
+    /**
+     * 核心路由方法 — 根据分配策略分派到具体的解析实现。
+     *
+     * <p>支持的策略及其实现：</p>
+     * <ul>
+     *   <li>DEPARTMENT_MANAGER / DEPARTMENT — 查找发起人所在部门的负责人</li>
+     *   <li>SPECIFIC_USERS — 解析指定用户 ID 列表</li>
+     *   <li>DIRECT_SUPERVISOR — 查询发起人的直属上级</li>
+     *   <li>SPECIFIED_DEPARTMENT_MANAGER — 查找指定部门 ID 的负责人</li>
+     *   <li>ROLE_IN_APPLICANT_DEPT — 发起人所在部门中指定角色的成员</li>
+     *   <li>ROLE_IN_SPECIFIED_DEPT — 指定部门中指定角色的成员</li>
+     *   <li>GLOBAL_ROLE — 全局指定角色成员</li>
+     *   <li>ROLE — 兼容模式：先按工作流角色解析，失败则按旧角色字段解析</li>
+     * </ul>
+     *
+     * @param applicantId   发起人用户 ID
+     * @param assignStrategy 分配策略（大小写不敏感）
+     * @param assignValue   策略参数
+     * @return 审批人 ID 列表
+     */
     private List<Long> resolveForApplicant(Long applicantId, String assignStrategy, String assignValue) {
         return switch (assignStrategy.trim().toUpperCase()) {
             case "DEPARTMENT_MANAGER" -> resolveDeptManager(applicantId);
             case "SPECIFIC_USERS" -> resolveSpecificUsers(assignValue);
             case "DIRECT_SUPERVISOR" -> resolveSupervisor(applicantId);
-            case "DEPARTMENT" -> resolveDeptManager(applicantId);
+            case "DEPARTMENT" -> resolveDeptManager(applicantId); // 别名：等同于部门经理
             case "SPECIFIED_DEPARTMENT_MANAGER" -> resolveSpecifiedDeptManager(assignValue);
             case "ROLE_IN_APPLICANT_DEPT" -> resolveWorkflowRole(
                     roleCode(assignValue), applicantDepartmentId(applicantId));
@@ -168,6 +213,20 @@ public class ApproverResolverServiceImpl implements ApproverResolverService {
         return departmentId == null ? List.of() : resolveDepartmentLeader(departmentId);
     }
 
+    /**
+     * 解析部门负责人 — 查询部门 leader 并校验有效性。
+     *
+     * <p>校验项：</p>
+     * <ol>
+     *   <li>部门存在且未删除</li>
+     *   <li>部门状态为启用（status=1）</li>
+     *   <li>部门已配置负责人（leaderUserId 非空）</li>
+     *   <li>负责人用户存在且启用</li>
+     * </ol>
+     *
+     * @param departmentId 部门 ID
+     * @return 部门负责人用户 ID 列表
+     */
     private List<Long> resolveDepartmentLeader(Long departmentId) {
         Department department = departmentRepository.findByIdAndDeleted(departmentId, 0)
                 .orElseThrow(() -> new IllegalStateException("审批部门不存在或已删除，departmentId=" + departmentId));
@@ -177,6 +236,7 @@ public class ApproverResolverServiceImpl implements ApproverResolverService {
         if (department.getLeaderUserId() == null) {
             throw new IllegalStateException("审批部门未配置负责人，departmentId=" + departmentId);
         }
+        // 校验负责人用户是否有效（未删除、已启用）
         List<Long> leaders = activeDistinct(List.of(department.getLeaderUserId()));
         if (leaders.isEmpty()) {
             throw new IllegalStateException("审批部门负责人不存在或账号已停用，userId="

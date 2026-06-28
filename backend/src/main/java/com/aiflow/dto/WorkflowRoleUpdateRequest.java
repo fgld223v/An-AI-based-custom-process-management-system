@@ -5,6 +5,9 @@ import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 @Data
+/**
+ * 工作流角色更新请求DTO
+ */
 public class WorkflowRoleUpdateRequest {
 
     @NotBlank

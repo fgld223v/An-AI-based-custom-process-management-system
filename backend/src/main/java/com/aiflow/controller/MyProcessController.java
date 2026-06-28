@@ -29,6 +29,12 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+/**
+ * 我的流程控制器，供业务管理员管理自己创建的流程模板（增删改查、发布、版本管理）。
+ * 需要 biz_admin 角色。
+ *
+ * <p>基础路径: /api/my-processes</p>
+ */
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/my-processes")
@@ -38,6 +44,9 @@ public class MyProcessController {
 
     private final ProcessTemplateService processTemplateService;
 
+    /**
+     * GET /api/my-processes — 查询当前用户创建的流程模板列表。
+     */
     @GetMapping
     public ApiResponse<List<ProcessTemplateDTO>> listMyProcesses() {
         CurrentUser currentUser = requireBizAdmin();
@@ -48,18 +57,27 @@ public class MyProcessController {
         return ApiResponse.success(result);
     }
 
+    /**
+     * GET /api/my-processes/{id} — 查询单个流程模板详情。
+     */
     @GetMapping("/{id}")
     public ApiResponse<ProcessTemplateDTO> getMyProcess(@PathVariable Long id) {
         ProcessTemplate template = getOwnedTemplate(id);
         return ApiResponse.success(DtoMapper.toProcessTemplateDTO(template));
     }
 
+    /**
+     * GET /api/my-processes/{id}/form — 查询流程绑定的表单信息。
+     */
     @GetMapping("/{id}/form")
     public ApiResponse<TemplateFormBindingDTO> getMyProcessBoundForm(@PathVariable Long id) {
         getOwnedTemplate(id);
         return ApiResponse.success(processTemplateService.getTemplateBoundForm(id));
     }
 
+    /**
+     * POST /api/my-processes — 创建新的流程模板。
+     */
     @PostMapping
     public ApiResponse<ProcessTemplateDTO> createMyProcess(@RequestBody ProcessTemplateCreateRequest request) {
         CurrentUser currentUser = requireBizAdmin();
@@ -77,6 +95,9 @@ public class MyProcessController {
         return ApiResponse.success(DtoMapper.toProcessTemplateDTO(saved));
     }
 
+    /**
+     * PUT /api/my-processes/{id} — 更新流程模板信息。
+     */
     @PutMapping("/{id}")
     public ApiResponse<ProcessTemplateDTO> updateMyProcess(@PathVariable Long id,
                                                            @RequestBody ProcessTemplateUpdateRequest request) {
@@ -87,6 +108,9 @@ public class MyProcessController {
         return ApiResponse.success(DtoMapper.toProcessTemplateDTO(saved));
     }
 
+    /**
+     * POST /api/my-processes/{id}/publish — 发布流程模板。
+     */
     @PostMapping("/{id}/publish")
     public ApiResponse<ProcessTemplateDTO> publishMyProcess(@PathVariable Long id) {
         CurrentUser currentUser = requireBizAdmin();
@@ -96,6 +120,9 @@ public class MyProcessController {
         return ApiResponse.success(DtoMapper.toProcessTemplateDTO(saved));
     }
 
+    /**
+     * POST /api/my-processes/{id}/new-version — 创建流程下一个版本。
+     */
     @PostMapping("/{id}/new-version")
     public ApiResponse<ProcessTemplateDTO> createNewVersion(@PathVariable Long id) {
         getOwnedTemplate(id);
@@ -103,6 +130,9 @@ public class MyProcessController {
         return ApiResponse.success(DtoMapper.toProcessTemplateDTO(saved));
     }
 
+    /**
+     * POST /api/my-processes/{id}/unpublish — 取消发布流程模板。
+     */
     @PostMapping("/{id}/unpublish")
     public ApiResponse<ProcessTemplateDTO> unpublishMyProcess(@PathVariable Long id) {
         getOwnedTemplate(id);
@@ -110,6 +140,9 @@ public class MyProcessController {
         return ApiResponse.success(DtoMapper.toProcessTemplateDTO(saved));
     }
 
+    /**
+     * DELETE /api/my-processes/{id} — 删除流程模板。
+     */
     @DeleteMapping("/{id}")
     public ApiResponse<Void> deleteMyProcess(@PathVariable Long id) {
         getOwnedTemplate(id);

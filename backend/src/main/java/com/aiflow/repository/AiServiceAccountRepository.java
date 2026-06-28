@@ -6,6 +6,9 @@ import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
 
+/**
+ * AI服务账号Repository：按API Key查询服务账号。
+ */
 @Repository
 public interface AiServiceAccountRepository extends JpaRepository<AiServiceAccount, Long> {
 

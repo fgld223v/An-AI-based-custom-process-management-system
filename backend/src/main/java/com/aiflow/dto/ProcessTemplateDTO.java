@@ -11,6 +11,9 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+/**
+ * 流程模板DTO：包含模板编码、版本、状态、BPMN及Flowable部署信息
+ */
 public class ProcessTemplateDTO {
 
     private Long id;

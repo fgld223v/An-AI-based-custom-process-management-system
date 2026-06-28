@@ -9,6 +9,9 @@ import java.util.List;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
+/**
+ * AI生成流程响应DTO：包含BPMN XML、节点配置和摘要
+ */
 public class AiGenerateProcessResponse {
 
     private String bpmnXml;

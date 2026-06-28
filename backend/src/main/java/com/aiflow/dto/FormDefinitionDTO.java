@@ -11,6 +11,9 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+/**
+ * 表单定义DTO：包含表单编码、名称、版本、状态及Schema等字段
+ */
 public class FormDefinitionDTO {
 
     private Long id;

@@ -1,6 +1,8 @@
 import request from './request'
 import type { ProcessTemplate, ProcessTemplatePayload, TemplateFormBinding } from '@/types/workflow'
 
+// 流程模板 API：模板的增删改查、发布、版本管理与取消发布
+
 export async function getProcessTemplates() {
   return await request.get<ProcessTemplate[]>('/api/process-templates') || []
 }

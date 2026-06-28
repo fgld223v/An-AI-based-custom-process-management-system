@@ -11,6 +11,9 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+/**
+ * 当前登录用户控制器，提供 /me 接口返回用户自身信息（实时读取，非缓存）。
+ */
 @RestController
 @RequestMapping("/api/user")
 @RequiredArgsConstructor

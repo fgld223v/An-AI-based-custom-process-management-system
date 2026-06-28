@@ -1,6 +1,8 @@
 import request from './request'
 import type { FormDefinition, FormDefinitionPayload } from '@/types/workflow'
 
+// 表单定义 API：表单的增删改查、发布与禁用
+
 export async function getForms() {
   return await request.get<FormDefinition[]>('/api/forms') || []
 }

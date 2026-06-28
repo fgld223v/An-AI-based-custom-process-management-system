@@ -15,6 +15,9 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+/**
+ * 流程路线预览服务，根据模板节点配置和申请人信息解析出完整的审批步骤链。
+ */
 @Service
 @RequiredArgsConstructor
 public class ProcessRoutePreviewService {

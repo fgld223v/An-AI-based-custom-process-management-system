@@ -16,6 +16,10 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 
+/**
+ * 流程片段实体，可复用的 BPMN 子流程片段，可被多个流程模板引用。
+ * 对应数据库表 process_fragment。
+ */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

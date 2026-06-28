@@ -5,6 +5,9 @@ import com.aiflow.model.SysUser;
 import lombok.Data;
 
 @Data
+/**
+ * 当前用户信息响应DTO：包含用户基本信息、角色及部门归属
+ */
 public class UserMeResponse {
 
     private Long id;

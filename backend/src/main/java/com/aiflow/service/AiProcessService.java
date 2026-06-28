@@ -19,6 +19,30 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+/**
+ * AI 流程生成服务。
+ *
+ * <p>核心职责：接收用户的自然语言描述，调用 DeepSeek 大模型生成 BPMN 2.0 XML 和节点配置 JSON。</p>
+ *
+ * <p>处理流程：</p>
+ * <ol>
+ *   <li>构建包含详细规则说明的 System Prompt 和用户描述的请求体</li>
+ *   <li>调用 DeepSeek Chat Completions API（非流式）</li>
+ *   <li>从 OpenAI 格式的响应中提取 JSON 内容</li>
+ *   <li>清理 Markdown 代码块包裹</li>
+ *   <li>解析为 {@link AiGenerateProcessResponse} 对象</li>
+ *   <li>校验 BPMN XML 合法性（必须包含 definitions 和 process 标签）</li>
+ *   <li>后处理：校验并修正 nodeConfig 中的 businessType 分类错误（四重保障机制）</li>
+ * </ol>
+ *
+ * <p>后处理四重保障（从强到弱）：</p>
+ * <ol>
+ *   <li>白名单校验 — 不在 8 种合法 businessType 内的直接修正</li>
+ *   <li>BPMN 元素类型校验 — 从 XML 解析实际元素类型，与 businessType 交叉验证</li>
+ *   <li>节点名关键词匹配 — 审批/填写/通知等关键词强关联</li>
+ *   <li>角色名推断 — 节点名含经理/主管/总监等角色词的 userTask，推断为 approval</li>
+ * </ol>
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -28,6 +52,7 @@ public class AiProcessService {
     private final AiConfig aiConfig;
     private final ObjectMapper objectMapper;
 
+    /** DeepSeek System Prompt：BPMN 2.0 工作流生成规则，包含节点分类关键词匹配规则、BPMN XML 格式要求 */
     private static final String SYSTEM_PROMPT = """
         你是一个 BPMN 2.0 工作流生成专家。用户用自然语言描述流程，你需要生成标准 BPMN 2.0 XML 和节点配置 JSON。
 
@@ -167,21 +192,39 @@ public class AiProcessService {
         11. 【反复强调】填写/申请/提交/录入 = form_fill；审批/审核/批准/复核 = approval。这是铁律，不许混用！
         """;
 
+    /**
+     * 根据用户自然语言描述，调用 DeepSeek 大模型生成完整的 BPMN 2.0 流程定义。
+     *
+     * <p>执行步骤：</p>
+     * <ol>
+     *   <li>构建请求体 — 将 System Prompt（BPMN 生成规则）和用户描述组合为 Chat Completions 请求</li>
+     *   <li>调用 DeepSeek API — 使用 WebClient 发送 POST 请求，temperature=0.1 以保证输出稳定性</li>
+     *   <li>提取 JSON — 从 OpenAI 格式响应中解析 choices[0].message.content</li>
+     *   <li>清理 Markdown — 去除 AI 可能包裹的 ```json ``` 代码块标记</li>
+     *   <li>解析响应 — 将 JSON 反序列化为 {@link AiGenerateProcessResponse}</li>
+     *   <li>校验 BPMN XML — 确保包含 definitions 和 process 标签，自动补充 isExecutable=true</li>
+     *   <li>后处理 nodeConfig — 调用四重保障机制修正 businessType 分类错误</li>
+     * </ol>
+     *
+     * @param description 用户用自然语言描述的流程需求
+     * @return 包含 BPMN XML 和节点配置的响应对象
+     * @throws BusinessException AI 调用失败、响应解析失败或 XML 不合法时抛出
+     */
     public AiGenerateProcessResponse generateProcess(String description) {
         log.info("开始生成流程，用户输入长度：{}", description.length());
 
-        // 1. 构建请求体
+        // 1. 构建请求体 — System Prompt 包含详细的 BPMN 生成规则和节点分类关键词匹配表
         Map<String, Object> requestBody = Map.of(
             "model", aiConfig.getModel(),
             "messages", List.of(
                 Map.of("role", "system", "content", SYSTEM_PROMPT),
                 Map.of("role", "user", "content", description)
             ),
-            "temperature", 0.1,
+            "temperature", 0.1,   // 低温保证输出格式稳定、减少幻觉
             "max_tokens", 4096
         );
 
-        // 2. 调用 DeepSeek API
+        // 2. 调用 DeepSeek API（非流式，需完整返回 BPMN XML）
         String responseBody;
         try {
             responseBody = deepseekWebClient.post()
@@ -203,10 +246,9 @@ public class AiProcessService {
             throw new BusinessException("AI 服务返回为空");
         }
 
-        // 3. 提取 DeepSeek 回复中的 JSON
+        // 3. 提取 DeepSeek 回复中的 JSON — 解析 OpenAI 兼容格式：choices[0].message.content
         String json;
         try {
-            // DeepSeek 返回格式与 OpenAI 一致：choices[0].message.content
             Map<String, Object> responseMap = objectMapper.readValue(responseBody,
                 new TypeReference<Map<String, Object>>() {});
             @SuppressWarnings("unchecked")
@@ -224,14 +266,14 @@ public class AiProcessService {
             throw new BusinessException("AI 服务响应解析失败");
         }
 
-        // 4. 清理可能的 Markdown 代码块包裹
+        // 4. 清理可能的 Markdown 代码块包裹（AI 有时会输出 ```json ... ```）
         json = json.trim();
         if (json.startsWith("```")) {
             json = json.replaceFirst("```(?:json)?\\s*\\n?", "");
             json = json.replaceFirst("\\n?```\\s*$", "");
         }
 
-        // 5. 解析为响应对象
+        // 5. 将清理后的 JSON 反序列化为响应对象
         AiGenerateProcessResponse result;
         try {
             result = objectMapper.readValue(json, AiGenerateProcessResponse.class);
@@ -241,7 +283,7 @@ public class AiProcessService {
             throw new BusinessException("AI 生成的格式有误，请重试。原始输出: " + snippet);
         }
 
-        // 6. 校验 BPMN XML 合法性
+        // 6. 校验 BPMN XML 合法性 — 必须包含 <definitions> 和 <process> 标签
         String bpmnXml = result.getBpmnXml();
         boolean hasDefinitions = bpmnXml != null &&
                 (bpmnXml.contains("<definitions") || bpmnXml.contains("<bpmn:definitions"));
@@ -251,6 +293,7 @@ public class AiProcessService {
             log.error("AI 生成的 BPMN XML 不合法：{}", bpmnXml);
             throw new BusinessException("AI 生成的 BPMN XML 不合法，缺少 definitions 或 process 标签，请重试");
         }
+        // 自动修复缺少 isExecutable=true 的 process 标签
         if (!bpmnXml.contains("isExecutable=\"true\"")) {
             log.warn("BPMN XML 缺少 isExecutable=true，尝试修复");
             bpmnXml = bpmnXml.replaceFirst("<bpmn:process\\s", "<bpmn:process isExecutable=\"true\" ");
@@ -258,7 +301,7 @@ public class AiProcessService {
             result.setBpmnXml(bpmnXml);
         }
 
-        // 7. 后处理：校验并修正 nodeConfig 中的 businessType 分类错误
+        // 7. 后处理：四重保障校验并修正 AI 可能分类错误的 businessType
         validateAndCorrectNodeConfig(result);
 
         log.info("流程生成成功，节点数：{}", result.getNodeConfig() != null ? result.getNodeConfig().size() : 0);
@@ -436,16 +479,16 @@ public class AiProcessService {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // Helper methods for BPMN XML parsing
+    // 辅助方法：BPMN XML 解析与校验
     // ═══════════════════════════════════════════════════════════════
 
-    /** 合法的 businessType 白名单 */
+    /** 合法的 businessType 白名单 — 仅这 9 种值被认可 */
     private static final Set<String> VALID_BUSINESS_TYPES = Set.of(
             "start", "form_fill", "approval", "condition",
             "parallel", "notify", "system_action", "end", "generic_task"
     );
 
-    /** BPMN 元素类型到 businessType 类别的映射 */
+    /** BPMN 元素类型到 businessType 类别的映射 — userTask/serviceTask 需进一步区分 */
     private static final Map<String, String> BPMN_ELEMENT_CATEGORY = Map.of(
             "startEvent", "start",
             "endEvent", "end",
@@ -455,13 +498,13 @@ public class AiProcessService {
             "parallelGateway", "parallel"
     );
 
-    /** 审批类关键词（节点名包含这些词 → 强烈指向 approval） */
+    /** 审批类关键词 — 节点名包含这些词 → 强烈指向 approval */
     private static final Set<String> APPROVAL_KEYWORDS = Set.of(
             "审批", "审核", "批准", "核准", "复核", "签批", "阅批",
             "同意", "否决", "驳回", "会签", "或签", "审定", "审阅"
     );
 
-    /** 表单填写类关键词（节点名包含这些词 → 强烈指向 form_fill） */
+    /** 表单填写类关键词 — 节点名包含这些词 → 强烈指向 form_fill */
     private static final Set<String> FORM_FILL_KEYWORDS = Set.of(
             "填写", "提交", "录入", "上传", "申请", "补录", "登记", "申报",
             "发起", "填报", "报批"
@@ -477,7 +520,7 @@ public class AiProcessService {
             "打款", "同步", "计算", "自动", "调用", "生成", "校验", "验证", "归档"
     );
 
-    /** 角色/身份词（节点名含这些 → 倾向于是 approval 而非 form_fill） */
+    /** 角色/身份词 — 节点名含这些 → 倾向于是 approval 而非 form_fill */
     private static final Set<String> ROLE_KEYWORDS = Set.of(
             "经理", "主管", "总监", "总经理", "负责人", "领导", "主任",
             "副总", "总裁", "部长", "处长", "科长", "组长", "管理员"

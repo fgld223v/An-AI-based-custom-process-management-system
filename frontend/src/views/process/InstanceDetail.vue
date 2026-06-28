@@ -121,6 +121,13 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * InstanceDetail - 流程实例详情页面
+ *
+ * 展示申请概览（进度、耗时、状态）、处理时间线、申请材料列表。
+ * 支持催办、查看流程图、恢复草稿等操作。
+ * 数据源：实例详情 + 流程图 + 提交记录 + 时间线 API。
+ */
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Back, Bell, CircleCheckFilled, Clock, Document, EditPen, VideoPlay, View } from '@element-plus/icons-vue'
@@ -136,6 +143,7 @@ import {
 import type { FormSubmission, ProcessDiagram, ProcessInstance, RuntimeState } from '@/types/workflow'
 import request from '@/api/request'
 
+/** 时间线节点 */
 type TimelineNode = {
   type: string
   nodeName: string

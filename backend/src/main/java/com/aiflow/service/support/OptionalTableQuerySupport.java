@@ -2,6 +2,9 @@ package com.aiflow.service.support;
 
 import java.util.Locale;
 
+/**
+ * 可选表查询支持工具，用于判断异常是否由目标数据表缺失引起，便于优雅降级。
+ */
 public final class OptionalTableQuerySupport {
 
     private OptionalTableQuerySupport() {

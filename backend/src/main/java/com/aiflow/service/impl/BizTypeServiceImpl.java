@@ -10,6 +10,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * 业务类型字典服务实现，提供启用业务类型的查询与按编码查找功能。
+ */
 @Service
 @RequiredArgsConstructor
 @Transactional

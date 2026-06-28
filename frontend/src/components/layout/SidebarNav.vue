@@ -1,5 +1,15 @@
+<!--
+  侧边栏导航组件。
+
+  功能：
+  - 展示系统品牌标识（AI Flow / PROCESS OS）
+  - 按角色动态过滤菜单分组与菜单项
+  - 挂载时获取待办任务数量并在菜单徽标中展示
+  - active 状态根据当前路由路径高亮
+-->
 <template>
   <aside class="sidebar">
+    <!-- 品牌区域 -->
     <div class="brand">
       <div class="brand-mark">AF</div>
       <div>
@@ -8,6 +18,7 @@
       </div>
     </div>
 
+    <!-- 导航菜单分组 -->
     <nav class="nav-groups">
       <section v-for="group in menuGroups" :key="group.title" class="nav-group">
         <div class="group-title">{{ group.title }}</div>
@@ -21,6 +32,7 @@
         >
           <el-icon><component :is="item.icon" /></el-icon>
           <span>{{ item.label }}</span>
+          <!-- 角标（待办数等） -->
           <span v-if="item.badge" class="item-badge">{{ item.badge }}</span>
         </button>
       </section>
@@ -29,6 +41,15 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * 侧边栏导航逻辑。
+ *
+ * 核心逻辑：
+ *  1. 全量菜单分组 allMenuGroups 按角色标注 roles
+ *  2. canSee() 根据当前用户角色过滤不可见项
+ *  3. menuGroups 计算属性产出最终渲染的菜单结构
+ *  4. onMounted 异步获取待办任务数并更新徽标
+ */
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
@@ -60,15 +81,17 @@ import { getMyTasks } from '@/api/task'
 import { useAuthStore } from '@/stores/auth'
 import type { SystemRole } from '@/types/auth'
 
+/** 菜单项 */
 interface MenuItem {
   label: string
   path: string
   icon: object
-  available?: boolean
-  badge?: string
-  roles?: SystemRole[]
+  available?: boolean      // 是否可选（false 则灰显不可点击）
+  badge?: string           // 徽标文本（如待办数）
+  roles?: SystemRole[]     // 允许访问的角色列表
 }
 
+/** 菜单分组 */
 interface MenuGroup {
   title: string
   items: MenuItem[]
@@ -84,10 +107,12 @@ if (authStore.isLoggedIn && !authStore.user?.systemRole) {
   authStore.fetchMe().catch(() => authStore.logout())
 }
 
+// 预定义角色组合
 const adminRoles: SystemRole[] = ['super_admin', 'biz_admin']
 const superAdminOnly: SystemRole[] = ['super_admin']
 const bizAdminOnly: SystemRole[] = ['biz_admin']
 
+/** 全量菜单分组定义（含角色标注） */
 const allMenuGroups: MenuGroup[] = [
   {
     title: '概览',
@@ -116,7 +141,7 @@ const allMenuGroups: MenuGroup[] = [
     items: [
       { label: '业务监控', path: '/business-monitor', icon: Monitor, available: true, roles: bizAdminOnly },
       { label: '运行监控', path: '/runtime-monitor', icon: DataLine, available: true, roles: superAdminOnly },
-      { label: '流程发起', path: '/process/start-preview', icon: CirclePlus, available: true },
+      { label: '流程发起', path: '/process/start-preview', icon: CirclePlus, available: true },  // 所有角色
       { label: '我的申请', path: '/process/instances', icon: Document, available: true },
       { label: '待办任务', path: '/tasks/todo', icon: Clock, available: true, badge: '' },
       { label: '已办任务', path: '/tasks/done', icon: CircleCheck, available: true },
@@ -144,22 +169,29 @@ const allMenuGroups: MenuGroup[] = [
   }
 ]
 
+/**
+ * 判断当前用户是否可以看到某个菜单项。
+ * 无 roles 限制的项所有角色可见。
+ */
 function canSee(item: MenuItem) {
   if (!item.roles || item.roles.length === 0) return true
   const role = authStore.user?.systemRole
   return Boolean(role && item.roles.includes(role))
 }
 
+/** 按角色过滤后的菜单分组（移除空分组） */
 const menuGroups = computed(() =>
   allMenuGroups
-    .map(group => ({ ...group, items: group.items.filter(canSee) })) 
+    .map(group => ({ ...group, items: group.items.filter(canSee) }))
     .filter(group => group.items.length > 0)
 )
 
+// 挂载后异步获取待办任务数
 onMounted(async () => {
   try {
     const tasks = await getMyTasks()
     todoCount.value = tasks.length
+    // 更新待办任务菜单项的徽标
     const todoItem = allMenuGroups
       .flatMap(group => group.items)
       .find(item => item.path === '/tasks/todo')
@@ -171,10 +203,12 @@ onMounted(async () => {
   }
 })
 
+/** 判断当前路由是否激活 */
 function isActive(path: string) {
   return route.path === path
 }
 
+/** 菜单项点击 → 路由跳转 */
 function handleClick(item: MenuItem) {
   if (item.available !== false) {
     router.push(item.path)
@@ -182,6 +216,7 @@ function handleClick(item: MenuItem) {
 }
 </script>
 
+<!-- 侧边栏样式：粘性定位 + 毛玻璃背景 + 渐变品牌色 -->
 <style scoped>
 .sidebar {
   position: sticky;

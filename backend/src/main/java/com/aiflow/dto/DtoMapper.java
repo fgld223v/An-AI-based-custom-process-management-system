@@ -9,6 +9,9 @@ import com.aiflow.model.ProcessFragment;
 import com.aiflow.model.ProcessTemplate;
 import com.aiflow.model.TemplateMarket;
 
+/**
+ * DTO映射工具类：提供Entity与DTO之间的转换方法
+ */
 public final class DtoMapper {
 
     private DtoMapper() {

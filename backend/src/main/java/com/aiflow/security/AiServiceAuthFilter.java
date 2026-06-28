@@ -24,6 +24,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * AI 服务认证过滤器，通过 X-API-Key 请求头识别 AI 服务账号并注入 ROLE_AI_SERVICE 权限。
+ */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 20)
 public class AiServiceAuthFilter extends OncePerRequestFilter implements Ordered {

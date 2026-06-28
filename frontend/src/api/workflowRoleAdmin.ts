@@ -1,5 +1,7 @@
 import request from './request'
 
+// 工作流角色管理 API：角色的增删改查、成员分配与撤销
+
 export type WorkflowRoleScope = 'global' | 'department'
 
 export interface WorkflowRole {

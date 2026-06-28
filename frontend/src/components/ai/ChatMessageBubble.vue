@@ -1,24 +1,32 @@
 <template>
+  <!-- 聊天消息气泡组件：支持用户和 AI 助手两种角色，助手消息支持 Markdown 渲染 -->
   <div :class="['chat-bubble', role]">
+    <!-- 头像区域：AI 助手用魔法棒图标，用户用人像图标 -->
     <div class="bubble-avatar">
       <el-icon v-if="role === 'assistant'" :size="18"><MagicStick /></el-icon>
       <el-icon v-else :size="18"><UserFilled /></el-icon>
     </div>
+    <!-- 消息主体 -->
     <div class="bubble-body">
+      <!-- 消息头部：角色名 + 时间 -->
       <div class="bubble-header">
         <span class="bubble-role">{{ role === 'assistant' ? 'AI 助手' : '我' }}</span>
         <span class="bubble-time">{{ timeText }}</span>
       </div>
+      <!-- 助手消息使用 Markdown 渲染 -->
       <div
         v-if="role === 'assistant'"
         class="bubble-content markdown-body"
         v-html="renderedContent"
       />
+      <!-- 用户消息纯文本展示 -->
       <div v-else class="bubble-content">
         {{ content }}
       </div>
+      <!-- 流式输出光标动画 -->
       <div v-if="streaming" class="streaming-cursor">|</div>
     </div>
+    <!-- 复制按钮（仅助手消息且非流式输出时显示） -->
     <el-button
       v-if="role === 'assistant' && !streaming && content"
       class="copy-btn"
@@ -38,12 +46,20 @@ import { ElMessage } from 'element-plus'
 import { renderMarkdown } from '@/utils/markdown'
 
 const props = defineProps<{
+  /** 消息角色：用户或助手 */
   role: 'user' | 'assistant'
+  /** 消息文本内容 */
   content: string
+  /** 是否处于流式输出状态 */
   streaming?: boolean
+  /** 消息创建时间（ISO 字符串） */
   createdAt?: string
 }>()
 
+/**
+ * 计算相对时间文本
+ * 小于1分钟显示"刚刚"，小于1小时显示"x分钟前"，小于1天显示"x小时前"，否则显示月日
+ */
 const timeText = computed(() => {
   if (!props.createdAt) return ''
   try {
@@ -59,6 +75,10 @@ const timeText = computed(() => {
   }
 })
 
+/**
+ * 将 Markdown 内容渲染为 HTML
+ * 流式输出时在末尾添加闪烁光标
+ */
 const renderedContent = computed(() => {
   if (!props.content) return ''
   let html = renderMarkdown(props.content)
@@ -68,6 +88,7 @@ const renderedContent = computed(() => {
   return html
 })
 
+/** 复制消息内容到剪贴板 */
 async function copyContent() {
   try {
     await navigator.clipboard.writeText(props.content)
